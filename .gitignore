@@ -1,0 +1,16 @@
+/.idea/
+/.vscode/
+/.gradle/
+/bin/
+/gradle/
+/misc_old/
+/my_tests/
+/cmake-build-debug/
+
+pbote.code-workspace
+build.gradle
+gradlew
+gradlew.bat
+settings.gradle
+
+config
