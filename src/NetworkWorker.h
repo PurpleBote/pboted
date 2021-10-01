@@ -146,10 +146,10 @@ class NetworkWorker {
   uint16_t routerPortTCP_;
   uint16_t routerPortUDP_;
 
-  SAM::DatagramSession *router_session_;
+  std::shared_ptr<SAM::DatagramSession> router_session_;
 
-  UDPReceiver *m_RecvHandler;
-  UDPSender *m_SendHandler;
+  std::shared_ptr<UDPReceiver> m_RecvHandler;
+  std::shared_ptr<UDPSender> m_SendHandler;
 
   queue_type m_recvQueue;
   queue_type m_sendQueue;

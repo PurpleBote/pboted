@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "i2psam.h"
+#include "../../Log.h"
 
 #define PORT_ZERO 0
 // Was 65536, seemed unnecessarily large
@@ -24,7 +25,7 @@
 #define I2P_DESTINATION_SIZE 516
 
 // Define this, if you want more of the original standard output diagnostics
-// #define DEBUG_ON_STDOUT
+//#define DEBUG_ON_STDOUT
 
 namespace SAM {
 
@@ -89,6 +90,7 @@ I2pSocket::I2pSocket(const I2pSocket &rhs)
 }
 
 I2pSocket::~I2pSocket() {
+  LogPrint(eLogError, "I2pSocket: destructor");
   close();
 
 #ifdef WIN32
@@ -1077,7 +1079,6 @@ std::string Message::createSAMRequest(const char *format, ...) {
 
 #ifdef DEBUG_ON_STDOUT
   std::cout << "Status: " << status << std::endl;
-  std::cout << "Buffer: " << buffer << std::endl;
 #endif // DEBUG_ON_STDOUT
 
   return {buffer.data()};

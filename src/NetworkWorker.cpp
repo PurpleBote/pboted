@@ -31,7 +31,7 @@ UDPReceiver::UDPReceiver(const std::string &addr, int port)
   hints.ai_protocol = IPPROTO_UDP;
 
   errcode = getaddrinfo(addr.c_str(), decimal_port, &hints, &f_addrinfo);
-  if (errcode != 0 || f_addrinfo == NULL) {
+  if (errcode != 0 || f_addrinfo == nullptr) {
     char test[16];
     snprintf(test, sizeof(test), "%d", errcode);
     throw udp_client_server_runtime_error(
@@ -147,18 +147,14 @@ UDPSender::UDPSender(const std::string &addr, int port)
   hints.ai_socktype = SOCK_DGRAM;
   hints.ai_protocol = IPPROTO_UDP;
   int r(getaddrinfo(addr.c_str(), decimal_port, &hints, &f_addrinfo));
-  if (r != 0 || f_addrinfo == NULL) {
+  if (r != 0 || f_addrinfo == nullptr) {
     throw udp_client_server_runtime_error(
-        ("Network: UDPSender: invalid address or port: \"" + addr + ":" +
-            decimal_port + "\"")
-            .c_str());
+        ("Network: UDPSender: invalid address or port: \"" + addr + ":" + decimal_port + "\"").c_str());
   }
   if ((f_socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     close(f_socket);
     throw udp_client_server_runtime_error(
-        ("Network: UDPSender: could not create socket for: \"" + addr + ":" +
-            decimal_port + "\"")
-            .c_str());
+        ("Network: UDPSender: could not create socket for: \"" + addr + ":" + decimal_port + "\"").c_str());
   }
 }
 
@@ -192,7 +188,6 @@ void UDPSender::run() {
 }
 
 void UDPSender::send(/*const char *msg, size_t size*/) {
-  //size_t bytes_transferred = 0;
   auto packet = m_sendQueue->GetNext();
   std::string str(packet->payload.begin(), packet->payload.end());
   auto message = SAM::Message::datagramSend(m_sessionID_, packet->destination);
@@ -238,11 +233,8 @@ NetworkWorker::NetworkWorker()
 
 NetworkWorker::~NetworkWorker() {
   stop();
-  delete router_session_;
   router_session_ = nullptr;
-  delete m_RecvHandler;
   m_RecvHandler = nullptr;
-  delete m_SendHandler;
   m_SendHandler = nullptr;
 }
 
@@ -270,21 +262,16 @@ void NetworkWorker::start() {
   LogPrint(eLogInfo, "Network: SAM TCP endpoint: ", routerAddress_, ":", routerPortTCP_);
   LogPrint(eLogInfo, "Network: SAM UDP endpoint: ", routerAddress_, ":", routerPortUDP_);
   try {
-    bool notSuccess = true;
+    bool success = false;
     std::shared_ptr<i2p::data::PrivateKeys> key;
-    while (notSuccess) {
+    while (!success) {
       key = createSAMSession();
       if (key->ToBase64().empty()) {
         LogPrint(eLogError, "Network: SAM session not started, try to reconnect");
       } else {
-        notSuccess = false;
+        success = true;
       }
     }
-
-    if (router_session_->isSick())
-      LogPrint(eLogError, "Network: SAM session is sick");
-    else
-      LogPrint(eLogDebug, "Network: SAM session is not sick");
 
     if (!context.keys_loaded())
       context.save_new_keys(key);
@@ -301,7 +288,7 @@ void NetworkWorker::start() {
 
 void NetworkWorker::stop() {
   LogPrint(eLogWarning, "Network: Stopping network worker");
-  m_RecvHandler->stop();;
+  m_RecvHandler->stop();
   m_SendHandler->stop();
 }
 
@@ -309,17 +296,27 @@ std::shared_ptr<i2p::data::PrivateKeys> NetworkWorker::createSAMSession() {
   auto localKeys = context.getlocalKeys();
 
   if (context.keys_loaded()) {
-    router_session_ = new SAM::DatagramSession(m_nickname_, routerAddress_, routerPortTCP_, routerPortUDP_,
+    std::shared_ptr<SAM::DatagramSession> new_session =
+        std::make_shared<SAM::DatagramSession>(m_nickname_, routerAddress_, routerPortTCP_, routerPortUDP_,
                                                listenAddress_, listenPortUDP_, localKeys->ToBase64());
+    router_session_ = new_session;
   } else {
-    router_session_ = new SAM::DatagramSession(m_nickname_, routerAddress_, routerPortTCP_,
-                                               routerPortUDP_, listenAddress_, listenPortUDP_);
-    localKeys->FromBase64(router_session_->getMyDestination().priv);
+    std::shared_ptr<SAM::DatagramSession>
+        new_session = std::make_shared<SAM::DatagramSession>(m_nickname_, routerAddress_, routerPortTCP_,
+                                                             routerPortUDP_, listenAddress_, listenPortUDP_);
+    localKeys->FromBase64(new_session->getMyDestination().priv);
+    router_session_ = new_session;
   }
 
   if (router_session_->getMyDestination().priv.empty() || router_session_->getMyDestination().pub.empty()) {
     LogPrint(eLogError, "Network: SAM session failed");
     return {};
+  }
+
+  if (router_session_->isSick())
+    LogPrint(eLogError, "Network: SAM session is sick");
+  else {
+    LogPrint(eLogDebug, "Network: SAM session is not sick");
   }
 
   LogPrint(eLogInfo, "Network: SAM session created; nickname: ", m_nickname_,
@@ -331,7 +328,7 @@ void NetworkWorker::createRecvHandler() {
   // New receiver
   LogPrint(eLogInfo, "Network: starting UDP receiver with address ", listenAddress_, ":", listenPortUDP_);
 
-  m_RecvHandler = new UDPReceiver(listenAddress_, listenPortUDP_);
+  m_RecvHandler = std::make_shared<UDPReceiver>(listenAddress_, listenPortUDP_);
   m_RecvHandler->setNickname(m_nickname_);
   m_RecvHandler->setQueue(m_recvQueue);
 }
@@ -339,7 +336,7 @@ void NetworkWorker::createRecvHandler() {
 void NetworkWorker::createSendHandler() {
   LogPrint(eLogInfo, "Network: starting UDP sender to address ", routerAddress_, ":", routerPortUDP_);
   // New sender
-  m_SendHandler = new UDPSender(routerAddress_, routerPortUDP_);
+  m_SendHandler = std::make_shared<UDPSender>(routerAddress_, routerPortUDP_);
   m_SendHandler->setNickname(m_nickname_);
   m_SendHandler->setQueue(m_sendQueue);
 }

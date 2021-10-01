@@ -243,10 +243,8 @@ class Message {
 class I2pSocket {
  public:
   I2pSocket(const std::string &SAMHost, uint16_t SAMPort);
-  I2pSocket(const sockaddr_in &addr);
-  // explicit because we don't want to create any socket implicity
-  explicit I2pSocket(
-      const I2pSocket &rhs); // creates a new socket with the same parameters
+  I2pSocket(const sockaddr_in &addr);// explicit because we don't want to create any socket implicity
+  explicit I2pSocket(const I2pSocket &rhs); // creates a new socket with the same parameters
   ~I2pSocket();
 
   void bootstrapI2P();
@@ -292,8 +290,7 @@ struct FullDestination {
   bool isGenerated;
 
   FullDestination() {}
-  FullDestination(const std::string &pub, const std::string &priv,
-                  bool isGenerated)
+  FullDestination(const std::string &pub, const std::string &priv, bool isGenerated)
       : pub(pub), priv(priv), isGenerated(isGenerated) {}
 };
 
