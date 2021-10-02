@@ -117,6 +117,7 @@ class UDPSender {
  * Controller class
  * ToDo: Need some optimization
  * ToDo: additional TCP sockets for services like IMAP/POP3, RPC etc. (maybe separated)
+ * ToDo: SAM implementation - refactoring and detach to another repository
  */
 class NetworkWorker {
  public:

@@ -156,6 +156,7 @@ class DHTworker {
   mutable std::mutex m_nodes_mutex_;
   std::map<i2p::data::IdentHash, std::shared_ptr<Node>> m_nodes_;
 
+  // ToDo: K-bucket/routing table and S-bucket (NEED MORE DISCUSSION)
   //pbote::fs::HashedStorage m_storage_;
   pbote::kademlia::DHTStorage dht_storage_;
 };

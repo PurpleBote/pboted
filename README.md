@@ -1,7 +1,7 @@
 # pboted
 
-pboted (Plus Bote Daemon) - is a standalone C++ implementation of I2P-Bote protocol.   
-I2P-Bote - server-less Kademlia(DHT)-based email application.  
+pboted (Plus Bote Daemon) - is a C++ implementation of I2P-Bote protocol.      
+I2P-Bote - server-less Kademlia(DHT)-based e-mail application.  
 Interaction with the I2P network occurs through the SAMv3 interface (Java I2P and i2pd).
 
 ## Features
@@ -11,7 +11,7 @@ For now implemented only basic functionality
 - Sending and receiving emails
 - Storing DHT packets
 - Elliptic Curve encryption (ECDH-256/ECDSA-256/AES-256/SHA-256)
-- Runnable as service (daemon) or as user service
+- Runnable as daemon or as user service
 
 ### Planned Features
 
@@ -59,7 +59,7 @@ enabled = true
 
 ### User service configuration
 
-- Copy example config from `contib/pboted.conf` to `~/.pboted/pboted.conf`
+- Copy example config from `contib/pboted.conf` to `~/.pboted/pboted.conf`:
 
 ```
 cp contib/pboted.conf ~/.pboted/pboted.conf`
@@ -74,20 +74,20 @@ cp contib/pboted.conf ~/.pboted/pboted.conf`
 
 ### Unix daemon configuration
 
-- Create `/etc/pboted` directory
+- Create `/etc/pboted` directory:
 
 ```
 mkdir /etc/pboted
 ```
 
-- Copy example config from `contib/pboted.conf` to `~/.pboted/pboted.conf`
+- Copy example config from `contib/pboted.conf` to `~/.pboted/pboted.conf`:
 
 ```
 cp contib/pboted.conf /etc/pboted/pboted.conf`
 ```
 
 - Edit the config to suit your needs. The file is well documented, comments will help you.
-- Create user, data and logs directories
+- Create user, data and logs directories:
 
 ```
 useradd pboted -r -s /usr/sbin/nologin
@@ -97,13 +97,13 @@ mkdir /var/log/pboted
 chown -R pboted: /var/log/pboted
 ```
 
-- Copy example systemd service from `contib/pboted.service` to `/lib/systemd/system/pboted.service`
+- Copy example systemd service from `contib/pboted.service` to `/lib/systemd/system/pboted.service`:
 
 ```
 cp contib/pboted.service /lib/systemd/system/pboted.service`
 ```
 
-- Reload daemons configuration and start unit
+- Reload daemons configuration and start unit:
 
 ```
 systemctl daemon-reload
@@ -112,24 +112,18 @@ systemctl start pboted.service
 
 - Now you can see in log files that all works
 
-## ToDo
-
-- K-bucket/routing table - load or create (NEED MORE DISCUSSION)
-- S-bucket - load or create (NEED MORE DISCUSSION)
-- SAM implementation - refactor/detach to another repository
-
 ## Donations
 
-- **BTC**: 
-- **DASH**: 
-- **GST**: 
-- **XMR**: 
-- **ZCASH**: 
+- **BTC**: `bc1qans7ukm5t62mjcuhl3rpzxml05etyljhjt7w76`
+- **DASH**: `XfeBg9i7MwbW2X1y1HpgHZ4sB7jqxhSfta`
+- **GST**: `GatPEoV4uK2z1mgbph577Tv1WavrL5vmSE`
+- **XMR**: `85P3aEXrYMn1YxnQaZSBWy6Ur6j9PVRxmCd3Ey1UanKAdKnhd2iYNdrEhNJ2JeUdcC8otSHogRTnydn4aMh8DwbSMs4N13Z`
+- **ZEC**: `zs1mex948e8ucjsgu5p4r9t2zmd9pau53gr9kz0zw8vnl6mkuq373egeaese7t73l9rnsp567r3njv`
 
 ## License
 
 This project is licensed under the BSD 3-clause license, which can be found in the file LICENSE in the root of the project source code.
 
-## Special thanks:
+## Special thanks
 
 * [orignal](https://github.com/orignal) - as mentor
