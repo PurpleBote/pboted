@@ -111,14 +111,17 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -pedantic")
 set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -flto -s -ffunction-sections -fdata-sections")
 set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-Wl,--gc-sections") # -flto is added from above
 
-# check for c++11 support
+# check for c++17 & c++11 support
 include(CheckCXXCompilerFlag)
+CHECK_CXX_COMPILER_FLAG("-std=c++17" CXX17_SUPPORTED)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" CXX11_SUPPORTED)
-if (CXX11_SUPPORTED)
+if(CXX17_SUPPORTED)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+elseif(CXX11_SUPPORTED)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-else ()
-    message(SEND_ERROR "C++11 standard not seems to be supported by compiler. Too old version?")
-endif ()
+else()
+    message(SEND_ERROR "C++17 nor C++11 standard not seems to be supported by compiler. Too old version?")
+endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe")
@@ -250,7 +253,7 @@ install(FILES ${PBOTE_SOURCES} DESTINATION src/ COMPONENT Source)
 #   PATTERN "*.cpp"
 #   )
 
-file(GLOB PBOTE_HEADERS "include/*.hpp")
+file(GLOB PBOTE_HEADERS "src/*.h")
 install(FILES ${PBOTE_HEADERS} DESTINATION src/ COMPONENT Headers)
 # install(DIRECTORY ../ DESTINATION src/
 #   # OPTIONAL
@@ -259,7 +262,7 @@ install(FILES ${PBOTE_HEADERS} DESTINATION src/ COMPONENT Headers)
 #   PATTERN "*.hpp"
 #   )
 
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Purple Bote, a C++ secure mail daemon")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "pboted, a C++ secure mail daemon")
 set(CPACK_PACKAGE_VENDOR "Purple Bote")
 set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")

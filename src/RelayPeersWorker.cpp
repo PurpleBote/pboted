@@ -24,8 +24,9 @@ RelayPeersWorker::~RelayPeersWorker() {
 
 void RelayPeersWorker::start() {
   started_ = true;
-  if (!loadPeers())
-    LogPrint(eLogError, "RelayPeers: have no peers for start");
+  // ToDo: need to fix segfault
+  //if (!loadPeers())
+  //  LogPrint(eLogError, "RelayPeers: have no peers for start");
 
   std::string loglevel;
   pbote::config::GetOption("loglevel", loglevel);
@@ -168,18 +169,18 @@ void RelayPeersWorker::checkPeersTask() {
 }
 
 bool RelayPeersWorker::addPeer(const uint8_t *buf, int len) {
-  i2p::data::IdentityEx identity;
-  if (identity.FromBuffer(buf, len))
+  std::shared_ptr<i2p::data::IdentityEx> identity;
+  if (identity->FromBuffer(buf, len))
     return addPeer(identity);
   return false;
 }
 
-bool RelayPeersWorker::addPeer(const i2p::data::IdentityEx &identity) {
-  if (findPeer(identity.GetIdentHash()))
+bool RelayPeersWorker::addPeer(const std::shared_ptr<i2p::data::IdentityEx> &identity) {
+  if (findPeer(identity->GetIdentHash()))
     return false;
 
   std::shared_ptr<RelayPeer> peer;
-  peer->FromBase64(identity.ToBase64());
+  peer->FromBase64(identity->ToBase64());
 
   std::unique_lock<std::mutex> l(m_peers_mutex_);
   return m_peers_.insert(std::pair<i2p::data::IdentHash, std::shared_ptr<RelayPeer>>(peer->GetIdentHash(), peer)).second;
@@ -238,10 +239,12 @@ bool RelayPeersWorker::loadPeers() {
       std::string token = peer_str.substr(0, peer_str.find(value_delimiter));
       //auto peer = new RelayPeer(peer_s);
       RelayPeer peer;
-      if (peer.FromBase64(peer_s)) {
-        //LogPrint(eLogDebug, "RelayPeers: stoi=", peer_str);
-        peer.setSamples(std::stoi(peer_str));
-        peers.push_back(peer);
+      if (!peer_s.empty()) {
+        if (peer.FromBase64(peer_s)) {
+          //LogPrint(eLogDebug, "RelayPeers: stoi=", peer_str);
+          peer.setSamples(std::stoi(peer_str));
+          peers.push_back(peer);
+        }
       }
     }
   }
@@ -257,15 +260,13 @@ bool RelayPeersWorker::loadPeers() {
 
   if (!bootstrap_addresses.empty() && peers.empty()) {
     size_t peers_added = 0;
-    for (auto &bootstrap_address : bootstrap_addresses) {
-      i2p::data::IdentityEx new_peer;
-      new_peer.FromBase64(bootstrap_address);
+    for (const auto& bootstrap_address : bootstrap_addresses) {
+      std::shared_ptr<i2p::data::IdentityEx> new_peer;
 
-      size_t len = new_peer.GetFullLen();
-      uint8_t *buf = new uint8_t[len];
+      if (!bootstrap_address.empty())
+        new_peer->FromBase64(bootstrap_address);
 
-      new_peer.ToBuffer(buf, len);
-      if (addPeer(buf, len))
+      if (addPeer(new_peer))
         peers_added++;
       //LogPrint(eLogDebug, "RelayPeers: successfully add node: ", new_peer.ToBase64());
     }
@@ -431,9 +432,9 @@ bool RelayPeersWorker::receivePeerListV5(const unsigned char *buf, size_t len) {
         break;
       }
 
-      i2p::data::IdentityEx peer;
+      std::shared_ptr<i2p::data::IdentityEx> peer;
 
-      size_t key_len = peer.FromBuffer(buf + offset, len - offset);
+      size_t key_len = peer->FromBuffer(buf + offset, len - offset);
       offset += key_len;
 
       //size_t res = peer.FromBuffer(fullKey, 387);

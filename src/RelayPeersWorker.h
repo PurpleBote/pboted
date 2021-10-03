@@ -73,7 +73,7 @@ class RelayPeersWorker{
   void stop();
 
   bool addPeer(const uint8_t *buf, int len);
-  bool addPeer(const i2p::data::IdentityEx &identity);
+  bool addPeer(const std::shared_ptr<i2p::data::IdentityEx> &identity);
   void addPeers(const std::vector<RelayPeer>& peers);
 
   std::shared_ptr<RelayPeer> findPeer(const i2p::data::IdentHash &ident) const;
