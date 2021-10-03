@@ -5,11 +5,11 @@
 #ifndef PBOTE_SRC_DAEMON_H__
 #define PBOTE_SRC_DAEMON_H__
 
-#include <iostream>
+//#include <iostream>
 #include <memory>
 #include <ostream>
 #include <string>
-#include <thread>
+//#include <thread>
 
 namespace pbote {
 namespace util {
@@ -19,7 +19,7 @@ class Daemon_Singleton {
  public:
   virtual bool init(int argc, char *argv[], std::shared_ptr<std::ostream> logstream);
   virtual bool init(int argc, char *argv[]);
-  virtual bool start();
+  virtual int start();
   virtual bool stop();
   virtual void run() {};
 
@@ -47,7 +47,7 @@ class DaemonLinux : public Daemon_Singleton {
   // DaemonLinux();
   //~DaemonLinux();
 
-  bool start() override;
+  int start() override;
   bool stop() override;
   void run() override;
 

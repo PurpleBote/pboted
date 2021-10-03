@@ -104,7 +104,7 @@ bool Daemon_Singleton::init(int argc, char *argv[], std::shared_ptr<std::ostream
   return true;
 }
 
-bool Daemon_Singleton::start() {
+int Daemon_Singleton::start() {
   LogPrint(eLogDebug, "Daemon: start services");
   pbote::log::Logger().Start();
 
@@ -123,7 +123,9 @@ bool Daemon_Singleton::start() {
   LogPrint(eLogInfo, "Daemon: starting Email");
   pbote::kademlia::email_worker.start();
 
-  return true;
+  LogPrint(eLogInfo, "Daemon: started");
+
+  return EXIT_SUCCESS;
 }
 
 bool Daemon_Singleton::stop() {

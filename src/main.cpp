@@ -8,9 +8,11 @@
 
 int main(int argc, char *argv[]) {
   if (Daemon.init(argc, argv)) {
-    bool res = Daemon.start();
-    if (res) {
+    int res = Daemon.start();
+    if (res == 0) {
       Daemon.run();
+    } else if (res > 0) {
+      return EXIT_SUCCESS;
     } else {
       return EXIT_FAILURE;
     }

@@ -24,9 +24,10 @@ void handle_signal(int sig) {
     case SIGUSR1:LogPrint(eLogInfo, "Daemon: Got SIGUSR1, reopening logs...");
       pbote::log::Logger().Reopen();
       break;
-    case SIGINT:
-    case SIGABRT:
-    case SIGTERM:Daemon.running = false; // Exit loop
+    case SIGINT:LogPrint(eLogInfo, "Daemon: Got SIGINT");
+    case SIGABRT:LogPrint(eLogInfo, "Daemon: Got SIGABRT");
+    case SIGTERM:LogPrint(eLogInfo, "Daemon: Got SIGTERM");
+      Daemon.running = false; // Exit loop
       break;
     case SIGPIPE:LogPrint(eLogInfo, "Daemon: Got SIGPIPE received");
       break;
@@ -38,35 +39,48 @@ void handle_signal(int sig) {
 namespace pbote {
 namespace util {
 
-bool DaemonLinux::start() {
+int DaemonLinux::start() {
   if (isDaemon) {
-    pid_t pid;
+    LogPrint(eLogDebug, "Daemon: Run as daemon");
+
+    if (daemon(true, false) == -1) {
+      return EXIT_FAILURE;
+    }
+
+    /*pid_t pid, sid;
     pid = fork();
-    if (pid > 0) // parent
-      ::exit(EXIT_SUCCESS);
-    if (pid < 0) // error
-    {
+
+    if (pid > 0) {
+      LogPrint(eLogDebug, "Daemon: Exit parent process");
+      //::exit(EXIT_SUCCESS); // Exit parent
+      return pid;
+    }
+
+    // On error
+    if (pid < 0) {
       LogPrint(eLogError, "Daemon: could not fork: ", strerror(errno));
-      return false;
+      return EXIT_FAILURE;
     }
 
     // child
     umask(S_IWGRP | S_IRWXO); // 0027
-    int sid = setsid();
+
+    sid = setsid();
     if (sid < 0) {
-      LogPrint(eLogError, "Daemon: could not create process group.");
-      return false;
-    }
-    std::string d = pbote::fs::GetDataDir();
+      LogPrint(eLogError, "Daemon: could not create process group: ", strerror(errno));
+      return EXIT_FAILURE;
+    }*/
+
+    const std::string& d = pbote::fs::GetDataDir();
     if (chdir(d.c_str()) != 0) {
       LogPrint(eLogError, "Daemon: could not chdir: ", strerror(errno));
-      return false;
+      return EXIT_FAILURE;
     }
 
     // point std{in,out,err} descriptors to /dev/null
-    freopen("/dev/null", "r", stdin);
+    /*freopen("/dev/null", "r", stdin);
     freopen("/dev/null", "w", stdout);
-    freopen("/dev/null", "w", stderr);
+    freopen("/dev/null", "w", stderr);*/
   }
 
   // set proc limits
@@ -75,20 +89,16 @@ bool DaemonLinux::start() {
   pbote::config::GetOption("limits.openfiles", nfiles);
   getrlimit(RLIMIT_NOFILE, &limit);
   if (nfiles == 0) {
-    LogPrint(eLogInfo, "Daemon: using system limit in ", limit.rlim_cur,
-             " max open files");
+    LogPrint(eLogInfo, "Daemon: using system limit in ", limit.rlim_cur," max open files");
   } else if (nfiles <= limit.rlim_max) {
     limit.rlim_cur = nfiles;
     if (setrlimit(RLIMIT_NOFILE, &limit) == 0) {
-      LogPrint(eLogInfo, "Daemon: set max number of open files to ", nfiles,
-               " (system limit is ", limit.rlim_max, ")");
+      LogPrint(eLogInfo, "Daemon: set max number of open files to ", nfiles, " (system limit is ", limit.rlim_max, ")");
     } else {
-      LogPrint(eLogError,
-               "Daemon: can't set max number of open files: ", strerror(errno));
+      LogPrint(eLogError,"Daemon: can't set max number of open files: ", strerror(errno));
     }
   } else {
-    LogPrint(eLogError,
-             "Daemon: limits.openfiles exceeds system limit: ", limit.rlim_max);
+    LogPrint(eLogError,"Daemon: limits.openfiles exceeds system limit: ", limit.rlim_max);
   }
   uint32_t cfsize;
   pbote::config::GetOption("limits.coresize", cfsize);
@@ -99,17 +109,14 @@ bool DaemonLinux::start() {
     if (cfsize <= limit.rlim_max) {
       limit.rlim_cur = cfsize;
       if (setrlimit(RLIMIT_CORE, &limit) != 0) {
-        LogPrint(eLogError,
-                 "Daemon: can't set max size of coredump: ", strerror(errno));
+        LogPrint(eLogError,"Daemon: can't set max size of coredump: ", strerror(errno));
       } else if (cfsize == 0) {
         LogPrint(eLogInfo, "Daemon: coredumps disabled");
       } else {
-        LogPrint(eLogInfo, "Daemon: set max size of core files to ",
-                 cfsize / 1024, "Kb");
+        LogPrint(eLogInfo, "Daemon: set max size of core files to ", cfsize / 1024, "Kb");
       }
     } else {
-      LogPrint(eLogError, "Daemon: limits.coresize exceeds system limit: ",
-               limit.rlim_max);
+      LogPrint(eLogError, "Daemon: limits.coresize exceeds system limit: ", limit.rlim_max);
     }
   }
 
@@ -123,9 +130,8 @@ bool DaemonLinux::start() {
   if (!pidfile.empty()) {
     pidFH = open(pidfile.c_str(), O_RDWR | O_CREAT, 0600);
     if (pidFH < 0) {
-      LogPrint(eLogError, "Daemon: could not create pid file ", pidfile, ": ",
-               strerror(errno));
-      return false;
+      LogPrint(eLogError, "Daemon: could not create pid file ", pidfile, ": ", strerror(errno));
+      return EXIT_FAILURE;
     }
 
     char pid[10];
@@ -133,7 +139,7 @@ bool DaemonLinux::start() {
     ftruncate(pidFH, 0);
     if (write(pidFH, pid, strlen(pid)) < 0) {
       LogPrint(eLogError, "Daemon: could not write pidfile: ", strerror(errno));
-      return false;
+      return EXIT_FAILURE;
     }
   }
   gracefulShutdownInterval = 0; // not specified
