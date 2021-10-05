@@ -482,7 +482,6 @@ inline std::string statusToString(uint8_t status_code) {
   return {"UNKNOWN STATUS"};
 }
 
-//std::string ToHex(const std::string &s, bool upper_case  = true ) {
 inline std::string ToHex(const std::string &s, bool upper_case) {
   std::ostringstream ret;
 
@@ -521,16 +520,17 @@ inline std::shared_ptr<CommunicationPacket> parseCommPacket(const std::shared_pt
     }
 
     /// 38 cause prefix[4] + type[1] + ver[1] +  cid[32]
-    size_t clean_payload_size = packet->payload.size() - 38;
-    if (clean_payload_size <= 1) {
+    long clean_payload_size = packet->payload.size() - 38;
+    if (clean_payload_size < 0) {
       LogPrint(eLogWarning, "Packet: payload too short");
       return nullptr;
     }
 
     CommunicationPacket res(data.type);
     res.ver = data.ver;
-    for (int i = 0; i < 32; i++)
-      res.cid[i] = data.cid[i];
+    //for (int i = 0; i < 32; i++)
+    //  res.cid[i] = data.cid[i];
+    memcpy(res.cid, data.cid, 32);
 
     res.from = std::move(packet->destination);
     std::vector<uint8_t> v_payload(packet->payload.begin() + packet->payload.size() - clean_payload_size, packet->payload.end());

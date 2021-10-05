@@ -75,7 +75,7 @@ class RequestHandler {
   bool started_;
   std::thread *m_PHandlerThread;
   queue_type m_recvQueue;
-  //queue_type m_sendQueue;
+  queue_type m_sendQueue;
 };
 
 extern RequestHandler packet_handler;

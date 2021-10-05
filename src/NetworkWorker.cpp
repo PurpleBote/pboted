@@ -40,8 +40,7 @@ UDPReceiver::UDPReceiver(const std::string &addr, int port)
             .c_str());
   }
 
-  if ((f_socket = socket(f_addrinfo->ai_family, SOCK_DGRAM | SOCK_CLOEXEC,
-                         IPPROTO_UDP)) == -1) {
+  if ((f_socket = socket(f_addrinfo->ai_family, SOCK_DGRAM | SOCK_CLOEXEC,IPPROTO_UDP)) == -1) {
     freeaddrinfo(f_addrinfo);
     throw udp_client_server_runtime_error(
         ("Network: UDPReceiver: could not create UDP socket for: \"" + addr + ":" +
@@ -253,23 +252,27 @@ void NetworkWorker::init() {
 
   createRecvHandler();
   createSendHandler();
-
-  // we can init with empty listen port for auto port and use it in SAM init
-  m_RecvHandler->start();
 }
 
 void NetworkWorker::start() {
   LogPrint(eLogInfo, "Network: SAM TCP endpoint: ", routerAddress_, ":", routerPortTCP_);
   LogPrint(eLogInfo, "Network: SAM UDP endpoint: ", routerAddress_, ":", routerPortUDP_);
+
+  // we can init with empty listen port for auto port and use it in SAM init
+  m_RecvHandler->start();
+
+  LogPrint(eLogInfo, "Network: starting SAM session");
   try {
     bool success = false;
     std::shared_ptr<i2p::data::PrivateKeys> key;
     while (!success) {
       key = createSAMSession();
-      if (key->ToBase64().empty()) {
-        LogPrint(eLogError, "Network: SAM session not started, try to reconnect");
-      } else {
-        success = true;
+      if (key) {
+        if (key->ToBase64().empty()) {
+          LogPrint(eLogError, "Network: SAM session not started, try to reconnect");
+        } else {
+          success = true;
+        }
       }
     }
 
@@ -326,7 +329,7 @@ std::shared_ptr<i2p::data::PrivateKeys> NetworkWorker::createSAMSession() {
 
 void NetworkWorker::createRecvHandler() {
   // New receiver
-  LogPrint(eLogInfo, "Network: starting UDP receiver with address ", listenAddress_, ":", listenPortUDP_);
+  LogPrint(eLogInfo, "Network: init UDP receiver with address ", listenAddress_, ":", listenPortUDP_);
 
   m_RecvHandler = std::make_shared<UDPReceiver>(listenAddress_, listenPortUDP_);
   m_RecvHandler->setNickname(m_nickname_);
@@ -334,7 +337,7 @@ void NetworkWorker::createRecvHandler() {
 }
 
 void NetworkWorker::createSendHandler() {
-  LogPrint(eLogInfo, "Network: starting UDP sender to address ", routerAddress_, ":", routerPortUDP_);
+  LogPrint(eLogInfo, "Network: init UDP sender to address ", routerAddress_, ":", routerPortUDP_);
   // New sender
   m_SendHandler = std::make_shared<UDPSender>(routerAddress_, routerPortUDP_);
   m_SendHandler->setNickname(m_nickname_);

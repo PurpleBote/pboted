@@ -13,8 +13,10 @@
 #include "BoteContext.h"
 #include "ConfigParser.h"
 #include "Daemon.h"
+#include "DHTworker.h"
 #include "FS.h"
 #include "Log.h"
+#include "RelayPeersWorker.h"
 
 void handle_signal(int sig) {
   switch (sig) {
@@ -167,7 +169,14 @@ bool DaemonLinux::stop() {
 
 void DaemonLinux::run() {
   while (running) {
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    auto uptime = context.get_uptime() * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den;
+
+    LogPrint(eLogDebug, "Daemon: uptime: ", uptime / 60, "m ", uptime % 60, "s",
+             ", bytes received: ", context.get_bytes_recv(),
+             ", bytes sent: ", context.get_bytes_sent(),
+             ", DHT nodes: ", pbote::kademlia::DHT_worker.getNodesCount(),
+             ", Relay peers: ", pbote::relay::relay_peers_worker.getPeersCount());
+
     /*if (pbote::context::context.isHeathy()) {
       LogPrint(eLogDebug, "Context: is healthy!");
     }*/
@@ -181,6 +190,7 @@ void DaemonLinux::run() {
                             return;
                     }
             }*/
+    std::this_thread::sleep_for(std::chrono::seconds(60));
   }
 }
 

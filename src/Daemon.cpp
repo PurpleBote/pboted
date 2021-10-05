@@ -140,8 +140,9 @@ bool Daemon_Singleton::stop() {
   LogPrint(eLogInfo, "Daemon: stopping relay peers worker");
   pbote::relay::relay_peers_worker.stop();
 
-  LogPrint(eLogInfo, "Daemon: stopping packet handler");
-  pbote::packet::packet_handler.stop();
+  // Looks like m_recvQueue->GetNext() hold stopping
+  //LogPrint(eLogInfo, "Daemon: stopping packet handler");
+  //pbote::packet::packet_handler.stop();
 
   LogPrint(eLogInfo, "Daemon: stopping network worker");
   pbote::network::network_worker.stop();

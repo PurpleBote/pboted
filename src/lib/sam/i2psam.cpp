@@ -22,7 +22,8 @@
 #define PORT_ZERO 0
 // Was 65536, seemed unnecessarily large
 
-#define I2P_DESTINATION_SIZE 521
+#define I2P_DESTINATION_SIZE 516
+//#define I2P_DESTINATION_SIZE 521
 
 // Define this, if you want more of the original standard output diagnostics
 //#define DEBUG_ON_STDOUT

@@ -246,9 +246,7 @@ std::map<std::string, pbote::CommunicationPacket> DHTworker::findAll(i2p::data::
   return find(hash, type, true);
 }
 
-std::map<std::string, pbote::CommunicationPacket> DHTworker::find(i2p::data::Tag<32> key,
-                                                                  uint8_t type,
-                                                                  bool exhaustive) {
+std::map<std::string, pbote::CommunicationPacket> DHTworker::find(i2p::data::Tag<32> key, uint8_t type, bool exhaustive) {
   auto batch = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket>>();
   batch->owner = "DHT::find";
   LogPrint(eLogDebug, "DHT: find: Get closest nodes");
@@ -599,23 +597,17 @@ std::vector<Node> DHTworker::receivePeerListV5(const unsigned char *buf, size_t 
 void DHTworker::receiveRetrieveRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
   uint16_t offset = 0;
 
-  uint8_t cid[32];
   uint8_t dataType;
   uint8_t key[32];
 
-  std::memcpy(&cid, packet->payload.data(), 32);
-  offset += 32;
-  std::memcpy(&dataType, packet->payload.data() + offset, 1);
+  std::memcpy(&dataType, packet->payload.data(), 1);
   offset += 1;
   std::memcpy(&key, packet->payload.data() + offset, 32); //offset += 32;
 
   if (dataType == (uint8_t) 'I' || dataType == (uint8_t) 'E' || dataType == (uint8_t) 'C') {
     i2p::data::Tag<32> t_key(key);
-    LogPrint(eLogDebug,
-             "DHT: receiveRetrieveRequest: got request for type: ",
-             (unsigned) dataType,
-             ", key: ",
-             t_key.ToBase64());
+    LogPrint(eLogDebug,"DHT: receiveRetrieveRequest: got request for type: ", dataType,
+             ", key: ", t_key.ToBase64());
     // Try to find packet in storage
     std::vector<uint8_t> data;
     switch (dataType) {
@@ -629,8 +621,9 @@ void DHTworker::receiveRetrieveRequest(const std::shared_ptr<pbote::Communicatio
     }
 
     pbote::ResponsePacket response;
-    for (int i = 0; i < 32; i++)
-      response.cid[i] = cid[i];
+    //for (int i = 0; i < 32; i++)
+      //response.cid[i] = packet->cid[i];
+    memcpy(response.cid, packet->cid, 32);
 
     if (data.empty()) {
       // Return "No data found" if not found
@@ -646,9 +639,12 @@ void DHTworker::receiveRetrieveRequest(const std::shared_ptr<pbote::Communicatio
     PacketForQueue q_packet(packet->from, response.toByte().data(), response.toByte().size());
     context.send(q_packet);
   } else {
+    LogPrint(eLogDebug, "DHT: receiveDeletionQuery: unknown packet type: ", dataType);
     pbote::ResponsePacket response;
-    for (int i = 0; i < 32; i++)
-      response.cid[i] = cid[i];
+    //for (int i = 0; i < 32; i++)
+      //response.cid[i] = packet->cid[i];
+    memcpy(response.cid, packet->cid, 32);
+
 
     response.status = pbote::StatusCode::INVALID_PACKET;
     response.length = 0;
@@ -659,13 +655,11 @@ void DHTworker::receiveRetrieveRequest(const std::shared_ptr<pbote::Communicatio
 }
 
 void DHTworker::receiveDeletionQuery(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+  LogPrint(eLogDebug, "DHT: receiveDeletionQuery: request from:", packet->from);
   uint16_t offset = 0;
 
-  uint8_t cid[32];
   uint8_t key[32];
 
-  std::memcpy(&cid, packet->payload.data(), 32);
-  offset += 32;
   std::memcpy(&key, packet->payload.data() + offset, 32); //offset += 32;
 
   i2p::data::Tag<32> t_key(key);
@@ -678,12 +672,12 @@ void DHTworker::receiveDeletionQuery(const std::shared_ptr<pbote::CommunicationP
 }
 
 void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+  LogPrint(eLogDebug, "DHT: receiveStoreRequest: request from:", packet->from);
   uint16_t offset = 0;
   StoreRequestPacket new_packet;
 
-  std::memcpy(&new_packet.cid, packet->payload.data(), 32);
-  offset += 32;
-  std::memcpy(&new_packet.hc_length, packet->payload.data() + offset, 2);
+  std::memcpy(&new_packet.cid, packet->cid, 32);
+  std::memcpy(&new_packet.hc_length, packet->payload.data(), 2);
   offset += 2;
 
   uint8_t hashCash[new_packet.hc_length];
@@ -697,19 +691,17 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
   uint8_t data[new_packet.length];
 
   std::memcpy(&data, packet->payload.data() + offset, new_packet.length);
-  LogPrint(eLogDebug, "DHT: receiveStoreRequest: got request for type: ", (unsigned) data[0]);
+  LogPrint(eLogDebug, "DHT: receiveStoreRequest: got request for type: ", data[0]);
 }
 
 void DHTworker::receiveEmailPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+  LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: request from:", packet->from);
   uint16_t offset = 0;
 
-  uint8_t cid[32];
   uint8_t key[32];
   uint8_t delAuth[32];
 
-  std::memcpy(&cid, packet->payload.data(), 32);
-  offset += 32;
-  std::memcpy(&key, packet->payload.data() + offset, 32);
+  std::memcpy(&key, packet->payload.data(), 32);
   offset += 32;
   std::memcpy(&delAuth, packet->payload.data() + offset, 32); //offset += 32;
 
@@ -723,15 +715,13 @@ void DHTworker::receiveEmailPacketDeleteRequest(const std::shared_ptr<pbote::Com
 }
 
 void DHTworker::receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+  LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: request from:", packet->from);
   uint16_t offset = 0;
 
-  uint8_t cid[32];
   uint8_t dh[32];
   uint8_t num;
 
-  std::memcpy(&cid, packet->payload.data(), 32);
-  offset += 32;
-  std::memcpy(&dh, packet->payload.data() + offset, 32);
+  std::memcpy(&dh, packet->payload.data(), 32);
   offset += 32;
   std::memcpy(&num, packet->payload.data() + offset, 1);
   offset += 1;
@@ -759,16 +749,11 @@ void DHTworker::receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::Com
 }
 
 void DHTworker::receiveFindClosePeers(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
-  uint16_t offset = 0;
-
-  uint8_t cid[32];
+  LogPrint(eLogDebug, "DHT: receiveFindClosePeers: request from:", packet->from);
   uint8_t key[32];
-
-  std::memcpy(&cid, packet->payload.data(), 32);
-  offset += 32;
-  std::memcpy(&key, packet->payload.data() + offset, 32); //offset += 32;
-
+  std::memcpy(&key, packet->payload.data(), 32);
   i2p::data::Tag<32> t_key(key);
+
   LogPrint(eLogDebug, "DHT: receiveFindClosePeers: got request for key: ", t_key.ToBase64());
   auto data = dht_storage_.getIndex(key);
   if (data.empty())
@@ -783,19 +768,17 @@ void DHTworker::run() {
   pbote::config::GetOption("loglevel", loglevel);
 
   while (started_) {
-    LogPrint(eLogDebug, "DHT: main thread work, nodes: ", getNodesCount(),
-             ", uptime: ", context.get_uptime(), ", bytes_recv: ", context.get_bytes_recv(),
-             ", bytes_sent: ", context.get_bytes_sent());
-    std::this_thread::sleep_for(std::chrono::seconds(30));
     counter++;
 
-    if (counter > 20 && loglevel == "debug" && !m_nodes_.empty()) {
+    if (counter > 10 && loglevel == "debug" && !m_nodes_.empty()) {
       LogPrint(eLogDebug, "DHT: nodes stats:");
       for ( const auto& node : m_nodes_ )
         LogPrint(eLogDebug, "DHT: ", node.second->ToBase64());
       LogPrint(eLogDebug, "DHT: nodes stats end");
       counter = 0;
     }
+
+    std::this_thread::sleep_for(std::chrono::seconds(60));
   }
 }
 
@@ -831,7 +814,7 @@ bool DHTworker::loadNodes() {
   if (!nodes.empty()) {
     size_t counter = 0, dup = 0;
     for (const auto &node: nodes) {
-      //LogPrint(eLogDebug, "DHT: loadNodes: node.ToBase64(): ", node.ToBase64());
+      LogPrint(eLogDebug, "DHT: loadNodes: node.ToBase64(): ", node.ToBase64());
       auto t_hash = node.GetIdentHash();
       bool result = m_nodes_.insert(std::pair<i2p::data::IdentHash, std::shared_ptr<Node>>(t_hash,
                                                                                            std::make_shared<Node>(node))).second;
@@ -854,15 +837,11 @@ bool DHTworker::loadNodes() {
 
   if (!bootstrap_addresses.empty()) {
     for (auto &bootstrap_address: bootstrap_addresses) {
-      i2p::data::IdentityEx new_node;
-      new_node.FromBase64(bootstrap_address);
-
-      size_t len = new_node.GetFullLen();
-      uint8_t *buf = new uint8_t[len];
-
-      new_node.ToBuffer(buf, len);
-      if (addNode(buf, len))
+      if (addNode(bootstrap_address)) {
+        i2p::data::IdentityEx new_node;
+        new_node.FromBase64(bootstrap_address);
         LogPrint(eLogDebug, "DHT: loadNodes: successfully add node: ", new_node.GetIdentHash().ToBase64());
+      }
     }
     return true;
   } else

@@ -91,7 +91,7 @@ const int REPLICATE_INTERVAL = 3600;
 /// the maximum amount of time the replication interval can deviate from REPLICATE_INTERVAL
 const long REPLICATE_VARIANCE = 5 * 60;
 /// Max. number of seconds to wait for replies to retrieve requests
-const int RESPONSE_TIMEOUT = 60; // ToDO: return to 60 sec
+const int RESPONSE_TIMEOUT = 30; // ToDO: return to 60 sec
 /// the maximum amount of time a FIND_CLOSEST_NODES can take
 const unsigned int CLOSEST_NODES_LOOKUP_TIMEOUT = 2 * 60; // ToDO: return to 5*60 sec
 /// the minimum nodes for find request

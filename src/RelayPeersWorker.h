@@ -36,6 +36,11 @@ class RelayPeer : public i2p::data::IdentityEx {
     this->FromBase64(new_destination);
   }
 
+  RelayPeer(const std::string &new_destination, int samples_)
+      : samples(samples_) {
+    this->FromBase64(new_destination);
+  }
+
   RelayPeer(const uint8_t * buf, int len)
       : samples(0) {
     this->FromBuffer(buf, len);
@@ -85,6 +90,8 @@ class RelayPeersWorker{
   std::vector<RelayPeer> getGoodPeers();
   std::vector<RelayPeer> getGoodPeers(uint8_t num);
   std::vector<std::shared_ptr<RelayPeer>> getAllPeers();
+  size_t getPeersCount() { return m_peers_.size(); };
+
   bool receivePeerListV4(const unsigned char* buf, size_t len);
   bool receivePeerListV5(const unsigned char* buf, size_t len);
   void peerListRequestV4(const std::string& sender, const uint8_t* cid);

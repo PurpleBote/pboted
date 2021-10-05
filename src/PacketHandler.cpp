@@ -14,9 +14,6 @@ namespace packet {
 
 RequestHandler packet_handler;
 
-//uint8_t PacketType[] = {0x45, 0x55, 0x49, 0x54, 0x50, 0x43, 0x52, 0x4b, 0x46, 0x4e, 0x41, 0x51, 0x4c, 0x53, 0x44, 0x58, 0x43};
-//uint8_t CommunicationPreffix[] = {0x6D, 0x30, 0x52, 0xE9};
-
 IncomingRequest::IncomingRequest(RequestHandler &parent)
     : m_Parent(parent) {
   // ToDo: re-make with std::function
@@ -46,7 +43,7 @@ bool IncomingRequest::handleNewPacket(const std::shared_ptr<PacketForQueue>& que
     }
 
     auto it = incomingPacketHandlers_.find(packet->type);
-    LogPrint(eLogDebug, "PacketHandler: it is ", it->first, "::", it->second);
+    LogPrint(eLogDebug, "PacketHandler: got non-batch packet with type ", it->first);
 
     if (it != incomingPacketHandlers_.end())
       return (this->*(it->second))(packet);
@@ -229,7 +226,7 @@ RequestHandler::~RequestHandler() {
 void RequestHandler::start() {
   if (!started_) {
     m_recvQueue = context.getRecvQueue();
-    //m_sendQueue = context.getSendQueue();
+    m_sendQueue = context.getSendQueue();
     started_ = true;
     m_PHandlerThread = new std::thread(std::bind(&RequestHandler::run, this));
   }
@@ -252,8 +249,17 @@ void RequestHandler::run() {
     auto queuePacket = m_recvQueue->GetNext();
     IncomingRequest newSession(*this);
 
-    if (!newSession.handleNewPacket(queuePacket))
+    if (!newSession.handleNewPacket(queuePacket)) {
       LogPrint(eLogWarning, "PacketHandler: parsing failed");
+
+      pbote::ResponsePacket response;
+      response.status = pbote::StatusCode::INVALID_PACKET;
+      response.length = 0;
+      auto data = response.toByte();
+
+      m_sendQueue->Put(std::make_shared<PacketForQueue>(queuePacket->destination, data.data(), data.size()));
+
+    }
   }
 }
 
