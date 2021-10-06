@@ -1,6 +1,6 @@
 /**
- * Copyright (c) 2019-2020 polistern
  * Copyright (c) 2013-2016, The PurpleI2P Project
+ * Copyright (c) 2019-2021 polistern
  *
  * This file is part of Purple i2pd project and licensed under BSD3
  *

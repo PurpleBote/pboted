@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2020 polistern
+ * Copyright (c) 2019-2021 polistern
  */
 
 #ifndef BOTE_CONTEXT_H__
@@ -30,7 +30,7 @@ class BoteContext {
   void send(const PacketForQueue& packet);
   void send(std::shared_ptr<PacketBatch<pbote::CommunicationPacket>> batch);
 
-  bool receive(std::string sender, pbote::CommunicationPacket packet);
+  bool receive(std::shared_ptr<pbote::CommunicationPacket> packet);
 
   void removeBatch(std::shared_ptr<PacketBatch<pbote::CommunicationPacket>> batch);
 

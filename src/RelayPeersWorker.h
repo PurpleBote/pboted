@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2020 polistern
+ * Copyright (c) 2019-2021 polistern
  */
 
 #ifndef PBOTE_SRC_RELAYPEERSWORKER_H_
@@ -20,7 +20,7 @@ const int MAX_PEERS = 50;
 /// maximum number of peers to send in a peer list (the bigger a datagram, the less chance of it getting through)
 const int MAX_PEERS_TO_SEND = 20;
 /// percentage of requests sent to a peer / responses received back
-const int MIN_REACHABILITY = 80;
+const int MIN_REACHABILITY = 0; //ToDo: change to 80
 /// time in minutes between updating peers if no high-reachability peers are known
 const int UPDATE_INTERVAL_SHORT = 60*2;
 /// time in minutes between updating peers if at least one high-reachability peer is known
@@ -53,8 +53,8 @@ class RelayPeer : public i2p::data::IdentityEx {
   };*/
 
   void reachable(bool result) {
-    if (samples < 100 && result)
-      samples++;
+    if (samples < 1000 && result)
+      samples += 2;
     else if (samples > 0 && !result)
       samples--;
   }
@@ -78,7 +78,8 @@ class RelayPeersWorker{
   void stop();
 
   bool addPeer(const uint8_t *buf, int len);
-  bool addPeer(const std::shared_ptr<i2p::data::IdentityEx> &identity);
+  bool addPeer(const std::string& peer);
+  bool addPeer(const std::shared_ptr<i2p::data::IdentityEx> &identity, int samples);
   void addPeers(const std::vector<RelayPeer>& peers);
 
   std::shared_ptr<RelayPeer> findPeer(const i2p::data::IdentHash &ident) const;
@@ -92,8 +93,8 @@ class RelayPeersWorker{
   std::vector<std::shared_ptr<RelayPeer>> getAllPeers();
   size_t getPeersCount() { return m_peers_.size(); };
 
-  bool receivePeerListV4(const unsigned char* buf, size_t len);
-  bool receivePeerListV5(const unsigned char* buf, size_t len);
+  bool receivePeerListV4(const uint8_t* buf, size_t len);
+  bool receivePeerListV5(const uint8_t* buf, size_t len);
   void peerListRequestV4(const std::string& sender, const uint8_t* cid);
   void peerListRequestV5(const std::string& sender, const uint8_t* cid);
   static pbote::PeerListRequestPacket peerListRequestPacket();

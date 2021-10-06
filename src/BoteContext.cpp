@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2020 polistern
+ * Copyright (c) 2019-2021 polistern
  */
 
 #include <utility>
@@ -49,11 +49,11 @@ void BoteContext::send(std::shared_ptr<PacketBatch<pbote::CommunicationPacket>> 
   LogPrint(eLogDebug, "Context: send ", count, " packets from batch ", batch->owner);
 }
 
-bool BoteContext::receive(std::string sender, pbote::CommunicationPacket packet) {
-  std::vector<uint8_t> v_cid(packet.cid, packet.cid + 32);
+bool BoteContext::receive(std::shared_ptr<pbote::CommunicationPacket> packet) {
+  std::vector<uint8_t> v_cid(packet->cid, packet->cid + 32);
   for (auto batch: runningBatches) {
     if (batch->contains(v_cid)) {
-      batch->addResponse(sender, packet);
+      batch->addResponse(packet);
       LogPrint(eLogDebug,
                "Context: response received for batch ",
                batch->owner,

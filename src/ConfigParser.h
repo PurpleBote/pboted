@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2020 polistern
+ * Copyright (c) 2019-2021 polistern
  */
 
 #ifndef CONFIG_PARSER_H__

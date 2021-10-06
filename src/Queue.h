@@ -1,5 +1,10 @@
 /**
+ * Copyright (c) 2013-2016, The PurpleI2P Project
  * Copyright (c) 2019-2021 polistern
+ *
+ * This file is part of Purple i2pd project and licensed under BSD3
+ *
+ * See full license text in LICENSE file at top of project tree
  */
 
 #ifndef QUEUE_H__

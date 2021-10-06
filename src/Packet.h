@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2020 polistern
+ * Copyright (c) 2019-2021 polistern
  */
 
 #ifndef PBOTE_PACKET_H__
@@ -84,7 +84,7 @@ struct PacketForQueue {
 template <typename T>
 struct PacketBatch {
   std::map<std::vector<uint8_t>, PacketForQueue> outgoingPackets;
-  std::map<std::string, T> incomingPackets;
+  std::vector<std::shared_ptr<T>> incomingPackets;
   std::mutex m_batchMutex;
   std::condition_variable m_first, m_last;
   std::string owner;
@@ -98,7 +98,7 @@ struct PacketBatch {
 
   std::map<std::vector<uint8_t>, PacketForQueue> getPackets() { return outgoingPackets; }
 
-  std::map<std::string, T> getResponses() { return incomingPackets; }
+  std::vector<std::shared_ptr<T>> getResponses() { return incomingPackets; }
 
   bool contains(const std::vector<uint8_t>& id) {
     return outgoingPackets.find(id) != outgoingPackets.end();
@@ -114,8 +114,10 @@ struct PacketBatch {
     outgoingPackets.insert(std::pair<std::vector<uint8_t>, PacketForQueue>(id, packet));
   }
 
-  void addResponse(std::string peer, T packet) {
-    incomingPackets.insert(std::pair<std::string, T>(peer, packet));
+  void removePacket(const std::vector<uint8_t>& cid) { outgoingPackets.erase(cid); }
+
+  void addResponse(std::shared_ptr<T> packet) {
+    incomingPackets.push_back(packet);
     if (incomingPackets.size() == 1)
       m_first.notify_one();
     if (incomingPackets.size() == outgoingPackets.size())
@@ -409,6 +411,18 @@ struct RetrieveRequestPacket : public CleanCommunicationPacket{
   RetrieveRequestPacket() : CleanCommunicationPacket(CommQ) {}
   uint8_t data_type;
   uint8_t key[32];
+
+  std::vector<uint8_t> toByte() {
+    // Basic part
+    std::vector<uint8_t> result(std::begin(prefix), std::end(prefix));
+    result.push_back(type);
+    result.push_back(ver);
+    result.insert(result.end(), std::begin(cid), std::end(cid));
+
+    result.push_back(data_type);
+    result.insert(result.end(), std::begin(key), std::end(key));
+    return result;
+  }
 };
 
 struct DeletionQueryPacket : public CleanCommunicationPacket{
@@ -462,6 +476,18 @@ struct FindClosePeersRequestPacket : public CleanCommunicationPacket{
  public:
   FindClosePeersRequestPacket() : CleanCommunicationPacket(CommF) {}
   uint8_t key[32];
+
+  std::vector<uint8_t> toByte() {
+    // Basic part
+    std::vector<uint8_t> result(std::begin(prefix), std::end(prefix));
+    result.push_back(type);
+    result.push_back(ver);
+    result.insert(result.end(), std::begin(cid), std::end(cid));
+
+    result.insert(result.end(), std::begin(key), std::end(key));
+
+    return result;
+  }
 };
 
 inline std::string statusToString(uint8_t status_code) {

@@ -117,16 +117,16 @@ class DHTworker {
   std::vector<Node> getUnlockedNodes();
   size_t getNodesCount() { return m_nodes_.size(); }
 
-  std::map<std::string, pbote::CommunicationPacket> findOne(i2p::data::Tag<32> hash, uint8_t type);
-  std::map<std::string, pbote::CommunicationPacket> findAll(i2p::data::Tag<32> hash, uint8_t type);
-  std::map<std::string, pbote::CommunicationPacket> find(i2p::data::Tag<32> hash, uint8_t type, bool exhaustive);
+  std::vector<std::shared_ptr<pbote::CommunicationPacket>> findOne(i2p::data::Tag<32> hash, uint8_t type);
+  std::vector<std::shared_ptr<pbote::CommunicationPacket>> findAll(i2p::data::Tag<32> hash, uint8_t type);
+  std::vector<std::shared_ptr<pbote::CommunicationPacket>> find(i2p::data::Tag<32> hash, uint8_t type, bool exhaustive);
 
   std::vector<std::string> store(i2p::data::Tag<32> hash, uint8_t type, pbote::StoreRequestPacket packet);
 
   std::vector<Node> closestNodesLookupTask(i2p::data::Tag<32> key);
 
-  std::vector<Node> receivePeerListV4(const unsigned char* buf, size_t len);
-  std::vector<Node> receivePeerListV5(const unsigned char* buf, size_t len);
+  std::vector<Node> receivePeerListV4(const uint8_t* buf, size_t len);
+  std::vector<Node> receivePeerListV5(const uint8_t* buf, size_t len);
   void receiveRetrieveRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
   void receiveDeletionQuery(const std::shared_ptr<pbote::CommunicationPacket>& packet);
   void receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
@@ -140,7 +140,6 @@ class DHTworker {
   static std::vector<std::string> readNodes();
   bool loadNodes();
   void writeNodes();
-  //bool startBootstrap();
 
   static pbote::FindClosePeersRequestPacket findClosePeersPacket(i2p::data::Tag<32> key);
   static pbote::RetrieveRequestPacket RetrieveRequestPacket(uint8_t data_type, i2p::data::Tag<32> key);

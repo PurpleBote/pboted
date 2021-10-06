@@ -26,9 +26,9 @@ void handle_signal(int sig) {
     case SIGUSR1:LogPrint(eLogInfo, "Daemon: Got SIGUSR1, reopening logs...");
       pbote::log::Logger().Reopen();
       break;
-    case SIGINT:LogPrint(eLogInfo, "Daemon: Got SIGINT");
-    case SIGABRT:LogPrint(eLogInfo, "Daemon: Got SIGABRT");
-    case SIGTERM:LogPrint(eLogInfo, "Daemon: Got SIGTERM");
+    case SIGINT:
+    case SIGABRT:
+    case SIGTERM:
       Daemon.running = false; // Exit loop
       break;
     case SIGPIPE:LogPrint(eLogInfo, "Daemon: Got SIGPIPE received");

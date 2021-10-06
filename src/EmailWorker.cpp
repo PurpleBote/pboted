@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2020 polistern
+ * Copyright (c) 2019-2021 polistern
  */
 
 #include <openssl/sha.h>
@@ -354,7 +354,7 @@ void EmailWorker::sendEmailTask() {
         std::string to_address = email->getToAddresses();
         to_address.erase(std::remove_if(to_address.begin(),
                                         to_address.end(),
-                                        [](unsigned char x) { return std::isspace(x); }),
+                                        [](uint8_t x) { return std::isspace(x); }),
                          to_address.end());
 
         std::string cryptoPubKey = "A" + to_address.substr(0, 43);
@@ -449,7 +449,7 @@ void EmailWorker::sendEmailTask() {
         std::string to_address = email->getToAddresses();
         to_address.erase(std::remove_if(to_address.begin(),
                                         to_address.end(),
-                                        [](unsigned char x){return std::isspace(x);}),
+                                        [](uint8_t x){return std::isspace(x);}),
                          to_address.end());
         //LogPrint(eLogDebug, "EmailWorker: sendEmailTask: to_address.size(): ", to_address.size());
 
@@ -519,7 +519,9 @@ std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr
   LogPrint(eLogDebug, "EmailWorker: retrieveIndex: Try to find index for: ", ident_hash);
   // Use findAll rather than findOne because some peers might have an incomplete set of
   // Email Packet keys, and because we want to send IndexPacketDeleteRequests to all of them.
-  // look in dht storage if we have some for us; if no - just wait for timeout
+
+  // ToDo: Look in DHT storage if we have some for us; if no - just wait for timeout
+
   auto results = DHT_worker.findAll(identity->identity.GetPublic()->GetIdentHash(), DataI);
   if (results.empty()) {
     LogPrint(eLogWarning, "EmailWorker: retrieveIndex: can't find index for: ", ident_hash);
@@ -528,20 +530,22 @@ std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr
 
   std::map<i2p::data::Tag<32>, pbote::IndexPacket> index_packets;
   // retrieve index packets
-  for (auto response: results) {
-    LogPrint(eLogDebug, "EmailWorker: retrieveIndex: got index from: ", response.second.from);
+  for (const auto& response: results) {
+    LogPrint(eLogDebug, "EmailWorker: retrieveIndex: got response from: ", response->from);
     size_t offset = 0;
-    unsigned char status;
+    uint8_t status;
     uint16_t dataLen;
 
-    std::memcpy(&status, response.second.payload.data(), sizeof status);
+    std::memcpy(&status, response->payload.data(), sizeof status);
     offset += 1;
-    std::memcpy(&dataLen, response.second.payload.data() + offset, sizeof dataLen);
+    std::memcpy(&dataLen, response->payload.data() + offset, sizeof dataLen);
     offset += 2;
     dataLen = ntohs(dataLen);
 
-    if (status != StatusCode::OK)
+    if (status != StatusCode::OK) {
       LogPrint(eLogWarning, "EmailWorker: retrieveIndex: status: ", statusToString(status));
+      continue;
+    }
 
     if (dataLen == 0) {
       LogPrint(eLogWarning, "EmailWorker: retrieveIndex: packet without payload, skip parsing");
@@ -549,7 +553,7 @@ std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr
     }
 
     uint8_t data[dataLen];
-    std::memcpy(&data, response.second.payload.data() + offset, dataLen);
+    std::memcpy(&data, response->payload.data() + offset, dataLen);
     auto index_packet = parseIndexPkt(data, dataLen, true);
 
     if (!index_packet.data.empty()) {
@@ -575,32 +579,32 @@ std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr
 
 std::vector<pbote::EmailEncryptedPacket> EmailWorker::retrieveEmailEncryptedPacket(const std::vector<pbote::IndexPacket> &index_packets) {
   // retrieve mail packets
-  std::map<std::string, pbote::CommunicationPacket> mail_results;
+  std::vector<std::shared_ptr<pbote::CommunicationPacket>> mail_results;
   for (const auto &index : index_packets) {
     for (auto entry : index.data) {
       i2p::data::Tag<32> hash(entry.key);
       auto temp_results = DHT_worker.findAll(hash, DataE);
-      for (const auto &res : temp_results) {
-        mail_results.insert(std::pair<std::string, pbote::CommunicationPacket>(res.first, res.second));
-      }
+      mail_results.insert(mail_results.end(), temp_results.begin(), temp_results.end());
     }
   }
-  LogPrint(eLogInfo, "EmailWorker: retrieveEmailEncryptedPacket: ", mail_results.size(), " mail packets received");
+  LogPrint(eLogDebug, "EmailWorker: retrieveEmailEncryptedPacket: ", mail_results.size(), " response packets received");
 
   std::map<i2p::data::Tag<32>, pbote::EmailEncryptedPacket> mail_packets;
   for (auto mail_packet : mail_results) {
     size_t offset = 0;
-    unsigned char status;
+    uint8_t status;
     uint16_t dataLen;
 
-    std::memcpy(&status, mail_packet.second.payload.data(), sizeof status);
+    std::memcpy(&status, mail_packet->payload.data(), 1);
     offset += 1;
-    std::memcpy(&dataLen, mail_packet.second.payload.data() + offset, sizeof dataLen);
+    std::memcpy(&dataLen, mail_packet->payload.data() + offset, 2);
     offset += 2;
     dataLen = ntohs(dataLen);
 
-    if (status != StatusCode::OK)
+    if (status != StatusCode::OK) {
       LogPrint(eLogWarning, "EmailWorker: retrieveEmailEncryptedPacket: status: ", statusToString(status));
+      continue;
+    }
 
     if (dataLen == 0) {
       LogPrint(eLogWarning, "EmailWorker: retrieveEmailEncryptedPacket: packet without payload, skip parsing");
@@ -609,7 +613,7 @@ std::vector<pbote::EmailEncryptedPacket> EmailWorker::retrieveEmailEncryptedPack
     LogPrint(eLogDebug, "EmailWorker: retrieveEmailEncryptedPacket: got email packet, payload size: ", dataLen);
 
     uint8_t data[dataLen];
-    std::memcpy(&data, mail_packet.second.payload.data() + offset, dataLen);
+    std::memcpy(&data, mail_packet->payload.data() + offset, dataLen);
     auto parsed_packet = parseEmailEncryptedPkt(data, dataLen, true);
     if (!parsed_packet.edata.empty()) {
       i2p::data::Tag<32> hash(parsed_packet.key);
@@ -641,7 +645,7 @@ std::vector<pbote::IndexPacket> EmailWorker::loadLocalIndex() {
     for (const auto &packet_path : packets_path) {
       std::ifstream file(packet_path, std::ios::binary);
 
-      std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
+      std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
 
       file.close();
       auto indexPacket = parseIndexPkt(bytes.data(), bytes.size(), false);
@@ -663,7 +667,7 @@ std::vector<pbote::EmailEncryptedPacket> EmailWorker::loadLocalEmailEncryptedPac
   if (result) {
     for (const auto &packet_path : packets_path) {
       std::ifstream file(packet_path, std::ios::binary);
-      std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
+      std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
       file.close();
 
       auto email_encrypted_packet = parseEmailEncryptedPkt(bytes.data(), bytes.size(), false);
@@ -687,7 +691,7 @@ std::vector<pbote::EmailUnencryptedPacket> EmailWorker::loadLocalIncompletePacke
     for (const auto &packet_path : packets_path) {
       std::ifstream file(packet_path, std::ios::binary);
 
-      std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
+      std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
 
       file.close();
       auto indexPacket = parseEmailUnencryptedPkt(bytes.data(), bytes.size(), false);
@@ -715,7 +719,7 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::checkOutbox() {
     for (const auto &mail_path : mails_path) {
       // read mime packet
       std::ifstream file(mail_path, std::ios::binary);
-      std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
+      std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
       file.close();
 
       pbote::Email mailPacket;
