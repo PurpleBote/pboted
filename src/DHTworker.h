@@ -81,9 +81,15 @@ struct Node : i2p::data::IdentityEx {
   }
 };
 
+/// Number of redundant storage nodes
+const int KADEMLIA_CONSTANT_K = 20;
+/// The size of the sibling list for S/Kademlia
+const int KADEMLIA_CONSTANT_S = 100;
+/// const int KADEMLIA_CONSTANT_B = = 5;   // This is the value from the original Kademlia paper.
+const int KADEMLIA_CONSTANT_B = 1;
 /// According to the literature, 3 is the optimum choice,
 /// but until the network becomes significantly larger than S, we'll use a higher value for speed.
-const int CONSTANT_ALPHA = 10;
+const int KADEMLIA_CONSTANT_ALPHA = 10;
 /// The amount of time after which a bucket is refreshed if a lookup hasn't been done in its ID range
 const int BUCKET_REFRESH_INTERVAL = 3600;
 /// Time interval for Kademlia replication (plus or minus <code>REPLICATE_VARIANCE</code>)
@@ -110,7 +116,7 @@ class DHTworker {
   bool addNode(const i2p::data::IdentityEx &identity);
   std::shared_ptr<Node> findNode(const i2p::data::IdentHash &ident) const; /// duplication check
 
-  std::shared_ptr<Node> getClosestNode(const i2p::data::IdentHash & destination, bool to_us);
+  std::shared_ptr<Node> getClosestNode(const i2p::data::IdentHash & key, bool to_us);
   std::vector<Node> getClosestNodes(i2p::data::IdentHash key, size_t num, bool to_us);
 
   std::vector<Node> getAllNodes();
@@ -122,6 +128,11 @@ class DHTworker {
   std::vector<std::shared_ptr<pbote::CommunicationPacket>> find(i2p::data::Tag<32> hash, uint8_t type, bool exhaustive);
 
   std::vector<std::string> store(i2p::data::Tag<32> hash, uint8_t type, pbote::StoreRequestPacket packet);
+  bool safe(std::vector<uint8_t> data) { return dht_storage_.safe(std::move(data)); }
+
+  std::vector<uint8_t> getIndex(i2p::data::Tag<32> key) { return dht_storage_.getIndex(key); }
+  std::vector<uint8_t> getEmail(i2p::data::Tag<32> key) { return dht_storage_.getEmail(key); }
+  std::vector<uint8_t> getContact(i2p::data::Tag<32> key) { return dht_storage_.getContact(key); }
 
   std::vector<Node> closestNodesLookupTask(i2p::data::Tag<32> key);
 
@@ -156,6 +167,7 @@ class DHTworker {
   std::map<i2p::data::IdentHash, std::shared_ptr<Node>> m_nodes_;
 
   // ToDo: K-bucket/routing table and S-bucket (NEED MORE DISCUSSION)
+
   //pbote::fs::HashedStorage m_storage_;
   pbote::kademlia::DHTStorage dht_storage_;
 };

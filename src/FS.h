@@ -10,6 +10,8 @@
 #ifndef FS_H__
 #define FS_H__
 
+#define DEFAULT_FILE_EXTENSION ".dat"
+
 #include <functional>
 #include <iostream>
 #include <sstream>
@@ -21,7 +23,6 @@ namespace fs {
 
 extern std::string dirSep;
 
-// ToDo: Remove HashedStorage, bugy and not needed now;
 /**
  * @brief Class to work with NetDb & Router profiles
  *

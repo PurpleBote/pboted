@@ -8,6 +8,7 @@
 #include <chrono>
 #include <random>
 
+#include "AddressBook.h"
 #include "ConfigParser.h"
 #include "EmailIdentity.h"
 #include "FS.h"
@@ -79,6 +80,8 @@ class BoteContext {
   std::shared_ptr<i2p::data::PrivateKeys> local_keys_;
 
   identitiesStorage *identities_storage_;
+
+  pbote::AddressBook address_book_;
 
   queue_type m_recvQueue;
   queue_type m_sendQueue;

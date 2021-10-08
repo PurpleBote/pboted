@@ -20,6 +20,7 @@ set(PBOTE_SRC_DIR src)
 include_directories(${PBOTE_SRC_DIR})
 set(PBOTE_SRC
         "${PBOTE_SRC_DIR}/main.cpp"
+        "${PBOTE_SRC_DIR}/AddressBook.cpp"
         "${PBOTE_SRC_DIR}/BoteContext.cpp"
         "${PBOTE_SRC_DIR}/ConfigParser.cpp"
         "${PBOTE_SRC_DIR}/Crypto.cpp"

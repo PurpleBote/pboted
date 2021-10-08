@@ -227,13 +227,6 @@ size_t EmailIdentityPublic::GetFullLen() const {
   return IDENTITY_SIZE_DEFAULT;
 }
 
-
-
-
-
-
-
-
 EmailIdentityPrivate &EmailIdentityPrivate::operator=(const Keys &keys) {
   m_Public = std::make_shared<EmailIdentityPublic>(EmailIdentity(keys));
   memcpy(m_CryptoPrivateKey, keys.cryptoPrivKey, 33);
@@ -503,38 +496,19 @@ EmailIdentityPrivate EmailIdentityPrivate::CreateOfflineKeys(SigningKeyType type
   return keys;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 void identitiesStorage::init() {
   //ToDo: add file encryption/decryption
-  LogPrint(eLogWarning, "Email: Try load identities from file");
+  LogPrint(eLogInfo, "identitiesStorage: init: Try load identities from file");
   //std::string localDestinationPath = pbote::fs::DataDirPath("identities.dat");
   std::string localDestinationPath = pbote::fs::DataDirPath("identities.txt");
 
   int identities_count = loadIdentities(localDestinationPath);
   if (identities_count == 0)
-    LogPrint(eLogWarning, "Email: Can't load identities from file: ", localDestinationPath);
+    LogPrint(eLogWarning, "identitiesStorage: init: Can't load identities from file: ", localDestinationPath);
   else if (identities_count < 0)
-    LogPrint(eLogWarning, "Email: Identities file does not exist: ", localDestinationPath);
+    LogPrint(eLogWarning, "identitiesStorage: init: Identities file does not exist: ", localDestinationPath);
   else
-    LogPrint(eLogInfo, "Email: Load ", identities_count, " identities.");
+    LogPrint(eLogInfo, "identitiesStorage: init: Load ", identities_count, " identities.");
 }
 
 size_t identitiesStorage::loadIdentities(const std::string &path) {

@@ -152,6 +152,7 @@ struct DataPacket {
 struct EmailEncryptedPacket : public DataPacket{
  public:
   EmailEncryptedPacket() : DataPacket(DataE) {}
+  //EmailEncryptedPacket()
   uint8_t key[32];
   uint32_t stored_time;
   uint8_t delete_hash[32];
@@ -369,6 +370,21 @@ struct RelayRequestPacket : public CleanCommunicationPacket{
 struct ResponsePacket : public CleanCommunicationPacket{
  public:
   ResponsePacket() : CleanCommunicationPacket(CommN) {}
+  ResponsePacket(CommunicationPacket packet)
+    : CleanCommunicationPacket(CommN) {
+    size_t offset = 0;
+
+    ver = packet.ver;
+
+    std::memcpy(&status, packet.payload.data(), 1);
+    offset += 1;
+    std::memcpy(&length, packet.payload.data() + offset, 2);
+    offset += 2;
+    length = ntohs(length);
+
+    data.insert(data.end(), packet.payload.data() + offset, packet.payload.data() + offset + offset);
+  }
+
   StatusCode status;
   uint16_t length;
   // 'I' = Index Packet

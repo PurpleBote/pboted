@@ -7,32 +7,32 @@
 
 #include <string>
 
-#include "Contact.h"
+//#include "Contact.h"
+
+namespace pbote {
 
 class AddressBook {
+ public:
+  AddressBook();
+  AddressBook(std::string path, std::string pass);
+  ~AddressBook();
+
+  void load();
+  void save();
+
+  void add();
+  void remove();
+
+  void setPassword();
+  void changePassword();
+  void encrypt();
+  void decrypt();
+
  private:
   std::string filePath_;
   std::string passwordHolder_;
-
- public:
-  AddressBook(/* args */);
-  ~AddressBook();
-
-  void load() {}
-
-  void save() {}
-
-  void add() {}
-
-  void remove() {}
-
-  void encrypt() {}
-
-  void decrypt() {}
 };
 
-AddressBook::AddressBook(/* args */) {}
-
-AddressBook::~AddressBook() {}
+} // pbote
 
 #endif // ADDRESS_BOOK_H__

@@ -52,15 +52,16 @@ class EmailWorker {
   std::vector<pbote::IndexPacket> retrieveIndex(const std::shared_ptr<pbote::EmailIdentityFull>& identity);
   std::vector<pbote::EmailEncryptedPacket> retrieveEmailEncryptedPacket(const std::vector<pbote::IndexPacket>& index_packets);
 
-  static std::vector<pbote::IndexPacket> loadLocalIndex();
-  static std::vector<pbote::EmailEncryptedPacket> loadLocalEmailEncryptedPacket();
+  //static std::vector<pbote::IndexPacket> loadLocalIndex();
+  //static std::vector<pbote::EmailEncryptedPacket> loadLocalEmailEncryptedPacket();
   static std::vector<pbote::EmailUnencryptedPacket> loadLocalIncompletePacket();
-  std::vector<std::shared_ptr<pbote::Email>> checkOutbox();
+
+  static std::vector<std::shared_ptr<pbote::Email>> checkOutbox();
 
   std::vector<pbote::Email> processEmail(const std::vector<pbote::EmailEncryptedPacket>& mail_packets);
 
-  static bool saveIndexPacket(pbote::IndexPacket packet);
-  static bool saveEmailEncryptedPacket(pbote::EmailEncryptedPacket packet);
+  //static bool saveIndexPacket(pbote::IndexPacket packet);
+  //static bool saveEmailEncryptedPacket(pbote::EmailEncryptedPacket packet);
   static bool saveEmailInboxPacket(pbote::Email mail);
 
   bool started_;
@@ -73,7 +74,7 @@ class EmailWorker {
 
 extern EmailWorker email_worker;
 
-} // namespace kademlia
-} // namespace pbote
+} // kademlia
+} // pbote
 
 #endif // PBOTE_EMAILWORKER_H__
