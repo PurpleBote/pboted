@@ -112,6 +112,12 @@ systemctl start pboted.service
 
 - Now you can see in log files that all works
 
+## Usage
+
+You may need the utilities from the `utils` directory to work with **pboted**.   
+In the future, their list will grow.   
+There are plans to transfer all means for interaction into a separate CLI utility.
+
 ## Donations
 
 - **BTC**: `bc1qans7ukm5t62mjcuhl3rpzxml05etyljhjt7w76`

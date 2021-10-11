@@ -6,6 +6,7 @@
 /misc_old/
 /my_tests/
 /cmake-build-debug/
+/venv
 
 pbote.code-workspace
 build.gradle

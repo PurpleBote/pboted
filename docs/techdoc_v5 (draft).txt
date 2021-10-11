@@ -1,5 +1,9 @@
 I2P-Bote Technical Documentation
 --------------------------------
+ToDo: Remove or reformat application-specific paragraphs
+ToDo: Renew the protocol documentation at Markdown (or other)
+ToDo: Fill out application specific documentation
+ToDo: Move documentation to separate repository
 
 1) Introduction
 
@@ -227,10 +231,19 @@ Strings in packets are UTF8 encoded.
                       | TYPE  | 1 byte     | Value = 'L'
                       | VER   | 1 byte     | Protocol version
                       | NUMP  | 2 bytes    | Number of peers in the list
-                      | P1    | 384 bytes  | Destination key
-                      | P2    | 384 bytes  | Destination key
+                      | IDN1  | 384 bytes  | Standart I2P identity
+                      | TYPE1 | 1 byte     | Certificate type
+                      | LEN1  | 2 byte     | Length of extra bytes DATA1 field
+                      | DATA1 | byte[]     | Extra bytes
+                      | IDN2  | 384 bytes  | Standart I2P identity
+                      | TYPE2 | 1 byte     | Certificate type
+                      | LEN2  | 2 byte     | Length of extra bytes DATA2 field
+                      | DATA2 | byte[]     | Extra bytes
                       | ...   | ...        | ...
-                      | Pn    | 384 bytes  | Destination key
+                      | IDNn  | 384 bytes  | Standart I2P identity
+                      | TYPEn | 1 byte     | Certificate type
+                      | LENn  | 2 byte     | Length of extra bytes DATAn field
+                      | DATAn | byte[]     | Extra bytes
   --------------------+-------+------------+--------------------------------------------------------
    Directory Entry    |       |            | A name/Email Destination mapping
    (Contact.java)     | TYPE  | 1 byte     | Value = 'C'
@@ -635,7 +648,7 @@ ToDo: Looks specific to Java app, remove from protocol description
 7.1. Asymmetric encryption and signing
 
   Supported encryption and signature algorithms:
-    ALG=1: ElGamal-2048 / DSA-1024 / AES-256 / SHA-256 (same as the I2P router uses)
+    ALG=1: ElGamal-2048 / DSA-1024 / AES-256 / SHA-256 (same as the I2P router uses) [DEPRECATED]
     ALG=2: ECDH-256 / ECDSA-256 / AES-256 / SHA-256
     ALG=3: ECDH-521 / ECDSA-521 / AES-256 / SHA-512
     ALG=4: NTRUEncrypt-1087 / GMSS-512 / AES-256 / SHA-512
@@ -669,6 +682,7 @@ ToDo: Looks specific to Java app, remove from protocol description
    13*7+22+18 = 131
 
 
+ToDo: Looks specific to Java app, remove from protocol description
 8. Development
 
 8.1. Setting up Eclipse
