@@ -23,6 +23,7 @@
 #include "Log.h"
 
 #include "lib/libi2pd/Tag.h"
+#include "lib/libi2pd/I2PEndian.h"
 
 namespace pbote {
 
@@ -140,11 +141,10 @@ struct PacketBatch {
 };
 
 /// Packets
-/// ToDo: toByte() method for packets with vectors
 /// Data packets
 struct DataPacket {
  public:
-  DataPacket(uint8_t type_) : type(type_), ver(version::V4) {}
+  explicit DataPacket(uint8_t type_) : type(type_), ver(version::V4) {}
   uint8_t type;
   uint8_t ver;
 };
@@ -152,25 +152,28 @@ struct DataPacket {
 struct EmailEncryptedPacket : public DataPacket{
  public:
   EmailEncryptedPacket() : DataPacket(DataE) {}
-  //EmailEncryptedPacket()
-  uint8_t key[32];
-  uint32_t stored_time;
-  uint8_t delete_hash[32];
-  uint8_t alg;
-  uint16_t length;
+
+  uint8_t key[32]{};
+  uint32_t stored_time{};
+  uint8_t delete_hash[32]{};
+  uint8_t alg{};
+  uint16_t length{};
   std::vector<uint8_t> edata;
 
   std::vector<uint8_t> toByte() {
-    // Basic part
+    /// Start basic part
     std::vector<uint8_t> result;
-    result.push_back(type);
-    result.push_back(ver);
-
-    result.insert(result.end(), std::begin(key), std::end(key));
     result.reserve(71 + edata.size());
 
-    uint8_t v_time[4] = { static_cast<uint8_t>(stored_time >> 24), static_cast<uint8_t>(stored_time >> 16),
-                          static_cast<uint8_t>(stored_time >>  8), static_cast<uint8_t>(stored_time & 0xffff) };
+    result.push_back(type);
+    result.push_back(ver);
+    /// End basic part
+
+    result.insert(result.end(), std::begin(key), std::end(key));
+
+    uint8_t v_time[4];
+    htobuf32(v_time, stored_time);
+
     result.insert(result.end(), std::begin(v_time), std::end(v_time));
     result.insert(result.end(), std::begin(delete_hash), std::end(delete_hash));
 
@@ -187,20 +190,21 @@ struct EmailEncryptedPacket : public DataPacket{
 struct EmailUnencryptedPacket : public DataPacket{
  public:
   EmailUnencryptedPacket() : DataPacket(DataU), fr_id(0), fr_count(0), length(0) {}
-  uint8_t mes_id[32];
-  uint8_t DA[32];
+  uint8_t mes_id[32]{};
+  uint8_t DA[32]{};
   uint16_t fr_id;
   uint16_t fr_count;
   uint16_t length;
   std::vector<uint8_t> data;
 
   std::vector<uint8_t> toByte() {
-    // Basic part
+    /// Start basic part
     std::vector<uint8_t> result;
     result.reserve(72 + data.size());
 
     result.push_back(type);
     result.push_back(ver);
+    /// End basic part
 
     result.insert(result.end(), std::begin(mes_id), std::end(mes_id));
     result.insert(result.end(), std::begin(DA), std::end(DA));
@@ -222,27 +226,31 @@ struct EmailUnencryptedPacket : public DataPacket{
 struct IndexPacket : public DataPacket{
  public:
   IndexPacket() : DataPacket(DataI), nump(0) {}
+
   struct Entry {
     uint8_t key[32];
     uint8_t dv[32];
     long time;
   };
 
-  uint8_t hash[32] = {};
+  uint8_t hash[32]{};
   uint32_t nump;
   std::vector<Entry> data;
 
   std::vector<uint8_t> toByte() {
-    // Basic part
+    /// Start basic part
     std::vector<uint8_t> result;
+    result.reserve(38 + (data.size() * 68));
+
     result.push_back(type);
     result.push_back(ver);
+    /// End basic part
 
     result.insert(result.end(), std::begin(hash), std::end(hash));
 
-    nump = htonl(nump);
     uint8_t v_nump[4];
-    memcpy(v_nump, &nump, 4);
+    htobuf32(v_nump, nump);
+
     result.insert(result.end(), std::begin(v_nump), std::end(v_nump));
 
     for (auto entry : data) {
@@ -258,31 +266,50 @@ struct IndexPacket : public DataPacket{
 struct DeletionInfoPacket : public DataPacket{
  public:
   DeletionInfoPacket() : DataPacket(DataT), count(0) {}
+
   struct item {
     uint8_t key[32];
     uint8_t da[32];
-    uint32_t time;
+    long time;
   };
 
   uint32_t count;
   std::vector<item> data;
 
   std::vector<uint8_t> toByte() {
-    return {};
+    /// Start basic part
+    std::vector<uint8_t> result;
+    result.reserve(6 + (data.size() * 68));
+
+    result.push_back(type);
+    result.push_back(ver);
+    /// End basic part
+
+    for (auto entry : data) {
+      uint8_t arr[68];
+      memcpy(arr, entry.key, 68);
+      result.insert(result.end(), std::begin(arr), std::end(arr));
+    }
+
+    return result;
   }
 };
 
 struct PeerListPacketV4 : public DataPacket{
  public:
   PeerListPacketV4() : DataPacket(DataL), count(0) {}
+
   uint16_t count;
   std::vector<uint8_t> data;
 
   std::vector<uint8_t> toByte() {
-    // Basic part
+    /// Start basic part
     std::vector<uint8_t> result;
+    result.reserve(4 + data.size());
+
     result.push_back(type);
     result.push_back(ver);
+    /// End basic part
 
     uint8_t v_count[2] = { static_cast<uint8_t>(count >> 8), static_cast<uint8_t>(count & 0xff) };
     result.insert(result.end(), std::begin(v_count), std::end(v_count));
@@ -294,14 +321,18 @@ struct PeerListPacketV4 : public DataPacket{
 struct PeerListPacketV5 : public DataPacket{
  public:
   PeerListPacketV5() : DataPacket(DataL), count(0) { ver = version::V5; }
+
   uint16_t count;
   std::vector<uint8_t> data;
 
   std::vector<uint8_t> toByte() {
-    // Basic part
+    /// Start basic part
     std::vector<uint8_t> result;
+    result.reserve(4 + data.size());
+
     result.push_back(type);
     result.push_back(ver);
+    /// End basic part
 
     uint8_t v_count[2] = { static_cast<uint8_t>(count >> 8), static_cast<uint8_t>(count & 0xff) };
     result.insert(result.end(), std::begin(v_count), std::end(v_count));
@@ -313,17 +344,26 @@ struct PeerListPacketV5 : public DataPacket{
 struct DirectoryEntryPacket : public DataPacket{
  public:
   DirectoryEntryPacket() : DataPacket(DataC) {}
-  uint8_t key[32];
-  uint16_t dest_length;
+
+  uint8_t key[32]{};
+  uint16_t dest_length{};
   std::vector<uint8_t> dest_data;
-  uint32_t salt;
-  uint16_t pic_length;
+  uint32_t salt{};
+  uint16_t pic_length{};
   std::vector<uint32_t> pic;
-  uint8_t compress;
-  uint16_t text_length;
+  uint8_t compress{};
+  uint16_t text_length{};
   std::vector<uint8_t> text;
 
   std::vector<uint8_t> toByte() {
+    /// Start basic part
+    std::vector<uint8_t> result;
+    result.reserve(4 );
+
+    result.push_back(type);
+    result.push_back(ver);
+    /// End basic part
+
     return {};
   }
 };
@@ -333,10 +373,11 @@ struct DirectoryEntryPacket : public DataPacket{
 struct CommunicationPacket {
  public:
   CommunicationPacket(uint8_t type_) : prefix{0x6D, 0x30, 0x52, 0xE9}, type(type_), ver(version::V4) {}
+
   uint8_t prefix[4];
   uint8_t type;
   uint8_t ver;
-  uint8_t cid[32];
+  uint8_t cid[32]{};
   std::string from;
   std::vector<uint8_t> payload;
 };
@@ -344,10 +385,11 @@ struct CommunicationPacket {
 struct CleanCommunicationPacket {
  public:
   CleanCommunicationPacket(uint8_t type_) : prefix{0x6D, 0x30, 0x52, 0xE9}, type(type_), ver(version::V4) {}
+
   uint8_t prefix[4];
   uint8_t type;
   uint8_t ver;
-  uint8_t cid[32];
+  uint8_t cid[32]{};
 };
 
 struct RelayRequestPacket : public CleanCommunicationPacket{
@@ -370,34 +412,21 @@ struct RelayRequestPacket : public CleanCommunicationPacket{
 struct ResponsePacket : public CleanCommunicationPacket{
  public:
   ResponsePacket() : CleanCommunicationPacket(CommN) {}
-  ResponsePacket(CommunicationPacket packet)
-    : CleanCommunicationPacket(CommN) {
-    size_t offset = 0;
 
-    ver = packet.ver;
-
-    std::memcpy(&status, packet.payload.data(), 1);
-    offset += 1;
-    std::memcpy(&length, packet.payload.data() + offset, 2);
-    offset += 2;
-    length = ntohs(length);
-
-    data.insert(data.end(), packet.payload.data() + offset, packet.payload.data() + offset + offset);
-  }
-
-  StatusCode status;
-  uint16_t length;
+  StatusCode status{};
+  uint16_t length{};
   // 'I' = Index Packet
   // 'C' = Directory Entry
   // 'E' = Email Packet
   std::vector<uint8_t> data;
 
   std::vector<uint8_t> toByte() {
-    // Basic part
+    /// Start basic part
     std::vector<uint8_t> result(std::begin(prefix), std::end(prefix));
     result.push_back(type);
     result.push_back(ver);
     result.insert(result.end(), std::begin(cid), std::end(cid));
+    /// End basic part
 
     result.push_back(status);
 
@@ -418,6 +447,17 @@ struct ResponsePacket : public CleanCommunicationPacket{
 struct PeerListRequestPacket : public CleanCommunicationPacket{
  public:
   PeerListRequestPacket() : CleanCommunicationPacket(CommA) {}
+
+  std::vector<uint8_t> toByte() {
+    /// Start basic part
+    std::vector<uint8_t> result(std::begin(prefix), std::end(prefix));
+    result.push_back(type);
+    result.push_back(ver);
+    result.insert(result.end(), std::begin(cid), std::end(cid));
+    /// End basic part
+
+    return result;
+  }
 };
 
 /// DHT packets
@@ -425,15 +465,17 @@ struct PeerListRequestPacket : public CleanCommunicationPacket{
 struct RetrieveRequestPacket : public CleanCommunicationPacket{
  public:
   RetrieveRequestPacket() : CleanCommunicationPacket(CommQ) {}
-  uint8_t data_type;
-  uint8_t key[32];
+
+  uint8_t data_type{};
+  uint8_t key[32]{};
 
   std::vector<uint8_t> toByte() {
-    // Basic part
+    /// Start basic part
     std::vector<uint8_t> result(std::begin(prefix), std::end(prefix));
     result.push_back(type);
     result.push_back(ver);
     result.insert(result.end(), std::begin(cid), std::end(cid));
+    /// End basic part
 
     result.push_back(data_type);
     result.insert(result.end(), std::begin(key), std::end(key));
@@ -444,23 +486,39 @@ struct RetrieveRequestPacket : public CleanCommunicationPacket{
 struct DeletionQueryPacket : public CleanCommunicationPacket{
  public:
   DeletionQueryPacket() : CleanCommunicationPacket(CommY) {}
-  i2p::data::Tag<32> dht_key;
+
+  uint8_t dht_key[32]{};
+
+  std::vector<uint8_t> toByte() {
+    /// Start basic part
+    std::vector<uint8_t> result(std::begin(prefix), std::end(prefix));
+    result.push_back(type);
+    result.push_back(ver);
+    result.insert(result.end(), std::begin(cid), std::end(cid));
+    /// End basic part
+
+    result.insert(result.end(), std::begin(dht_key), std::end(dht_key));
+
+    return result;
+  }
 };
 
 struct StoreRequestPacket : public CleanCommunicationPacket{
  public:
   StoreRequestPacket() : CleanCommunicationPacket(CommS) {}
-  uint16_t hc_length;
+
+  uint16_t hc_length{};
   std::vector<uint8_t> hashcash;
-  uint16_t length;
+  uint16_t length{};
   std::vector<uint8_t> data;
 
   std::vector<uint8_t> toByte() {
-    // Basic part
+    /// Start basic part
     std::vector<uint8_t> result(std::begin(prefix), std::end(prefix));
     result.push_back(type);
     result.push_back(ver);
     result.insert(result.end(), std::begin(cid), std::end(cid));
+    /// End basic part
 
     uint8_t v_hc_length[2] = { static_cast<uint8_t>(hc_length >> 8), static_cast<uint8_t>(hc_length & 0xff) };
     result.insert(result.end(), std::begin(v_hc_length), std::end(v_hc_length));
@@ -478,27 +536,72 @@ struct StoreRequestPacket : public CleanCommunicationPacket{
 struct EmailDeleteRequestPacket : public CleanCommunicationPacket{
  public:
   EmailDeleteRequestPacket() : CleanCommunicationPacket(CommD) {}
-  uint8_t key[32];
-  uint8_t DA[32];
+
+  uint8_t key[32]{};
+  uint8_t DA[32]{};
+
+  std::vector<uint8_t> toByte() {
+    /// Start basic part
+    std::vector<uint8_t> result(std::begin(prefix), std::end(prefix));
+    result.push_back(type);
+    result.push_back(ver);
+    result.insert(result.end(), std::begin(cid), std::end(cid));
+    /// End basic part
+
+    result.insert(result.end(), std::begin(key), std::end(key));
+    result.insert(result.end(), std::begin(DA), std::end(DA));
+
+    return result;
+  }
 };
 
 struct IndexDeleteRequestPacket : public CleanCommunicationPacket{
  public:
   IndexDeleteRequestPacket() : CleanCommunicationPacket(CommX) {}
-  /// not implemented
+
+  struct item {
+    uint8_t key[32];
+    uint8_t da[32];
+  };
+
+  uint8_t dht_key[32]{};
+  uint32_t count{};
+  std::vector<item> data;
+
+  std::vector<uint8_t> toByte() {
+    /// Start basic part
+    std::vector<uint8_t> result(std::begin(prefix), std::end(prefix));
+    result.push_back(type);
+    result.push_back(ver);
+    result.insert(result.end(), std::begin(cid), std::end(cid));
+    /// End basic part
+
+    result.insert(result.end(), std::begin(dht_key), std::end(dht_key));
+    result.push_back(count);
+
+    for (auto entry : data) {
+      uint8_t arr[64];
+      memcpy(arr, entry.key, 64);
+      result.insert(result.end(), std::begin(arr), std::end(arr));
+    }
+
+    return result;
+  }
 };
 
 struct FindClosePeersRequestPacket : public CleanCommunicationPacket{
  public:
   FindClosePeersRequestPacket() : CleanCommunicationPacket(CommF) {}
-  uint8_t key[32];
+
+  uint8_t key[32]{};
 
   std::vector<uint8_t> toByte() {
-    // Basic part
+    /// Start basic part
     std::vector<uint8_t> result(std::begin(prefix), std::end(prefix));
     result.push_back(type);
     result.push_back(ver);
     result.insert(result.end(), std::begin(cid), std::end(cid));
+    /// End basic part
 
     result.insert(result.end(), std::begin(key), std::end(key));
 
@@ -570,8 +673,6 @@ inline std::shared_ptr<CommunicationPacket> parseCommPacket(const std::shared_pt
 
     CommunicationPacket res(data.type);
     res.ver = data.ver;
-    //for (int i = 0; i < 32; i++)
-    //  res.cid[i] = data.cid[i];
     memcpy(res.cid, data.cid, 32);
 
     res.from = std::move(packet->destination);

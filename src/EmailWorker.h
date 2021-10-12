@@ -21,6 +21,9 @@
 namespace pbote {
 namespace kademlia {
 
+const int SEND_EMAIL_INTERVAL = 5 * 60;
+const int CHECK_EMAIL_INTERVAL = 5 * 60;
+
 class EmailWorker {
  public:
   EmailWorker();
@@ -36,7 +39,7 @@ class EmailWorker {
   void startSendEmailTask();
   bool stopSendEmailTask();
 
-  static pbote::IndexPacket parseIndexPkt(uint8_t * buf, size_t len, bool from_net);
+  static pbote::IndexPacket parseIndexPkt(const std::vector<uint8_t>& buf, bool from_net);
   static pbote::EmailEncryptedPacket parseEmailEncryptedPkt(uint8_t * buf, size_t len, bool from_net);
 
   std::vector<uint8_t> decryptData(uint8_t* enc, size_t elen);
@@ -50,18 +53,14 @@ class EmailWorker {
   void sendEmailTask();
 
   std::vector<pbote::IndexPacket> retrieveIndex(const std::shared_ptr<pbote::EmailIdentityFull>& identity);
-  std::vector<pbote::EmailEncryptedPacket> retrieveEmailEncryptedPacket(const std::vector<pbote::IndexPacket>& index_packets);
+  std::vector<pbote::EmailEncryptedPacket> retrieveEmailPacket(const std::vector<pbote::IndexPacket>& index_packets);
 
-  //static std::vector<pbote::IndexPacket> loadLocalIndex();
-  //static std::vector<pbote::EmailEncryptedPacket> loadLocalEmailEncryptedPacket();
   static std::vector<pbote::EmailUnencryptedPacket> loadLocalIncompletePacket();
 
   static std::vector<std::shared_ptr<pbote::Email>> checkOutbox();
 
   std::vector<pbote::Email> processEmail(const std::vector<pbote::EmailEncryptedPacket>& mail_packets);
 
-  //static bool saveIndexPacket(pbote::IndexPacket packet);
-  //static bool saveEmailEncryptedPacket(pbote::EmailEncryptedPacket packet);
   static bool saveEmailInboxPacket(pbote::Email mail);
 
   bool started_;

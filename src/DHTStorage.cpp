@@ -169,8 +169,7 @@ bool DHTStorage::safeIndex(i2p::data::Tag<32> key, std::vector<uint8_t> data) {
     return false;
   }
 
-  std::ostream_iterator<uint8_t> output_iterator(file, "\n");
-  std::copy(data.begin(), data.end(), output_iterator);
+  file.write((char*) data.data(), data.size());
 
   file.close();
   return true;
@@ -191,8 +190,7 @@ bool DHTStorage::safeEmail(i2p::data::Tag<32> key, std::vector<uint8_t> data) {
     return false;
   }
 
-  std::ostream_iterator<uint8_t> output_iterator(file, "\n");
-  std::copy(data.begin(), data.end(), output_iterator);
+  file.write((char*) data.data(), data.size());
 
   file.close();
   return true;
@@ -213,8 +211,7 @@ bool DHTStorage::safeContact(i2p::data::Tag<32> key, std::vector<uint8_t> data) 
     return false;
   }
 
-  std::ostream_iterator<uint8_t> output_iterator(file, "\n");
-  std::copy(data.begin(), data.end(), output_iterator);
+  file.write((char*) data.data(), data.size());
 
   file.close();
   return true;

@@ -22,9 +22,9 @@ const int MAX_PEERS_TO_SEND = 20;
 /// percentage of requests sent to a peer / responses received back
 const int MIN_REACHABILITY = 0; //ToDo: change to 80
 /// time in minutes between updating peers if no high-reachability peers are known
-const int UPDATE_INTERVAL_SHORT = 60*2;
+const int UPDATE_INTERVAL_SHORT = 2 * 60;
 /// time in minutes between updating peers if at least one high-reachability peer is known
-const int UPDATE_INTERVAL_LONG = 60*60;
+const int UPDATE_INTERVAL_LONG = 60 * 60;
 
 class RelayPeer : public i2p::data::IdentityEx {
  public:
@@ -83,7 +83,7 @@ class RelayPeersWorker{
   void addPeers(const std::vector<RelayPeer>& peers);
 
   std::shared_ptr<RelayPeer> findPeer(const i2p::data::IdentHash &ident) const;
-  std::vector<std::string> readPeers();
+  static std::vector<std::string> readPeers();
   void writePeers();
   bool loadPeers();
 
@@ -101,7 +101,7 @@ class RelayPeersWorker{
 
  private:
   void run();
-  void checkPeersTask();
+  bool checkPeersTask();
 
   bool started_;
   std::thread *m_worker_thread_;

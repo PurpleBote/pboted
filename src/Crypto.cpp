@@ -73,7 +73,8 @@ std::vector<byte> ECDHP256Encryptor::Encrypt(const byte *data, int len) {
     LogPrint(eLogDebug, "Crypto: Encrypt: len: ", len, ", pad: ", len % 16);
     len += len % 16;
 
-    byte *encrypted = new byte[len];
+    //byte *encrypted = new byte[len];
+    byte encrypted[len];
 
     LogPrint(eLogDebug, "Crypto: Encrypt: len: ", len);
 
@@ -82,6 +83,7 @@ std::vector<byte> ECDHP256Encryptor::Encrypt(const byte *data, int len) {
     LogPrint(eLogDebug, "Crypto: Encrypt: len: ", len);
 
     std::vector<byte> enc_data(encrypted, encrypted + len);
+    //std::vector<byte> enc_data(encrypted, encrypted + (sizeof encrypted / sizeof encrypted[0]));
     LogPrint(eLogDebug, "Crypto: Encrypt: enc_data.size(): ", enc_data.size());
     result.insert(result.end(), enc_data.begin(), enc_data.end());
 

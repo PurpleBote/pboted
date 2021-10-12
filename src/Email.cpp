@@ -319,7 +319,7 @@ std::string Email::getValue(std::string line, Header type) {
     while (pos != std::string::npos) {
       pos = line.find(value_delimiter);
       token = line.substr(0, pos);
-      line.erase(0, pos + value_delimiter.length());
+      line.erase(0, pos + value_delimiter.length() - 1);
     }
     return line;
   } else {

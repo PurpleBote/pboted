@@ -29,11 +29,11 @@ class BoteContext {
   void init();
 
   void send(const PacketForQueue& packet);
-  void send(std::shared_ptr<PacketBatch<pbote::CommunicationPacket>> batch);
+  void send(const std::shared_ptr<PacketBatch<pbote::CommunicationPacket>>& batch);
 
-  bool receive(std::shared_ptr<pbote::CommunicationPacket> packet);
+  bool receive(const std::shared_ptr<pbote::CommunicationPacket>& packet);
 
-  void removeBatch(std::shared_ptr<PacketBatch<pbote::CommunicationPacket>> batch);
+  void removeBatch(const std::shared_ptr<PacketBatch<pbote::CommunicationPacket>>& batch);
 
   std::string get_nickname() { return nickname; }
 
@@ -52,7 +52,7 @@ class BoteContext {
   queue_type getSendQueue() { return m_sendQueue; }
   queue_type getRecvQueue() { return m_recvQueue; }
 
-  unsigned long get_uptime() { return std::chrono::system_clock::now().time_since_epoch().count() - start_time_; }
+  unsigned long get_uptime();
   unsigned long get_bytes_recv() { return bytes_recv_; }
   unsigned long get_bytes_sent() { return bytes_sent_; }
   bool keys_loaded() { return keys_loaded_; }
@@ -76,21 +76,21 @@ class BoteContext {
   uint16_t routerPortTCP;
   uint16_t routerPortUDP;
 
-  std::shared_ptr<i2p::data::IdentityEx> localDestination;
-  std::shared_ptr<i2p::data::PrivateKeys> local_keys_;
-
   identitiesStorage *identities_storage_;
 
   pbote::AddressBook address_book_;
 
-  queue_type m_recvQueue;
-  queue_type m_sendQueue;
-
-  std::vector<std::shared_ptr<PacketBatch<pbote::CommunicationPacket>>> runningBatches;
-
   unsigned long start_time_;
   unsigned long bytes_recv_;
   unsigned long bytes_sent_;
+
+  queue_type m_recvQueue;
+  queue_type m_sendQueue;
+
+  std::shared_ptr<i2p::data::IdentityEx> localDestination;
+  std::shared_ptr<i2p::data::PrivateKeys> local_keys_;
+
+  std::vector<std::shared_ptr<PacketBatch<pbote::CommunicationPacket>>> runningBatches;
 
   std::independent_bits_engine<std::default_random_engine, CHAR_BIT, uint8_t> rbe;
 };

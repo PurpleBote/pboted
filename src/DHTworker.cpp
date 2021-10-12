@@ -8,7 +8,6 @@
 #include "BoteContext.h"
 #include "DHTworker.h"
 #include "Packet.h"
-#include "RelayPeersWorker.h"
 
 namespace pbote {
 namespace kademlia {
@@ -17,7 +16,8 @@ DHTworker DHT_worker;
 
 DHTworker::DHTworker()
     : started_(false),
-      m_worker_thread_(nullptr) {
+      m_worker_thread_(nullptr),
+      local_node_({}) {
   local_node_ = std::make_shared<Node>(context.getLocalDestination()->ToBase64());
 }
 
@@ -109,26 +109,6 @@ std::shared_ptr<Node> DHTworker::findNode(const i2p::data::IdentHash &ident) con
 }
 
 std::shared_ptr<Node> DHTworker::getClosestNode(const i2p::data::IdentHash &key, bool to_us) {
-  /*
-  std::vector<Node> closeNodes;
-  i2p::data::XORMetric minMetric;
-  i2p::data::IdentHash destKey = i2p::data::CreateRoutingKey(destination);
-  if (to_us)
-    minMetric = destKey ^ local_peer_->GetIdentHash();
-  else
-    minMetric.SetMax();
-  std::unique_lock<std::mutex> l(m_nodes_mutex_);
-  for (const auto &it: m_nodes_) {
-    //if (!it.second->locked()) {
-      i2p::data::XORMetric m = destKey ^it.second->GetIdentHash();
-      if (m < minMetric) {
-        minMetric = m;
-        closeNodes.push_back(*it.second);
-      }
-    //}
-  }
-  return closeNodes;
-  */
   return std::make_shared<Node>(getClosestNodes(key, 1, to_us)[0]);
 }
 
@@ -674,6 +654,7 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
   std::memcpy(&new_packet.cid, packet->cid, 32);
   std::memcpy(&new_packet.hc_length, packet->payload.data(), 2);
   offset += 2;
+  new_packet.hc_length = ntohs(new_packet.hc_length);
 
   uint8_t hashCash[new_packet.hc_length];
 
@@ -687,12 +668,12 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
   std::memcpy(&data, packet->payload.data() + offset, new_packet.length);
   new_packet.data = std::vector<uint8_t>(data, data + new_packet.length);
 
-  LogPrint(eLogDebug, "DHT: receiveStoreRequest: got request for type: ", data[0]);
+  LogPrint(eLogDebug, "DHT: receiveStoreRequest: got request for type: ", data[0], ", ver: ", unsigned(data[1]));
 
   pbote::ResponsePacket response;
   memcpy(response.cid, packet->cid, 32);
 
-  if (data[0] == (uint8_t) 'I' || data[0] == (uint8_t) 'E' || data[0] == (uint8_t) 'C') {
+  if ((data[0] == (uint8_t) 'I' || data[0] == (uint8_t) 'E' || data[0] == (uint8_t) 'C') && data[1] == 4) {
     // ToDo: Check available space
     //response.status = pbote::StatusCode::NO_DISK_SPACE;
     //response.length = 0;
@@ -713,7 +694,7 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
       response.length = 0;
     }
   } else {
-    // In case if can't parse
+    // If packet type or version unsupported
     response.status = pbote::StatusCode::INVALID_PACKET;
     response.length = 0;
   }

@@ -55,19 +55,28 @@ void RelayPeersWorker::run() {
   pbote::config::GetOption("loglevel", loglevel);
   while (started_) {
     task_start_time = std::chrono::system_clock::now().time_since_epoch().count();
+    bool task_status = false;
     if (!m_peers_.empty())
-      checkPeersTask();
+      task_status = checkPeersTask();
     else
       LogPrint(eLogError, "RelayPeers: have no peers for start");
 
     unsigned long current_time = std::chrono::system_clock::now().time_since_epoch().count();
     unsigned long exec_duration = (current_time - task_start_time) / 1000000000;
 
-    // ToDo: UPDATE_INTERVAL_SHORT just for tests
+    unsigned long interval;
+    if (task_status) {
+      interval = UPDATE_INTERVAL_LONG;
+      LogPrint(eLogInfo, "RelayPeers: peers lookup success, wait for ", interval / 60, " min.");
+    } else {
+      interval = UPDATE_INTERVAL_SHORT;
+      LogPrint(eLogWarning, "RelayPeers: no responses, repeat request in ", interval / 60, " min.");
+    }
+
     LogPrint(eLogDebug, "RelayPeers: round completed, peers count: ", m_peers_.size(), ", duration: ", exec_duration);
-    if (exec_duration < UPDATE_INTERVAL_SHORT) {
-      LogPrint(eLogDebug, "RelayPeers: wait for ", UPDATE_INTERVAL_SHORT - exec_duration, " sec.");
-      std::this_thread::sleep_for(std::chrono::seconds(UPDATE_INTERVAL_SHORT - exec_duration));
+    if (exec_duration < interval && interval > 0) {
+      LogPrint(eLogDebug, "RelayPeers: wait for ", interval - exec_duration, " sec.");
+      std::this_thread::sleep_for(std::chrono::seconds(interval - exec_duration));
     } else {
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
@@ -83,8 +92,9 @@ void RelayPeersWorker::run() {
   }
 }
 
-void RelayPeersWorker::checkPeersTask() {
+bool RelayPeersWorker::checkPeersTask() {
   LogPrint(eLogDebug, "RelayPeers: start new round");
+  bool task_status = false;
 
   auto batch = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket>>();
   batch->owner = "RelayPeers::main";
@@ -94,11 +104,9 @@ void RelayPeersWorker::checkPeersTask() {
   for (const auto &peer: peers) {
     // If peer don't sent response we will mark further
     peer->reachable(false);
-    auto packet = peerListRequestPacket();
 
-    uint8_t arr[sizeof(pbote::PeerListRequestPacket)];
-    memcpy(arr, packet.prefix, sizeof(pbote::PeerListRequestPacket));
-    PacketForQueue q_packet(peer->ToBase64(), arr, sizeof(PeerListRequestPacket));
+    auto packet = peerListRequestPacket();
+    PacketForQueue q_packet(peer->ToBase64(), packet.toByte().data(), packet.toByte().size());
 
     std::vector<uint8_t> v_cid(std::begin(packet.cid), std::end(packet.cid));
     batch->addPacket(v_cid, q_packet);
@@ -112,6 +120,7 @@ void RelayPeersWorker::checkPeersTask() {
 
   std::vector<std::shared_ptr<pbote::CommunicationPacket>> responses = batch->getResponses();
   if (!responses.empty()) {
+    task_status = true;
     for (const auto &response: responses) {
       if (response->type != type::CommN) {
         // ToDo: looks like in case if we got request to ourself, for now we just skip it
@@ -165,7 +174,6 @@ void RelayPeersWorker::checkPeersTask() {
             }
           }
         }
-        // ToDo: I don't know how to save V4 peers, because we can't determine what Crypto Alg used
       } else {
         LogPrint(eLogWarning, "RelayPeers: unknown packet version: ", response->ver);
       }
@@ -176,6 +184,8 @@ void RelayPeersWorker::checkPeersTask() {
 
   context.removeBatch(batch);
   writePeers();
+
+  return task_status;
 }
 
 bool RelayPeersWorker::addPeer(const uint8_t *buf, int len) {
@@ -334,24 +344,36 @@ void RelayPeersWorker::getRandomPeers() {
 
 std::vector<RelayPeer> RelayPeersWorker::getGoodPeers() {
   std::vector<RelayPeer> result;
+  int counter = 0;
+
   for (const auto &m_peer: m_peers_) {
-    if (m_peer.second->getReachability() >= MIN_REACHABILITY)
+    if (m_peer.second->getReachability() > MIN_REACHABILITY) {
       result.push_back(*m_peer.second);
+      counter++;
+      if (counter >= MAX_PEERS_TO_SEND) {
+        break;
+      }
+    }
   }
+
   return result;
 }
 
 std::vector<RelayPeer> RelayPeersWorker::getGoodPeers(uint8_t num) {
   auto result = getGoodPeers();
+
   while (result.size() > num)
     result.pop_back();
+
   return result;
 }
 
 std::vector<std::shared_ptr<RelayPeer>> RelayPeersWorker::getAllPeers() {
   std::vector<std::shared_ptr<RelayPeer>> result;
+
   for (const auto &m_peer: m_peers_)
     result.push_back(m_peer.second);
+
   return result;
 }
 

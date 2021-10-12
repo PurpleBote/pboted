@@ -34,46 +34,6 @@ BoteContext::~BoteContext() {
   m_sendQueue = nullptr;
 }
 
-void BoteContext::send(const PacketForQueue &packet) {
-  m_sendQueue->Put(std::make_shared<PacketForQueue>(packet));
-}
-
-void BoteContext::send(std::shared_ptr<PacketBatch<pbote::CommunicationPacket>> batch) {
-  size_t count = 0;
-  runningBatches.push_back(batch);
-  auto packets = batch->getPackets();
-  for (auto packet: packets) {
-    send(packet.second);
-    count++;
-  }
-  LogPrint(eLogDebug, "Context: send ", count, " packets from batch ", batch->owner);
-}
-
-bool BoteContext::receive(std::shared_ptr<pbote::CommunicationPacket> packet) {
-  std::vector<uint8_t> v_cid(packet->cid, packet->cid + 32);
-  for (auto batch: runningBatches) {
-    if (batch->contains(v_cid)) {
-      batch->addResponse(packet);
-      LogPrint(eLogDebug,
-               "Context: response received for batch ",
-               batch->owner,
-               ", remain response count: ",
-               batch->packetCount() - batch->responseCount());
-      return true;
-    }
-  }
-  return false;
-}
-
-void BoteContext::removeBatch(std::shared_ptr<PacketBatch<pbote::CommunicationPacket>> r_batch) {
-  for (auto batch_it = runningBatches.begin(); batch_it != runningBatches.end(); batch_it++) {
-    if (r_batch == *batch_it) {
-      runningBatches.erase(batch_it);
-      break;
-    }
-  }
-}
-
 void BoteContext::init() {
   pbote::config::GetOption("host", listenHost);
   pbote::config::GetOption("port", listenPortSAM);
@@ -101,6 +61,51 @@ void BoteContext::init() {
 
   auto ident_test = identities_storage_->getIdentities();
   LogPrint(eLogInfo, "Context: Loaded identities: ", ident_test.size());
+}
+
+void BoteContext::send(const PacketForQueue &packet) {
+  m_sendQueue->Put(std::make_shared<PacketForQueue>(packet));
+}
+
+void BoteContext::send(const std::shared_ptr<PacketBatch<pbote::CommunicationPacket>>& batch) {
+  size_t count = 0;
+  runningBatches.push_back(batch);
+  auto packets = batch->getPackets();
+  for (const auto& packet: packets) {
+    send(packet.second);
+    count++;
+  }
+  LogPrint(eLogDebug, "Context: send ", count, " packets from batch ", batch->owner);
+}
+
+bool BoteContext::receive(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+  std::vector<uint8_t> v_cid(packet->cid, packet->cid + 32);
+  for (const auto& batch: runningBatches) {
+    if (batch->contains(v_cid)) {
+      batch->addResponse(packet);
+      LogPrint(eLogDebug,
+               "Context: response received for batch ",
+               batch->owner,
+               ", remain response count: ",
+               batch->packetCount() - batch->responseCount());
+      return true;
+    }
+  }
+  return false;
+}
+
+void BoteContext::removeBatch(const std::shared_ptr<PacketBatch<pbote::CommunicationPacket>>& r_batch) {
+  for (auto batch_it = runningBatches.begin(); batch_it != runningBatches.end(); batch_it++) {
+    if (r_batch == *batch_it) {
+      runningBatches.erase(batch_it);
+      break;
+    }
+  }
+}
+
+unsigned long BoteContext::get_uptime() {
+  unsigned long raw_uptime = std::chrono::system_clock::now().time_since_epoch().count() - start_time_;
+  return raw_uptime * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den;
 }
 
 void BoteContext::save_new_keys(std::shared_ptr<i2p::data::PrivateKeys> localKeys) {

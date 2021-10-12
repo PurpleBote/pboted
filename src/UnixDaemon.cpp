@@ -169,7 +169,7 @@ bool DaemonLinux::stop() {
 
 void DaemonLinux::run() {
   while (running) {
-    auto uptime = context.get_uptime() * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den;
+    auto uptime = context.get_uptime();
 
     LogPrint(eLogDebug, "Daemon: uptime: ", uptime / 60, "m ", uptime % 60, "s",
              ", bytes received: ", context.get_bytes_recv(),

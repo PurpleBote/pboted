@@ -20,11 +20,11 @@ static Log logger;
  * @brief Maps our loglevel to their symbolic name
  */
 static const char *g_LogLevelStr[eNumLogLevels] = {
-    "none",  // eLogNone
-    "error", // eLogError
-    "warn",  // eLogWarn
-    "info",  // eLogInfo
-    "debug"  // eLogDebug
+    "NONE",  // eLogNone
+    "ERROR", // eLogError
+    "WARN",  // eLogWarn
+    "INFO",  // eLogInfo
+    "DEBUG"  // eLogDebug
 };
 
 /**
@@ -154,14 +154,14 @@ void Log::Process(std::shared_ptr<LogMsg> msg) {
     case eLogStream:
       if (m_LogStream)
         *m_LogStream << TimeAsString(msg->timestamp) << "@" << short_tid << " \t"
-                     << g_LogLevelStr[msg->level] << "\t- " << msg->text
+                     << g_LogLevelStr[msg->level] << "\t" << msg->text
                      << std::endl;
       break;
     case eLogStdout:
     default:
       std::cout << TimeAsString(msg->timestamp) << "@" << short_tid << " \t"
                 << LogMsgColors[msg->level] << g_LogLevelStr[msg->level]
-                << LogMsgColors[eNumLogLevels] << "\t- " << msg->text << std::endl;
+                << LogMsgColors[eNumLogLevels] << "\t" << msg->text << std::endl;
       break;
   } // switch
 }
