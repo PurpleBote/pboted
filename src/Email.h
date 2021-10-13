@@ -101,7 +101,7 @@ class Email {
   pbote::EmailUnencryptedPacket getDecrypted() { return packet;};
   void setDecrypted(const pbote::EmailUnencryptedPacket &data) { packet = data; };
 
-  std::vector<uint8_t> compress(CompressionAlgorithm type);
+  void compress(CompressionAlgorithm type);
   void decompress(std::vector<uint8_t> data);
 
  private:

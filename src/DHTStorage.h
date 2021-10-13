@@ -28,7 +28,7 @@ class DHTStorage {
   //~DHTStorage();
 
   void update();
-  bool safe(std::vector<uint8_t> data);
+  bool safe(const std::vector<uint8_t>& data);
   bool deleteIndex(i2p::data::Tag<32> key);
   bool deleteEmail(i2p::data::Tag<32> key);
 
@@ -45,9 +45,9 @@ class DHTStorage {
   bool exist(pbote::type type, i2p::data::Tag<32> key);
   static bool find(const std::vector<std::string>& list, i2p::data::Tag<32> key);
 
-  static bool safeIndex(i2p::data::Tag<32> key, std::vector<uint8_t> data);
-  static bool safeEmail(i2p::data::Tag<32> key, std::vector<uint8_t> data);
-  static bool safeContact(i2p::data::Tag<32> key, std::vector<uint8_t> data);
+  static bool safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+  static bool safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+  static bool safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
 
   void loadLocalIndexPackets();
   void loadLocalEmailPackets();

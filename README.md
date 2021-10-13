@@ -118,6 +118,11 @@ You may need the utilities from the `utils` directory to work with **pboted**.
 In the future, their list will grow.   
 There are plans to transfer all means for interaction into a separate CLI utility.
 
+You can only continue to use your Java I2P-Bote identities if:
+
+- your address is created using the ECDH-256/ECDSA-256/AES-256/SHA-256 algorithm (others are not supported yet)
+- identities file is not encrypted (encrypted files are not supported yet)
+
 ## Donations
 
 - **BTC**: `bc1qans7ukm5t62mjcuhl3rpzxml05etyljhjt7w76`

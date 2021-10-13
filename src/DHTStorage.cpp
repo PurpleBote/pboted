@@ -20,7 +20,7 @@ void DHTStorage::update() {
            ", emails: ", local_email_packets.size(), ", contacts: ", local_contact_packets.size());
 }
 
-bool DHTStorage::safe(std::vector<uint8_t> data) {
+bool DHTStorage::safe(const std::vector<uint8_t>& data) {
   uint8_t dataType = data[0];
   bool success = false;
   uint8_t key[32];
@@ -154,7 +154,7 @@ bool DHTStorage::find(const std::vector<std::string>& list, i2p::data::Tag<32> k
   return false;
 }
 
-bool DHTStorage::safeIndex(i2p::data::Tag<32> key, std::vector<uint8_t> data) {
+bool DHTStorage::safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data) {
   std::string packetPath = pbote::fs::DataDirPath("DHTindex", key.ToBase64() + ".dat");
 
   if (pbote::fs::Exists(packetPath)) {
@@ -169,13 +169,13 @@ bool DHTStorage::safeIndex(i2p::data::Tag<32> key, std::vector<uint8_t> data) {
     return false;
   }
 
-  file.write((char*) data.data(), data.size());
-
+  file.write(reinterpret_cast<const char *>(data.data()), data.size());
   file.close();
+
   return true;
 }
 
-bool DHTStorage::safeEmail(i2p::data::Tag<32> key, std::vector<uint8_t> data) {
+bool DHTStorage::safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data) {
   std::string packetPath = pbote::fs::DataDirPath("DHTemail", key.ToBase64() + ".dat");
 
   if (pbote::fs::Exists(packetPath)) {
@@ -190,13 +190,13 @@ bool DHTStorage::safeEmail(i2p::data::Tag<32> key, std::vector<uint8_t> data) {
     return false;
   }
 
-  file.write((char*) data.data(), data.size());
-
+  file.write(reinterpret_cast<const char *>(data.data()), data.size());
   file.close();
+
   return true;
 }
 
-bool DHTStorage::safeContact(i2p::data::Tag<32> key, std::vector<uint8_t> data) {
+bool DHTStorage::safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& data) {
   std::string packetPath = pbote::fs::DataDirPath("DHTdirectory", key.ToBase64() + ".dat");
 
   if (pbote::fs::Exists(packetPath)) {
@@ -211,7 +211,7 @@ bool DHTStorage::safeContact(i2p::data::Tag<32> key, std::vector<uint8_t> data) 
     return false;
   }
 
-  file.write((char*) data.data(), data.size());
+  file.write(reinterpret_cast<const char *>(data.data()), data.size());
 
   file.close();
   return true;

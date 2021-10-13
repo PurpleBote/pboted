@@ -137,8 +137,17 @@ std::vector<Node> DHTworker::getClosestNodes(i2p::data::IdentHash key, size_t nu
 
       std::string minMetric_S(minMetric.metric, minMetric.metric + 32);
       std::string metric_S(metric.metric, metric.metric + 32);
+
+      // ToDo: print distance in human readable format
       //LogPrint(eLogDebug, "DHT: getClosestNodes: Metric.metric_ll: ", ToHex(minMetric_S, false));
-      LogPrint(eLogDebug, "DHT: getClosestNodes: metric.metric_ll: ", ToHex(metric_S, false));
+      LogPrint(eLogDebug, "DHT: getClosestNodes: metric: ", ToHex(metric_S, false));
+      //long long metric_ll = (long long)metric.metric;
+      //LogPrint(eLogDebug, "DHT: getClosestNodes: metric: ", (uint64_t)metric.metric,
+      //         (uint64_t)(metric.metric + 8), (uint64_t)(metric.metric + 16), (uint64_t)(metric.metric + 24));
+      //BIGNUM *metric_bn;
+      //metric_bn = BN_bin2bn(metric.metric, 32, nullptr);
+      //LogPrint(eLogDebug, "DHT: getClosestNodes: metric_bn: ", metric_bn);
+      //BN_free(metric_bn);
 
       //if (to_us && minMetric < metric) {
       //  continue;
@@ -223,7 +232,7 @@ std::vector<std::shared_ptr<pbote::CommunicationPacket>> DHTworker::find(i2p::da
 
   LogPrint(eLogDebug, "DHT: find: Start to find type: ", type, ", hash: ", key.ToBase64());
   for (const auto &node: closestNodes) {
-    auto packet = RetrieveRequestPacket(type, key);
+    auto packet = retrieveRequestPacket(type, key);
     PacketForQueue q_packet(node.ToBase64(), packet.toByte().data(), packet.toByte().size());
 
     std::vector<uint8_t> v_cid(std::begin(packet.cid), std::end(packet.cid));
@@ -652,28 +661,34 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
   StoreRequestPacket new_packet;
 
   std::memcpy(&new_packet.cid, packet->cid, 32);
+
   std::memcpy(&new_packet.hc_length, packet->payload.data(), 2);
-  offset += 2;
   new_packet.hc_length = ntohs(new_packet.hc_length);
+  offset += 2;
+  LogPrint(eLogDebug, "DHT: receiveStoreRequest: hc_length: ", new_packet.hc_length);
 
   uint8_t hashCash[new_packet.hc_length];
-
   std::memcpy(&hashCash, packet->payload.data() + offset, new_packet.hc_length);
   offset += new_packet.hc_length;
 
   std::memcpy(&new_packet.length, packet->payload.data() + offset, 2);
+  new_packet.length = ntohs(new_packet.length);
   offset += 2;
+  LogPrint(eLogDebug, "DHT: receiveStoreRequest: length: ", new_packet.length);
 
-  uint8_t data[new_packet.length];
-  std::memcpy(&data, packet->payload.data() + offset, new_packet.length);
-  new_packet.data = std::vector<uint8_t>(data, data + new_packet.length);
+  //uint8_t data[new_packet.length];
+  //std::memcpy(&data, packet->payload.data() + offset, new_packet.length);
+  //new_packet.data = std::vector<uint8_t>(data, data + new_packet.length);
+  new_packet.data = std::vector<uint8_t>(packet->payload.begin() + offset,
+                                         packet->payload.begin() + offset + new_packet.length);
 
-  LogPrint(eLogDebug, "DHT: receiveStoreRequest: got request for type: ", data[0], ", ver: ", unsigned(data[1]));
+  LogPrint(eLogDebug, "DHT: receiveStoreRequest: got request for type: ", new_packet.data[0],
+           ", ver: ", unsigned(new_packet.data[1]));
 
   pbote::ResponsePacket response;
   memcpy(response.cid, packet->cid, 32);
 
-  if ((data[0] == (uint8_t) 'I' || data[0] == (uint8_t) 'E' || data[0] == (uint8_t) 'C') && data[1] == 4) {
+  if ((new_packet.data[0] == (uint8_t) 'I' || new_packet.data[0] == (uint8_t) 'E' || new_packet.data[0] == (uint8_t) 'C') && new_packet.data[1] == 4) {
     // ToDo: Check available space
     //response.status = pbote::StatusCode::NO_DISK_SPACE;
     //response.length = 0;
@@ -687,14 +702,17 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
     //response.length = 0;
 
     if (dht_storage_.safe(new_packet.data)) {
+      LogPrint(eLogDebug, "DHT: receiveStoreRequest: packet saved");
       response.status = pbote::StatusCode::OK;
       response.length = 0;
     } else {
+      LogPrint(eLogWarning, "DHT: receiveStoreRequest: got error while try to save packet");
       response.status = pbote::StatusCode::GENERAL_ERROR;
       response.length = 0;
     }
   } else {
-    // If packet type or version unsupported
+    LogPrint(eLogWarning, "DHT: receiveStoreRequest: unsupported packet, type: ", new_packet.data[0],
+             ", ver: ", unsigned(new_packet.data[1]));
     response.status = pbote::StatusCode::INVALID_PACKET;
     response.length = 0;
   }
@@ -981,7 +999,7 @@ pbote::FindClosePeersRequestPacket DHTworker::findClosePeersPacket(i2p::data::Ta
   return packet;
 }
 
-pbote::RetrieveRequestPacket DHTworker::RetrieveRequestPacket(uint8_t data_type, i2p::data::Tag<32> key) {
+pbote::RetrieveRequestPacket DHTworker::retrieveRequestPacket(uint8_t data_type, i2p::data::Tag<32> key) {
   pbote::RetrieveRequestPacket packet;
   context.random_cid(packet.cid, 32);
   memcpy(packet.key, key.data(), 32);

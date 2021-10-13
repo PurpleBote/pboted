@@ -171,8 +171,8 @@ struct EmailEncryptedPacket : public DataPacket{
 
     result.insert(result.end(), std::begin(key), std::end(key));
 
-    uint8_t v_time[4];
-    htobuf32(v_time, stored_time);
+    uint8_t v_time[4] = { static_cast<uint8_t>(stored_time >> 24), static_cast<uint8_t>(stored_time >> 16),
+                          static_cast<uint8_t>(stored_time >>  8), static_cast<uint8_t>(stored_time & 0xffff) };
 
     result.insert(result.end(), std::begin(v_time), std::end(v_time));
     result.insert(result.end(), std::begin(delete_hash), std::end(delete_hash));
@@ -248,8 +248,8 @@ struct IndexPacket : public DataPacket{
 
     result.insert(result.end(), std::begin(hash), std::end(hash));
 
-    uint8_t v_nump[4];
-    htobuf32(v_nump, nump);
+    uint8_t v_nump[4] = { static_cast<uint8_t>(nump >> 24), static_cast<uint8_t>(nump >> 16),
+                          static_cast<uint8_t>(nump >>  8), static_cast<uint8_t>(nump & 0xffff) };
 
     result.insert(result.end(), std::begin(v_nump), std::end(v_nump));
 
@@ -430,15 +430,11 @@ struct ResponsePacket : public CleanCommunicationPacket{
 
     result.push_back(status);
 
-    if (length > 0) {
-      uint8_t v_length[2] = {static_cast<uint8_t>(length >> 8), static_cast<uint8_t>(length & 0xff)};
-      result.insert(result.end(), std::begin(v_length), std::end(v_length));
+    uint8_t v_length[2] = {static_cast<uint8_t>(length >> 8), static_cast<uint8_t>(length & 0xff)};
+    result.insert(result.end(), std::begin(v_length), std::end(v_length));
 
+    if (length > 0)
       result.insert(result.end(), data.begin(), data.end());
-    } else {
-      uint8_t v_length[2] = {static_cast<uint8_t>(length >> 8), static_cast<uint8_t>(length & 0xff)};
-      result.insert(result.end(), std::begin(v_length), std::end(v_length));
-    }
 
     return result;
   }

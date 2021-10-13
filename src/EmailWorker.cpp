@@ -112,15 +112,17 @@ pbote::IndexPacket EmailWorker::parseIndexPkt(const std::vector<uint8_t>& buf, b
   offset += 1;
   std::memcpy(&packet.hash, buf.data() + offset, 32);
   offset += 32;
+
+  std::memcpy(&packet.nump, buf.data() + offset, 4);
+  LogPrint(eLogDebug, "EmailWorker: parseIndexPkt: nump raw: ", packet.nump, ", ntohl: ", ntohl(packet.nump),
+           ", from_net: ", from_net ? "true" : "false");
   if (from_net)
-    packet.nump = bufbe32toh(buf.data() + offset);
-  else
-    std::memcpy(&packet.nump, buf.data() + offset, 4);
+    packet.nump = ntohl(packet.nump);
+
   offset += 4;
 
   LogPrint(eLogDebug, "EmailWorker: parseIndexPkt: nump: ", packet.nump, ", type: ", packet.type,
            ", version: ", unsigned(packet.ver));
-  LogPrint(eLogDebug, "EmailWorker: parseIndexPkt: unsigned nump: ", unsigned(packet.nump));
 
   if (packet.type != (uint8_t) 'I') {
     LogPrint(eLogWarning, "EmailWorker: parseIndexPkt: wrong packet type: ", packet.type);
@@ -158,10 +160,9 @@ pbote::IndexPacket EmailWorker::parseIndexPkt(const std::vector<uint8_t>& buf, b
 }
 
 pbote::EmailEncryptedPacket EmailWorker::parseEmailEncryptedPkt(uint8_t *buf, size_t len, bool from_net) {
-  LogPrint(eLogDebug, "EmailWorker: parseEmailEncryptedPkt: payload size: ", len);
   /// 105 cause type[1] + ver[1] + key[32] + stored_time[4] + delete_hash[32] + alg[1] + length[2] + DA[32]
   if (len < 105) {
-    LogPrint(eLogWarning, "EmailWorker: parseEmailEncryptedPkt: payload is too short");
+    LogPrint(eLogWarning, "EmailWorker: parseEmailEncryptedPkt: payload is too short: ", len);
     return {};
   }
 
@@ -186,19 +187,25 @@ pbote::EmailEncryptedPacket EmailWorker::parseEmailEncryptedPkt(uint8_t *buf, si
   std::memcpy(&packet.key, buf + offset, 32);
   offset += 32;
   std::memcpy(&packet.stored_time, buf + offset, 4);
-  LogPrint(eLogDebug, "EmailWorker: parseEmailEncryptedPkt: packet.stored_time: ", packet.stored_time);
   offset += 4;
   std::memcpy(&packet.delete_hash, buf + offset, 32);
   offset += 32;
   std::memcpy(&packet.alg, buf + offset, 1);
-  LogPrint(eLogDebug, "EmailWorker: parseEmailEncryptedPkt: packet.alg: ", unsigned(packet.alg));
   offset += 1;
 
   std::vector<uint8_t> data_for_verify(buf + offset, buf + len);
 
   std::memcpy(&packet.length, buf + offset, 2);
+  offset += 2;
+
+  if (from_net) {
+    packet.stored_time = ntohl(packet.stored_time);
+    packet.length = ntohs(packet.length);
+  }
+
+  LogPrint(eLogDebug, "EmailWorker: parseEmailEncryptedPkt: packet.stored_time: ", packet.stored_time);
+  LogPrint(eLogDebug, "EmailWorker: parseEmailEncryptedPkt: packet.alg: ", unsigned(packet.alg));
   LogPrint(eLogDebug, "EmailWorker: parseEmailEncryptedPkt: packet.length: ", packet.length);
-  offset += 2; // DATA length
 
   i2p::data::Tag<32> ver_hash(packet.key);
   uint8_t data_hash[32];
@@ -213,10 +220,6 @@ pbote::EmailEncryptedPacket EmailWorker::parseEmailEncryptedPkt(uint8_t *buf, si
     return {};
   }
 
-  if (from_net) {
-    packet.stored_time = ntohl(packet.stored_time);
-    packet.length = ntohs(packet.length);
-  }
   LogPrint(eLogDebug, "EmailWorker: parseEmailEncryptedPkt: alg: ", unsigned(packet.alg), ", length: ", packet.length);
   std::vector<uint8_t> data(buf + offset, buf + offset + packet.length);
   packet.edata = data;
@@ -405,8 +408,8 @@ void EmailWorker::sendEmailTask() {
         // Get hash of data + length for DHT key
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Get hash of data + length for DHT key");
         uint8_t data_for_hash[2 + enc_packet.edata.size()];
-        uint8_t v_length[2] = {static_cast<uint8_t>(enc_packet.length & 0xff),
-                               static_cast<uint8_t>(enc_packet.length >> 8)};
+        uint8_t v_length[2] = {static_cast<uint8_t>(enc_packet.length >> 8),
+                               static_cast<uint8_t>(enc_packet.length & 0xff)};
         memcpy(data_for_hash, &v_length, 2);
         memcpy(data_for_hash + 2, enc_packet.edata.data(), enc_packet.edata.size());
         SHA256(data_for_hash, 2 + enc_packet.edata.size(), enc_packet.key);
@@ -581,7 +584,7 @@ std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr
       continue;
     }
 
-    std::vector<uint8_t> v_data(response->payload.data() + offset, response->payload.data() + offset + dataLen);
+    std::vector<uint8_t> v_data(response->payload.begin() + offset, response->payload.begin() + offset + dataLen);
 
     if (DHT_worker.safe(v_data))
       LogPrint(eLogDebug, "EmailWorker: retrieveIndex: save index packet locally");
@@ -670,7 +673,7 @@ std::vector<pbote::EmailEncryptedPacket> EmailWorker::retrieveEmailPacket(const 
     uint8_t data[dataLen];
     std::memcpy(&data, response->payload.data() + offset, dataLen);
 
-    std::vector<uint8_t> v_data(response->payload.data() + offset, response->payload.data() + offset + dataLen);
+    std::vector<uint8_t> v_data(response->payload.begin() + offset, response->payload.begin() + offset + dataLen);
     if (DHT_worker.safe(v_data))
       LogPrint(eLogDebug, "EmailWorker: retrieveEmailPacket: save encrypted email packet locally");
 

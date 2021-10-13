@@ -128,7 +128,7 @@ class DHTworker {
   std::vector<std::shared_ptr<pbote::CommunicationPacket>> find(i2p::data::Tag<32> hash, uint8_t type, bool exhaustive);
 
   std::vector<std::string> store(i2p::data::Tag<32> hash, uint8_t type, pbote::StoreRequestPacket packet);
-  bool safe(std::vector<uint8_t> data) { return dht_storage_.safe(std::move(data)); }
+  bool safe(const std::vector<uint8_t>& data) { return dht_storage_.safe(data); }
 
   std::vector<uint8_t> getIndex(i2p::data::Tag<32> key) { return dht_storage_.getIndex(key); }
   std::vector<uint8_t> getEmail(i2p::data::Tag<32> key) { return dht_storage_.getEmail(key); }
@@ -153,7 +153,7 @@ class DHTworker {
   void writeNodes();
 
   static pbote::FindClosePeersRequestPacket findClosePeersPacket(i2p::data::Tag<32> key);
-  static pbote::RetrieveRequestPacket RetrieveRequestPacket(uint8_t data_type, i2p::data::Tag<32> key);
+  static pbote::RetrieveRequestPacket retrieveRequestPacket(uint8_t data_type, i2p::data::Tag<32> key);
 
   bool isStarted() const { return started_; };
   static bool isHealthy() { return true; };
