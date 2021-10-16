@@ -16,10 +16,10 @@
 #include <utility>
 
 #include "BoteContext.h"
-#include "Log.h"
+#include "Logging.h"
 #include "Queue.h"
 
-#include "lib/sam/i2psam.h"
+#include "../lib/sam/i2psam.h"
 
 namespace pbote {
 

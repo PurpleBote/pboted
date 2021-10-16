@@ -8,9 +8,11 @@
 #include <map>
 #include <string>
 #include <vector>
-#include "lib/lzma/LzmaDec.h"
-#include "lib/lzma/LzmaEnc.h"
-#include "lib/lzma/7zTypes.h"
+
+#include "../lib/lzma/LzmaDec.h"
+#include "../lib/lzma/LzmaEnc.h"
+#include "../lib/lzma/7zTypes.h"
+#include <mimetic/mimetic.h>
 
 #include "EmailIdentity.h"
 #include "Packet.h"
@@ -76,12 +78,8 @@ class Email {
   i2p::data::Tag<32> getID();
   std::vector<uint8_t> getHashCash();
 
-  std::string getHeader(const std::string &name);
-  void setHeader(Header type, const std::string &value);
-
   std::map<std::string, std::string> getAllRecipients();
   std::string getRecipients(const std::string &type);
-
   std::string getToAddresses();
   std::string getCCAddresses();
   std::string getBCCAddresses();
@@ -89,11 +87,14 @@ class Email {
 
   bool empty() const { return empty_; };
   bool incomplete() const { return incomplete_; };
-  void setSkiped() { skip_ = true; };
+  void skip(bool s) { skip_ = s; };
   bool skip() { return skip_; };
   bool verify(uint8_t *hash);
   std::vector<uint8_t> bytes();
-  void setPacket();
+
+  size_t length() { return mail.size(); }
+
+  void fillPacket();
 
   pbote::EmailEncryptedPacket getEncrypted() { return encrypted; };
   void setEncrypted(const pbote::EmailEncryptedPacket &data) { encrypted = data; };
@@ -108,21 +109,18 @@ class Email {
   static void lzmaCompress(std::vector<unsigned char> &outBuf, const std::vector<unsigned char> &inBuf);
   static void lzmaDecompress(std::vector<unsigned char> &outBuf, const std::vector<unsigned char> &inBuf);
 
-  std::string getValue(std::string line, Header type);
-
   bool incomplete_;
   bool empty_;
   bool skip_;
   // i2p::data::Tag<32> messageId;
   // metadata?
   // sendtime
-  std::map<Header, std::string> headers;
-  //std::string body;
-  std::vector<uint8_t> body;
+  mimetic::MimeEntity mail;
 
   pbote::EmailEncryptedPacket encrypted;
   pbote::EmailUnencryptedPacket packet;
 };
 
-}
+} // pbote
+
 #endif //PBOTE_EMAIL_H_

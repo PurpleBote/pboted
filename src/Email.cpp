@@ -13,8 +13,9 @@ namespace pbote {
 
 Email::Email()
   : incomplete_(false),
-    empty_(true) {
-  setPacket();
+    empty_(true),
+    skip_(false){
+  fillPacket();
 }
 
 Email::Email(const std::vector<uint8_t> &data, bool from_net) {
@@ -53,7 +54,6 @@ Email::Email(const std::vector<uint8_t> &data, bool from_net) {
   i2p::data::Tag<32> mes_id(packet.mes_id);
   LogPrint(eLogDebug, "Email: Email: mes_id: ", mes_id.ToBase64());
 
-  // ToDo: rethink
   if (from_net) {
     packet.fr_id = ntohs(packet.fr_id);
     packet.fr_count = ntohs(packet.fr_count);
@@ -73,9 +73,8 @@ Email::Email(const std::vector<uint8_t> &data, bool from_net) {
 
   packet.data = std::vector<uint8_t>(data.data() + offset, data.data() + data.size());
 
-  // ToDo: TBD temp
   decompress(packet.data);
-  packet.data = body;
+  skip_ = false;
   fromMIME(packet.data);
 }
 
@@ -84,38 +83,15 @@ Email::~Email() {
 }
 
 void Email::fromMIME(const std::vector<uint8_t> &email_data) {
-  std::string message(email_data.begin(), email_data.end()), line;
-  std::istringstream f(message);
-  std::vector<std::string> lines;
-  while (std::getline(f, line)) {
-    lines.push_back(line);
-  }
-  for (size_t ln = 0; ln < lines.size(); ln++) {
-    for (int i = Header::FROM; i < Header::X_I2PBBOTE_SIGNATURE; i++) {
-      if (i == Header::FROM || i == Header::SENDER || i == Header::TO || i == Header::X_I2PBBOTE_SIGNATURE) {
-        std::string concat_ln(lines[ln] + lines[ln + 1]);
-        std::replace( concat_ln.begin(), concat_ln.end(), '\n', ' ');
-        std::string value = getValue(concat_ln, static_cast<Header>(i));
-        if (!value.empty()) {
-          //LogPrint(eLogDebug, "Email: fromMIME: header: ", HEADER_WHITELIST[i], " lines[ln]: ", lines[ln]);
-          //LogPrint(eLogDebug, "Email: fromMIME: header: ", HEADER_WHITELIST[i], " lines[ln + 1]: ", lines[ln + 1]);
-          headers.insert(std::pair<Header, std::string>(static_cast<Header>(i), value));
-        }
-      }
-      else {
-        std::string value = getValue(lines[ln], static_cast<Header>(i));
-        if (!value.empty())
-          headers.insert(std::pair<Header, std::string>(static_cast<Header>(i), value));
-      }
-    }
-  }
+  std::string message(email_data.begin(), email_data.end());
+  mail.load(message.begin(), message.end());
 
-  for (auto header : headers) {
-    LogPrint(eLogDebug, "Email: fromMIME: header: ", HEADER_WHITELIST[header.first], ", value: ", header.second);
-  }
+  for (const auto& entity : mail.header())
+    LogPrint(eLogDebug, "Email: fromMIME: ", entity.name(), ": ", entity.value());
 
-  // ToDo: TBD temp
-  body = email_data;
+  // ToDo: check all required fields
+  empty_ = false;
+
   packet.data = email_data;
 }
 
@@ -148,55 +124,45 @@ std::vector<uint8_t> Email::getHashCash() {
   return result;
 }
 
-std::string Email::getHeader(const std::string &name) {
-  for (const auto& header : headers)
-    if (name == HEADER_WHITELIST[header.first])
-      return header.second;
-
+std::map<std::string, std::string> Email::getAllRecipients() {
   return {};
 }
 
-void Email::setHeader(Header type, const std::string &value) {
-  headers[type] = value;
-}
-
-std::map<std::string, std::string> Email::getAllRecipients() {
-
-}
-
 std::string Email::getRecipients(const std::string &type) {
-
+  return {};
 }
 
 std::string Email::getToAddresses() {
-  return getHeader(HEADER_WHITELIST[Header::TO]);
+  return mail.header().to().begin()->mailbox().mailbox();
 }
 
 std::string Email::getCCAddresses() {
-  return getHeader(HEADER_WHITELIST[Header::CC]);
+  return mail.header().cc().begin()->mailbox().mailbox();
 }
 
 std::string Email::getBCCAddresses() {
-  return getHeader(HEADER_WHITELIST[Header::BCC]);
+  return mail.header().bcc().begin()->mailbox().mailbox();
 }
 
 std::string Email::getReplyAddress() {
-  return getHeader(HEADER_WHITELIST[Header::REPLY_TO]);
+  return mail.header().replyto().begin()->mailbox().mailbox();
 }
 
 bool Email::verify(uint8_t *hash) {
-  //i2p::data::Tag<32> ver_hash(hash);
-  //i2p::data::Tag<32> cur_hash(packet.DA);
-  //LogPrint(eLogDebug, "Email: parseEmailUnencryptedPkt: DA ver_hash: ", ver_hash.ToBase64());
-  //LogPrint(eLogDebug, "Email: parseEmailUnencryptedPkt: DA cur_hash: ", cur_hash.ToBase64());
-  //if (ver_hash != cur_hash)
-  //  LogPrint(eLogError, "Email: parseEmailUnencryptedPkt: hash mismatch, but we try to parse packet");
+  /* For debug
+  i2p::data::Tag<32> ver_hash(hash);
+  i2p::data::Tag<32> cur_hash(packet.DA);
+  LogPrint(eLogDebug, "Email: parseEmailUnencryptedPkt: DA ver_hash: ", ver_hash.ToBase64());
+  LogPrint(eLogDebug, "Email: parseEmailUnencryptedPkt: DA cur_hash: ", cur_hash.ToBase64());
+  if (ver_hash != cur_hash)
+    LogPrint(eLogError, "Email: parseEmailUnencryptedPkt: hash mismatch, but we try to parse packet");
+  */
   return memcmp(hash, packet.DA, 32);
 }
 
 std::vector<uint8_t> Email::bytes() {
   // ToDo: TBD temp
-  return body;
+  return packet.data;
 }
 
 void Email::compress(CompressionAlgorithm type) {
@@ -205,8 +171,9 @@ void Email::compress(CompressionAlgorithm type) {
     LogPrint(eLogDebug, "Email: compress: LZMA, start compress");
 
     std::vector<uint8_t> output;
-    lzmaCompress(output, std::vector<uint8_t>(body.data(), body.data() + body.size()));
+    lzmaCompress(output, std::vector<uint8_t>(packet.data.data(), packet.data.data() + packet.data.size()));
 
+    packet.data = std::vector<uint8_t>();
     packet.data.push_back(uint8_t(1));
     packet.data.insert(packet.data.end(), output.begin(), output.end());
   } else if ((unsigned) type == (uint8_t) 2) {
@@ -215,8 +182,11 @@ void Email::compress(CompressionAlgorithm type) {
   } else if ((unsigned) type == (uint8_t) 0) {
     LogPrint(eLogDebug, "Email: compress: data uncompressed, save as is");
 
-    packet.data.push_back(uint8_t(0));
-    packet.data.insert(packet.data.end(), body.begin(), body.end());
+    std::vector<uint8_t> output;
+    output.push_back(uint8_t(0));
+    output.insert(output.end(), packet.data.begin(), packet.data.end());
+
+    packet.data = output;
   } else {
     LogPrint(eLogDebug, "Email: compress: Unknown compress algorithm");
   }
@@ -248,10 +218,11 @@ void Email::decompress(std::vector<uint8_t> v_mail) {
   }
 
   // ToDo: TBD temp
-  body = data;
+  //body = data;
+  mail.load(data.begin(), data.end());
 }
 
-void Email::setPacket() {
+void Email::fillPacket() {
   // ToDo: just for tests, need to implement
   context.random_cid(packet.mes_id, 32);
   context.random_cid(packet.mes_id, 32);
@@ -259,8 +230,15 @@ void Email::setPacket() {
   context.random_cid(packet.DA, 32);
   packet.fr_id = 0;
   packet.fr_count = 1;
-  packet.length = bytes().size();
-  packet.data = bytes();
+
+  /*
+  body = mail.GetContent();
+  int mlen = mail.GetLength();
+  char * buf = new char[mlen];
+  int result = mail.Store(buf, mlen);
+  packet.data = std::vector<uint8_t>(buf, buf + mlen);*/
+  packet.length = packet.data.size();
+
   empty_ = false;
   incomplete_ = false;
 }
@@ -305,21 +283,4 @@ void Email::lzmaCompress(std::vector<unsigned char> &outBuf, const std::vector<u
 
 }
 
-std::string Email::getValue(std::string line, Header type) {
-  std::string value_delimiter = ": ";
-  std::string header = HEADER_WHITELIST[type];
-  if (!line.find(header)) {
-    size_t pos = 0;
-    std::string token;
-    while (pos != std::string::npos) {
-      pos = line.find(value_delimiter);
-      token = line.substr(0, pos);
-      line.erase(0, pos + value_delimiter.length() - 1);
-    }
-    return line;
-  } else {
-    return {};
-  }
-}
-
-}
+} // pbote

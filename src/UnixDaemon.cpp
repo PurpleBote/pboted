@@ -12,10 +12,10 @@
 
 #include "BoteContext.h"
 #include "ConfigParser.h"
-#include "Daemon.h"
+#include "BoteDaemon.h"
 #include "DHTworker.h"
-#include "FS.h"
-#include "Log.h"
+#include "FileSystem.h"
+#include "Logging.h"
 #include "RelayPeersWorker.h"
 
 void handle_signal(int sig) {

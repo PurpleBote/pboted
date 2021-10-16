@@ -15,9 +15,9 @@
 
 #include "ConfigParser.h"
 #include "DHTStorage.h"
-#include "FS.h"
-#include "Identity.h"
-#include "Log.h"
+#include "FileSystem.h"
+#include "../lib/libi2pd/Identity.h"
+#include "Logging.h"
 #include "NetworkWorker.h"
 #include "PacketHandler.h"
 

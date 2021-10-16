@@ -20,10 +20,9 @@
 #include <utility>
 #include <vector>
 
-#include "Log.h"
+#include "Logging.h"
 
-#include "lib/libi2pd/Tag.h"
-#include "lib/libi2pd/I2PEndian.h"
+#include "../lib/libi2pd/Tag.h"
 
 namespace pbote {
 

@@ -366,20 +366,9 @@ void EmailWorker::sendEmailTask() {
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: del_hash: ", del_hash.ToBase64());
 
         // Create recipient
-        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Create recipient");
         pbote::EmailIdentityPublic recipient_identity;
         std::string to_address = email->getToAddresses();
-
-        std::string delimiter = "  ";
-        to_address.erase(0, to_address.find(delimiter) + delimiter.length());
-        to_address.erase(remove(to_address.begin(), to_address.end(), '<'), to_address.end());
-        to_address.erase(remove(to_address.begin(), to_address.end(), '>'), to_address.end());
-
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: to_address: ", to_address);
-        to_address.erase(std::remove_if(to_address.begin(),
-                                        to_address.end(),
-                                        [](uint8_t x) { return std::isspace(x); }),
-                         to_address.end());
 
         std::string cryptoPubKey = "A" + to_address.substr(0, 43);
         std::string signingPubKey = "A" + to_address.substr(43, 43);
@@ -387,7 +376,7 @@ void EmailWorker::sendEmailTask() {
 
         if (recipient_identity.FromBase64(to_address) == 0) {
           LogPrint(eLogWarning, "EmailWorker: sendEmailTask: Can't create identity from \"TO\" header, skip mail");
-          email->setSkiped();
+          email->skip(true);
           continue;
         }
 
@@ -417,6 +406,7 @@ void EmailWorker::sendEmailTask() {
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: dht_key : ", dht_key.ToBase64());
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: enc_packet.length : ", enc_packet.length);
 
+        // hton for hash because recipient will check hash before ntoh
         uint32_t test_time;
         uint8_t v_time[4] =
             {static_cast<uint8_t>(enc_packet.stored_time >> 24), static_cast<uint8_t>(enc_packet.stored_time >> 16),
@@ -440,7 +430,7 @@ void EmailWorker::sendEmailTask() {
         pbote::StoreRequestPacket store_packet;
 
         // For now it's not checking from Java-Bote side
-        // ToDo: need to discuss
+        // ToDo: TBD
         store_packet.hashcash = email->getHashCash();
         store_packet.hc_length = store_packet.hashcash.size();
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: store_packet.hc_length: ", store_packet.hc_length);
@@ -466,18 +456,11 @@ void EmailWorker::sendEmailTask() {
 
         pbote::IndexPacket new_index_packet;
 
+        // Create recipient
+        // ToDo: re-use from previous step
         pbote::EmailIdentityPublic recipient_identity;
         std::string to_address = email->getToAddresses();
-
-        std::string delimiter = "  ";
-        to_address.erase(0, to_address.find(delimiter) + delimiter.length());
-        to_address.erase(remove(to_address.begin(), to_address.end(), '<'), to_address.end());
-        to_address.erase(remove(to_address.begin(), to_address.end(), '>'), to_address.end());
-
-        to_address.erase(std::remove_if(to_address.begin(),
-                                        to_address.end(),
-                                        [](uint8_t x) { return std::isspace(x); }),
-                         to_address.end());
+        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: to_address: ", to_address);
 
         std::string cryptoPubKey = "A" + to_address.substr(0, 43);
         std::string signingPubKey = "A" + to_address.substr(43, 43);
@@ -486,7 +469,7 @@ void EmailWorker::sendEmailTask() {
 
         if (recipient_identity.FromBase64(to_address) == 0) {
           LogPrint(eLogWarning, "EmailWorker: sendEmailTask: Can't create identity from \"TO\" header, skip mail");
-          email->setSkiped();
+          email->skip(true);
           continue;
         }
 
@@ -748,7 +731,15 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::checkOutbox() {
 
       pbote::Email mailPacket;
       mailPacket.fromMIME(bytes);
-      mailPacket.setPacket();
+
+      if (mailPacket.length() > 0) {
+        LogPrint(eLogDebug, "EmailWorker: checkOutbox: file loaded: ", mail_path);
+      } else {
+        LogPrint(eLogWarning, "EmailWorker: checkOutbox: can't read file: ", mail_path);
+        continue;
+      }
+
+      mailPacket.fillPacket();
       mailPacket.compress(pbote::Email::CompressionAlgorithm::UNCOMPRESSED);
 
       if (!mailPacket.empty()) {

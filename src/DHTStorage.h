@@ -5,7 +5,7 @@
 #ifndef PBOTE_SRC_DHTSTORAGE_H_
 #define PBOTE_SRC_DHTSTORAGE_H_
 
-#include "FS.h"
+#include "FileSystem.h"
 #include "Packet.h"
 
 namespace pbote {

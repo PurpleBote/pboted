@@ -11,11 +11,11 @@
 #include "AddressBook.h"
 #include "ConfigParser.h"
 #include "EmailIdentity.h"
-#include "FS.h"
-#include "Log.h"
+#include "FileSystem.h"
+#include "Logging.h"
 #include "Packet.h"
 
-#include "lib/libi2pd/Identity.h"
+#include "../lib/libi2pd/Identity.h"
 
 namespace pbote {
 

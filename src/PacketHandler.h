@@ -15,7 +15,7 @@
 #include <thread>
 #include <tuple>
 
-#include "Log.h"
+#include "Logging.h"
 #include "Packet.h"
 
 #define PBOTE_PROTOCOL_VERSION 4

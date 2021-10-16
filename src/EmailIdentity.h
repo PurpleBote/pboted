@@ -11,13 +11,13 @@
 #include <utility>
 #include <vector>
 
-#include "Crypto.h"
-#include "FS.h"
-#include "Log.h"
+#include "Cryptography.h"
+#include "FileSystem.h"
+#include "Logging.h"
 
-#include "lib/libi2pd/Tag.h"
-#include "lib/libi2pd/Signature.h"
-#include "lib/libi2pd/CryptoKey.h"
+#include "../lib/libi2pd/Tag.h"
+#include "../lib/libi2pd/Signature.h"
+#include "../lib/libi2pd/CryptoKey.h"
 
 namespace pbote {
 

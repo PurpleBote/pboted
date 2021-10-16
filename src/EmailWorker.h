@@ -12,9 +12,9 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
-#include "lib/lzma/LzmaDec.h"
-#include "lib/lzma/LzmaEnc.h"
-#include "lib/lzma/7zTypes.h"
+#include "../lib/lzma/LzmaDec.h"
+#include "../lib/lzma/LzmaEnc.h"
+#include "../lib/lzma/7zTypes.h"
 
 #include "Email.h"
 

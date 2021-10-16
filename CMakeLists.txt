@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(pbote VERSION 0.4.0)
+project(pbote VERSION 0.5.0)
 
 # for debugging
 #set(CMAKE_VERBOSE_MAKEFILE on)
@@ -12,99 +12,45 @@ option(WITH_STATIC "Static build" OFF)
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/build/cmake_modules")
 set(CMAKE_SOURCE_DIR "")
 
+#Handle paths nicely
+include(GNUInstallDirs)
+
 # architecture
 include(TargetArch)
 target_architecture(ARCHITECTURE)
 
+set(LIBLZMA_SRC_DIR lib/lzma)
 set(PBOTE_SRC_DIR src)
+
+add_subdirectory(lib/libi2pd)
+add_subdirectory(lib/sam)
+
+include_directories(${LIBLZMA_SRC_DIR})
 include_directories(${PBOTE_SRC_DIR})
+
+FILE(GLOB LIBLZMA_SRC ${LIBLZMA_SRC_DIR}/*.c)
+add_library(liblzma ${LIBLZMA_SRC})
+set_target_properties(liblzma PROPERTIES PREFIX "")
+
 set(PBOTE_SRC
-        "${PBOTE_SRC_DIR}/main.cpp"
+        "${PBOTE_SRC_DIR}/pboted.cpp"
         "${PBOTE_SRC_DIR}/AddressBook.cpp"
         "${PBOTE_SRC_DIR}/BoteContext.cpp"
         "${PBOTE_SRC_DIR}/ConfigParser.cpp"
-        "${PBOTE_SRC_DIR}/Crypto.cpp"
-        "${PBOTE_SRC_DIR}/Daemon.cpp"
+        "${PBOTE_SRC_DIR}/Cryptography.cpp"
+        "${PBOTE_SRC_DIR}/BoteDaemon.cpp"
         "${PBOTE_SRC_DIR}/DHTworker.cpp"
         "${PBOTE_SRC_DIR}/DHTStorage.cpp"
         "${PBOTE_SRC_DIR}/Email.cpp"
         "${PBOTE_SRC_DIR}/EmailIdentity.cpp"
         "${PBOTE_SRC_DIR}/EmailWorker.cpp"
-        "${PBOTE_SRC_DIR}/FS.cpp"
-        "${PBOTE_SRC_DIR}/Log.cpp"
+        "${PBOTE_SRC_DIR}/FileSystem.cpp"
+        "${PBOTE_SRC_DIR}/Logging.cpp"
         "${PBOTE_SRC_DIR}/NetworkWorker.cpp"
         "${PBOTE_SRC_DIR}/PacketHandler.cpp"
         "${PBOTE_SRC_DIR}/RelayPeersWorker.cpp"
         "${PBOTE_SRC_DIR}/UnixDaemon.cpp"
-        "${PBOTE_SRC_DIR}/lib/sam/i2psam.cpp"
-        "${PBOTE_SRC_DIR}/lib/lzma/LzmaDec.c"
-        "${PBOTE_SRC_DIR}/lib/lzma/Lzma2Dec.c"
         )
-
-set(LIBI2PD_SRC_DIR src/lib/libi2pd)
-include_directories(${LIBI2PD_SRC_DIR})
-set(LIBI2PD_SRC
-        "${LIBI2PD_SRC_DIR}/api.cpp"
-        "${LIBI2PD_SRC_DIR}/Base.cpp"
-        "${LIBI2PD_SRC_DIR}/Blinding.cpp"
-        "${LIBI2PD_SRC_DIR}/BloomFilter.cpp"
-        "${LIBI2PD_SRC_DIR}/ChaCha20.cpp"
-        "${LIBI2PD_SRC_DIR}/Config.cpp"
-        "${LIBI2PD_SRC_DIR}/CPU.cpp"
-        "${LIBI2PD_SRC_DIR}/Crypto.cpp"
-        "${LIBI2PD_SRC_DIR}/CryptoKey.cpp"
-        "${LIBI2PD_SRC_DIR}/Datagram.cpp"
-        "${LIBI2PD_SRC_DIR}/Destination.cpp"
-        "${LIBI2PD_SRC_DIR}/ECIESX25519AEADRatchetSession.cpp"
-        "${LIBI2PD_SRC_DIR}/Ed25519.cpp"
-        "${LIBI2PD_SRC_DIR}/Elligator.cpp"
-        "${LIBI2PD_SRC_DIR}/Family.cpp"
-        "${LIBI2PD_SRC_DIR}/FS.cpp"
-        "${LIBI2PD_SRC_DIR}/Garlic.cpp"
-        "${LIBI2PD_SRC_DIR}/Gost.cpp"
-        "${LIBI2PD_SRC_DIR}/Gzip.cpp"
-        "${LIBI2PD_SRC_DIR}/HTTP.cpp"
-        "${LIBI2PD_SRC_DIR}/I2NPProtocol.cpp"
-        "${LIBI2PD_SRC_DIR}/Identity.cpp"
-        "${LIBI2PD_SRC_DIR}/LeaseSet.cpp"
-        "${LIBI2PD_SRC_DIR}/Log.cpp"
-        "${LIBI2PD_SRC_DIR}/NetDb.cpp"
-        "${LIBI2PD_SRC_DIR}/NetDbRequests.cpp"
-        "${LIBI2PD_SRC_DIR}/NTCP2.cpp"
-        "${LIBI2PD_SRC_DIR}/Poly1305.cpp"
-        "${LIBI2PD_SRC_DIR}/Profiling.cpp"
-        "${LIBI2PD_SRC_DIR}/Reseed.cpp"
-        "${LIBI2PD_SRC_DIR}/RouterContext.cpp"
-        "${LIBI2PD_SRC_DIR}/RouterInfo.cpp"
-        "${LIBI2PD_SRC_DIR}/Signature.cpp"
-        "${LIBI2PD_SRC_DIR}/SSU.cpp"
-        "${LIBI2PD_SRC_DIR}/SSUData.cpp"
-        "${LIBI2PD_SRC_DIR}/SSUSession.cpp"
-        "${LIBI2PD_SRC_DIR}/Streaming.cpp"
-        "${LIBI2PD_SRC_DIR}/Timestamp.cpp"
-        "${LIBI2PD_SRC_DIR}/TransitTunnel.cpp"
-        "${LIBI2PD_SRC_DIR}/Transports.cpp"
-        "${LIBI2PD_SRC_DIR}/Tunnel.cpp"
-        "${LIBI2PD_SRC_DIR}/TunnelEndpoint.cpp"
-        "${LIBI2PD_SRC_DIR}/TunnelGateway.cpp"
-        "${LIBI2PD_SRC_DIR}/TunnelPool.cpp"
-        "${LIBI2PD_SRC_DIR}/TunnelConfig.cpp"
-        "${LIBI2PD_SRC_DIR}/util.cpp"
-        )
-
-add_library(libi2pd ${LIBI2PD_SRC})
-set_target_properties(libi2pd PROPERTIES PREFIX "")
-
-if (WITH_LIBRARY)
-    install(TARGETS libi2pd
-            EXPORT libi2pd
-            ARCHIVE DESTINATION src/lib
-            LIBRARY DESTINATION src/lib
-            COMPONENT Libraries)
-    # TODO Make libi2pd available to 3rd party projects via CMake as imported target
-    # FIXME This pulls stdafx
-    # install(EXPORT libi2pd DESTINATION ${CMAKE_INSTALL_LIBDIR})
-endif ()
 
 # compiler flags customization (by vendor)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Winvalid-pch -Wno-unused-parameter")
@@ -116,13 +62,13 @@ set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-Wl,--gc-sections") # -flto is added from
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++17" CXX17_SUPPORTED)
 CHECK_CXX_COMPILER_FLAG("-std=c++11" CXX11_SUPPORTED)
-if(CXX17_SUPPORTED)
+if (CXX17_SUPPORTED)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
-elseif(CXX11_SUPPORTED)
+elseif (CXX11_SUPPORTED)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-else()
+else ()
     message(SEND_ERROR "C++17 nor C++11 standard not seems to be supported by compiler. Too old version?")
-endif()
+endif ()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe")
@@ -187,8 +133,20 @@ if (NOT DEFINED OPENSSL_INCLUDE_DIR)
     message(SEND_ERROR "Could not find OpenSSL. Please download and install it first!")
 endif ()
 
+find_package(ZLIB)
+if (ZLIB_FOUND)
+    link_directories(${ZLIB_ROOT}/lib)
+endif ()
+
+# ToDo: add to sources with cmake
+add_library(mimetic SHARED IMPORTED) # or STATIC instead of SHARED
+set_target_properties(mimetic PROPERTIES
+        IMPORTED_LOCATION "/usr/local/lib/libmimetic.so"
+        INTERFACE_INCLUDE_DIRECTORIES "/usr/local/include/mimetic"
+        )
+
 # load includes
-include_directories(SYSTEM ${Boost_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR})
+include_directories(SYSTEM ${Boost_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR} ${ZLIB_INCLUDE_DIR})
 
 #include(CheckAtomic)
 
@@ -225,43 +183,14 @@ if (WITH_BINARY)
     if (WITH_STATIC)
         set(DL_LIB ${CMAKE_DL_LIBS})
     endif ()
-    #target_link_libraries( ${Boost_LIBRARIES} )
-    target_link_libraries("${PROJECT_NAME}" libi2pd ${DL_LIB} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${CMAKE_THREAD_LIBS_INIT} ${MINGW_EXTRA} ${DL_LIB} ${CMAKE_REQUIRED_LIBRARIES})
 
-    install(TARGETS "${PROJECT_NAME}" RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime)
-    set(APPS "\${CMAKE_INSTALL_PREFIX}/bin/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}")
-    set(DIRS "${Boost_LIBRARY_DIR};${OPENSSL_INCLUDE_DIR}/../bin;/mingw32/bin")
+    target_link_libraries("${PROJECT_NAME}" libi2pd liblzma libsam mimetic ${DL_LIB} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES}
+            ${ZLIB_LIBRARY} ${CMAKE_THREAD_LIBS_INIT} ${MINGW_EXTRA} ${DL_LIB} ${CMAKE_REQUIRED_LIBRARIES})
+
+    #install(TARGETS "${PROJECT_NAME}" RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime)
+    #set(APPS "\${CMAKE_INSTALL_PREFIX}/bin/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}")
+    #set(DIRS "${Boost_LIBRARY_DIR};${OPENSSL_INCLUDE_DIR}/../bin;/mingw32/bin")
 endif ()
-
-install(FILES ../LICENSE
-        DESTINATION .
-        COMPONENT Runtime
-        )
-# Take a copy on Appveyor
-install(FILES "C:/projects/openssl-$ENV{OPENSSL}/LICENSE"
-        DESTINATION .
-        COMPONENT Runtime
-        RENAME LICENSE_OPENSSL
-        OPTIONAL                      # for local builds only!
-        )
-
-file(GLOB_RECURSE PBOTE_SOURCES "src/*.cpp" "build" "Makefile*")
-install(FILES ${PBOTE_SOURCES} DESTINATION src/ COMPONENT Source)
-# install(DIRECTORY ../ DESTINATION src/
-#   # OPTIONAL
-#   COMPONENT Source FILES_MATCHING
-#   PATTERN .git EXCLUDE
-#   PATTERN "*.cpp"
-#   )
-
-file(GLOB PBOTE_HEADERS "src/*.h")
-install(FILES ${PBOTE_HEADERS} DESTINATION src/ COMPONENT Headers)
-# install(DIRECTORY ../ DESTINATION src/
-#   # OPTIONAL
-#   COMPONENT Headers FILES_MATCHING
-#   PATTERN .git EXCLUDE
-#   PATTERN "*.hpp"
-#   )
 
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "pboted, a C++ secure mail daemon")
 set(CPACK_PACKAGE_VENDOR "Purple Bote")
