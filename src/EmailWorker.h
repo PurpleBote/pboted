@@ -61,8 +61,6 @@ class EmailWorker {
 
   std::vector<pbote::Email> processEmail(const std::vector<pbote::EmailEncryptedPacket>& mail_packets);
 
-  static bool saveEmailInboxPacket(pbote::Email mail);
-
   bool started_;
   std::thread *m_check_email_thread_;
   std::thread *m_send_email_thread_;

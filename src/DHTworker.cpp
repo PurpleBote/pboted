@@ -289,9 +289,7 @@ std::vector<std::string> DHTworker::store(i2p::data::Tag<32> hash, uint8_t type,
   for (const auto &node: closestNodes) {
     context.random_cid(packet.cid, 32);
     auto packet_bytes = packet.toByte();
-    //LogPrint(eLogDebug, "DHT: store: packet_bytes size: ", packet_bytes.size());
     PacketForQueue q_packet(node.ToBase64(), packet_bytes.data(), packet_bytes.size());
-    //LogPrint(eLogDebug, "DHT: store: q_packet size: ", q_packet.payload.size());
 
     std::vector<uint8_t> v_cid(std::begin(packet.cid), std::end(packet.cid));
     batch->addPacket(v_cid, q_packet);

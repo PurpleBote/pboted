@@ -153,6 +153,18 @@ You can only continue to use your Java I2P-Bote identities if:
 - your address is created using the ECDH-256/ECDSA-256/AES-256/SHA-256 algorithm (others are not supported yet)
 - identities file is not encrypted (encrypted files are not supported yet)
 
+### Sending email
+
+- Prepare plain test message
+- Format it with `message_formatter`
+- Put result file to `outbox` directory in pboted working directory
+- pboted will automatically check `outbox` and send email
+- After sending email file will be moved to `sent` directory
+
+### Receiving email
+
+Just start pboted with generated identity and check `inbox` in working directory. 
+
 ## Donations
 
 - **BTC**: `bc1qans7ukm5t62mjcuhl3rpzxml05etyljhjt7w76`
