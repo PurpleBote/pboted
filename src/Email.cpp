@@ -5,6 +5,8 @@
 #include <cassert>
 #include <iostream>
 #include <sstream>
+#include <fstream>
+#include <cstdio>
 
 #include "BoteContext.h"
 #include "Email.h"
@@ -101,7 +103,7 @@ i2p::data::Tag<32> Email::getID() {
 
 std::vector<uint8_t> Email::getHashCash() {
   // ToDo: think about it
-  bool isDone = false;
+  /*bool isDone = false;
   size_t counter = 0;
 
   uint8_t ver = 1, numb = 20;
@@ -117,6 +119,7 @@ std::vector<uint8_t> Email::getHashCash() {
   //while(!isDone) {
 
   //}
+  */
 
   // ToDo: temp, TBD
   std::string temp_s("1:20:1303030600:admin@example.com::McMybZIhxKXu57jd:FOvXX");
@@ -161,8 +164,68 @@ bool Email::verify(uint8_t *hash) {
 }
 
 std::vector<uint8_t> Email::bytes() {
-  // ToDo: TBD temp
-  return packet.data;
+  std::stringstream buffer;
+  buffer << mail;
+  std::string str_buf = buffer.str();
+  std::vector<uint8_t> result(str_buf.begin(), str_buf.end());
+
+  packet.data = result;
+  packet.length = result.size();
+
+  return result;
+}
+
+bool Email::save(const std::string& dir) {
+  std::string emailPacketPath;
+  // If email not loaded from file system, and we need to save it first time
+  if (filename().empty() && !dir.empty()) {
+    emailPacketPath = pbote::fs::DataDirPath(dir, getID().ToBase64() + ".mail");
+
+    if (pbote::fs::Exists(emailPacketPath)) {
+      return false;
+    }
+  } else {
+    emailPacketPath = filename();
+  }
+
+  LogPrint(eLogDebug, "EmailWorker: save: save packet to ", emailPacketPath);
+  std::ofstream file(emailPacketPath, std::ofstream::binary | std::ofstream::out);
+  if (!file.is_open()) {
+    LogPrint(eLogError, "EmailWorker: save: can't open file ", emailPacketPath);
+    return false;
+  }
+
+  auto message_bytes = bytes();
+
+  file.write(reinterpret_cast<const char *>(message_bytes.data()), message_bytes.size());
+
+  file.close();
+  return true;
+}
+
+bool Email::move(const std::string& dir) {
+  if (skip()) {
+    return false;
+  }
+
+  std::string new_path = pbote::fs::DataDirPath(dir, field("X-I2PBote-DHT-Key") + ".mail");
+  LogPrint(eLogDebug, "Email: move: old path: ", filename());
+  LogPrint(eLogDebug, "Email: move: new path: ", new_path);
+
+
+  std::ifstream ifs(filename(), std::ios::in | std::ios::binary);
+  std::ofstream ofs(new_path, std::ios::out | std::ios::binary);
+  ofs << ifs.rdbuf();
+  int status = std::remove(filename().c_str());
+
+  if (status == 0) {
+    LogPrint(eLogInfo, "Email: move: File ", filename(), " moved to ", new_path);
+    filename(new_path);
+    return true;
+  } else {
+    LogPrint(eLogError, "Email: move: Can't move file ", filename(), " to ", new_path);
+    return false;
+  }
 }
 
 void Email::compress(CompressionAlgorithm type) {
@@ -223,20 +286,14 @@ void Email::decompress(std::vector<uint8_t> v_mail) {
 }
 
 void Email::fillPacket() {
+  context.random_cid(packet.mes_id, 32);
+  context.random_cid(packet.mes_id, 32);
+  context.random_cid(packet.DA, 32);
+  context.random_cid(packet.DA, 32);
+
   // ToDo: just for tests, need to implement
-  context.random_cid(packet.mes_id, 32);
-  context.random_cid(packet.mes_id, 32);
-  context.random_cid(packet.DA, 32);
-  context.random_cid(packet.DA, 32);
   packet.fr_id = 0;
   packet.fr_count = 1;
-
-  /*
-  body = mail.GetContent();
-  int mlen = mail.GetLength();
-  char * buf = new char[mlen];
-  int result = mail.Store(buf, mlen);
-  packet.data = std::vector<uint8_t>(buf, buf + mlen);*/
   packet.length = packet.data.size();
 
   empty_ = false;

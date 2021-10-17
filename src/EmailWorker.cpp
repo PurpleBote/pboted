@@ -268,7 +268,7 @@ void EmailWorker::run() {
   }
 }
 
-// ToDo: call for any identity individual in separated threads
+// ToDo: call for each identity individual in separated threads
 void EmailWorker::checkEmailTask() {
   while (started_) {
     for (const auto &email_identity: email_identities) {
@@ -293,10 +293,11 @@ void EmailWorker::checkEmailTask() {
       LogPrint(eLogDebug, "EmailWorker: checkEmailTask: mail count: ", enc_mail_packets.size());
 
       auto emails = processEmail(enc_mail_packets);
+      // ToDo: check mail signature
 
       // ToDo: move to independent task
-      for (const auto &mail: emails)
-        saveEmailInboxPacket(mail);
+      for (auto mail: emails)
+        mail.save("inbox");
 
       // wait until all EmailPacketTasks are done, we need to remove all received packets
       // ToDo: need interrupt handler
@@ -342,18 +343,16 @@ void EmailWorker::incompleteEmailTask() {
 
 void EmailWorker::sendEmailTask() {
   while (started_) {
-    // compress packet with LZMA
+    // compress packet with LZMA/ZLIB
     // ToDo: don't forget, for tests sent uncompressed
     //for (auto packet : emailPackets)
     //  lzmaCompress(packet.data, packet.data);
     // ToDo: slice big packet after compress
 
     std::vector<std::string> nodes;
-
     auto outbox = checkOutbox();
-    // check if we have mail in outbox
     if (!outbox.empty()) {
-      // create Encrypted Email Packet
+      // Create Encrypted Email Packet
       for (const auto &email: outbox) {
         // ToDo: move to function
         pbote::EmailEncryptedPacket enc_packet;
@@ -364,12 +363,13 @@ void EmailWorker::sendEmailTask() {
         SHA256(packet.DA, 32, enc_packet.delete_hash);
         i2p::data::Tag<32> del_hash(enc_packet.delete_hash);
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: del_hash: ", del_hash.ToBase64());
+        email->setField("X-I2PBote-Delete-Auth-Hash", del_hash.ToBase64());
 
         // Create recipient
         pbote::EmailIdentityPublic recipient_identity;
         std::string to_address = email->getToAddresses();
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: to_address: ", to_address);
-
+        // Add zeros to beginning
         std::string cryptoPubKey = "A" + to_address.substr(0, 43);
         std::string signingPubKey = "A" + to_address.substr(43, 43);
         to_address = cryptoPubKey + signingPubKey;
@@ -390,7 +390,7 @@ void EmailWorker::sendEmailTask() {
         enc_packet.edata = encryptData(packet_bytes.data(), packet_bytes.size(), recipient_identity);
         enc_packet.length = enc_packet.edata.size();
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: enc_packet.edata.size(): ", enc_packet.edata.size());
-        // ToDo: for now only suppoted ECDH-256 / ECDSA-256
+        // ToDo: for now only supported ECDH-256 / ECDSA-256
         enc_packet.alg = 2;
         enc_packet.stored_time = 0;
 
@@ -404,6 +404,7 @@ void EmailWorker::sendEmailTask() {
         SHA256(data_for_hash, 2 + enc_packet.edata.size(), enc_packet.key);
         i2p::data::Tag<32> dht_key(enc_packet.key);
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: dht_key : ", dht_key.ToBase64());
+        email->setField("X-I2PBote-DHT-Key", dht_key.ToBase64());
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: enc_packet.length : ", enc_packet.length);
 
         // hton for hash because recipient will check hash before ntoh
@@ -419,7 +420,7 @@ void EmailWorker::sendEmailTask() {
         email->setEncrypted(enc_packet);
       }
 
-      // store Encrypted Email Packet
+      // Store Encrypted Email Packet
       for (const auto &email: outbox) {
         // ToDo: move to function
         if (email->skip()) {
@@ -429,8 +430,7 @@ void EmailWorker::sendEmailTask() {
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Create Store Request packet");
         pbote::StoreRequestPacket store_packet;
 
-        // For now it's not checking from Java-Bote side
-        // ToDo: TBD
+        // For now, it's not checking from Java-Bote side
         store_packet.hashcash = email->getHashCash();
         store_packet.hc_length = store_packet.hashcash.size();
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: store_packet.hc_length: ", store_packet.hc_length);
@@ -439,12 +439,13 @@ void EmailWorker::sendEmailTask() {
         store_packet.data = email->getEncrypted().toByte();
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: store_packet.length: ", store_packet.length);
 
-        // send Store Request with Encrypted Email Packet to nodes
+        // Send Store Request with Encrypted Email Packet to nodes
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Send Store Request with Encrypted Email Packet to nodes");
+        // ToDo: check response status
         nodes = DHT_worker.store(i2p::data::Tag<32>(email->getEncrypted().key),
             email->getEncrypted().type,store_packet);
         DHT_worker.safe(email->getEncrypted().toByte());
-        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Email send to ", nodes.size(), " nodes");
+        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Email send to ", nodes.size(), " node(s)");
       }
 
       // Create and store Index Packet
@@ -461,10 +462,9 @@ void EmailWorker::sendEmailTask() {
         pbote::EmailIdentityPublic recipient_identity;
         std::string to_address = email->getToAddresses();
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: to_address: ", to_address);
-
+        // Add zeros to beginning
         std::string cryptoPubKey = "A" + to_address.substr(0, 43);
         std::string signingPubKey = "A" + to_address.substr(43, 43);
-
         to_address = cryptoPubKey + signingPubKey;
 
         if (recipient_identity.FromBase64(to_address) == 0) {
@@ -506,18 +506,23 @@ void EmailWorker::sendEmailTask() {
         store_index_packet.data = index_packet;
 
         // send Store Request with Index Packet to nodes
+        // ToDo: check response status
         nodes = DHT_worker.store(recipient_identity.GetIdentHash(), new_index_packet.type, store_index_packet);
         DHT_worker.safe(new_index_packet.toByte());
-        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Index send to ", nodes.size(), " nodes");
+        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Index send to ", nodes.size(), " node(s)");
+      }
+
+      for (const auto &email: outbox) {
+        // ToDo: move to function
+        if (email->skip()) {
+          continue;
+        }
+        email->setField("X-I2PBote-Deleted", "false");
+        // Write new metadata before move file to sent
+        email->save("");
+        email->move("sent");
       }
     }
-
-    // ToDo: move mail to sent
-    //   sent - compressed email packet with metadata:
-    //     DHT key
-    //     del ver hash
-    //     deleted (delivered) flag if we can't find keys
-
     // ToDo: read interval parameter from config
     LogPrint(eLogInfo, "EmailWorker: sendEmailTask: Round complete");
     std::this_thread::sleep_for(std::chrono::seconds(SEND_EMAIL_INTERVAL));
@@ -740,6 +745,7 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::checkOutbox() {
       }
 
       mailPacket.fillPacket();
+      mailPacket.filename(mail_path);
       mailPacket.compress(pbote::Email::CompressionAlgorithm::UNCOMPRESSED);
 
       if (!mailPacket.empty()) {
@@ -754,16 +760,17 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::checkOutbox() {
 }
 
 std::vector<pbote::Email> EmailWorker::processEmail(const std::vector<pbote::EmailEncryptedPacket> &mail_packets) {
+  // ToDo: move to incompleteEmailTask?
   LogPrint(eLogDebug, "EmailWorker: processEmail: emails for process: ", mail_packets.size());
   std::vector<pbote::Email> emails;
 
   for (auto enc_mail: mail_packets) {
-    std::vector<uint8_t> unecrypted_email_data;
+    std::vector<uint8_t> unencrypted_email_data;
     if (!enc_mail.edata.empty())
-      unecrypted_email_data = decryptData(enc_mail.edata.data(), enc_mail.edata.size());
+      unencrypted_email_data = decryptData(enc_mail.edata.data(), enc_mail.edata.size());
 
-    if (!unecrypted_email_data.empty()) {
-      pbote::Email temp_mail(unecrypted_email_data, true);
+    if (!unencrypted_email_data.empty()) {
+      pbote::Email temp_mail(unencrypted_email_data, true);
       if (!temp_mail.verify(enc_mail.delete_hash)) {
         i2p::data::Tag<32> cur_hash(enc_mail.delete_hash);
         LogPrint(eLogError, "EmailWorker: processEmail: email ", cur_hash.ToBase32(), " is unequal");
@@ -777,28 +784,6 @@ std::vector<pbote::Email> EmailWorker::processEmail(const std::vector<pbote::Ema
 
   LogPrint(eLogDebug, "EmailWorker: processEmail: processed emails: ", emails.size());
   return emails;
-}
-
-bool EmailWorker::saveEmailInboxPacket(pbote::Email mail) {
-  // ToDo: move to Email?
-  std::string emailPacketPath = pbote::fs::DataDirPath("inbox", mail.getID().ToBase64() + ".mail");
-
-  if (pbote::fs::Exists(emailPacketPath)) {
-    return false;
-  }
-  LogPrint(eLogDebug, "EmailWorker: saveEmailInboxPacket: save packet to ", emailPacketPath);
-  std::ofstream file(emailPacketPath, std::ofstream::binary | std::ofstream::out);
-  if (!file.is_open()) {
-    LogPrint(eLogError, "EmailWorker: saveEmailInboxPacket: can't open file ", emailPacketPath);
-    return false;
-  }
-
-  auto bytes = mail.bytes();
-
-  file.write(reinterpret_cast<const char *>(bytes.data()), bytes.size());
-
-  file.close();
-  return true;
 }
 
 } // namespace kademlia

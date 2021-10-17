@@ -85,12 +85,20 @@ class Email {
   std::string getBCCAddresses();
   std::string getReplyAddress();
 
+  void setField(const std::string& type, const std::string& value) { mail.header().field(type).value(value); }
+  std::string field(const std::string& type) { return mail.header().field(type).value(); }
+
   bool empty() const { return empty_; };
   bool incomplete() const { return incomplete_; };
   void skip(bool s) { skip_ = s; };
   bool skip() { return skip_; };
   bool verify(uint8_t *hash);
+
+  std::string filename() { return filename_; }
+  void filename(const std::string& fn) { filename_ = fn; }
   std::vector<uint8_t> bytes();
+  bool save(const std::string& dir);
+  bool move(const std::string& dir);
 
   size_t length() { return mail.size(); }
 
@@ -115,6 +123,7 @@ class Email {
   // i2p::data::Tag<32> messageId;
   // metadata?
   // sendtime
+  std::string filename_;
   mimetic::MimeEntity mail;
 
   pbote::EmailEncryptedPacket encrypted;
