@@ -15,14 +15,15 @@
 #include <memory>
 #include <mutex>
 #include <netinet/in.h>
+#include <openssl/sha.h>
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "Logging.h"
-
 #include "../lib/libi2pd/Tag.h"
+
+#include "Logging.h"
 
 namespace pbote {
 
@@ -30,7 +31,7 @@ const std::array<std::uint8_t, 12> PACKET_TYPE{0x52, 0x4b, 0x46, 0x4e, 0x41, 0x5
 const std::array<std::uint8_t, 4> COMM_PREFIX{0x6D, 0x30, 0x52, 0xE9};
 const std::array<std::uint8_t, 5> BOTE_VERSION{0x1, 0x2, 0x3, 0x4, 0x5};
 
-/// 38 cause prefix[4] + type[1] + ver[1] +  cid[32]
+/// because prefix[4] + type[1] + ver[1] +  cid[32] = 38
 const size_t COMM_DATA_LEN = 38;
 
 enum StatusCode {
@@ -159,6 +160,72 @@ struct EmailEncryptedPacket : public DataPacket{
   uint16_t length{};
   std::vector<uint8_t> edata;
 
+  bool fromBuffer(uint8_t *buf, size_t len, bool from_net) {
+    /// 105 cause type[1] + ver[1] + key[32] + stored_time[4] + delete_hash[32] + alg[1] + length[2] + DA[32]
+    if (len < 105) {
+      LogPrint(eLogWarning, "Packet: EmailEncryptedPacket: fromBuffer: payload is too short: ", len);
+      return {};
+    }
+
+    size_t offset = 0;
+
+    std::memcpy(&type, buf, 1);
+    offset += 1;
+    std::memcpy(&ver, buf + offset, 1);
+    offset += 1;
+
+    if (type != (uint8_t) 'E') {
+      LogPrint(eLogWarning, "Packet: EmailEncryptedPacket: fromBuffer: wrong packet type: ", type);
+      return false;
+    }
+
+    if (ver != (uint8_t) 4) {
+      LogPrint(eLogWarning, "Packet: EmailEncryptedPacket: fromBuffer: wrong packet version: ", unsigned(ver));
+      return false;
+    }
+
+    std::memcpy(&key, buf + offset, 32);
+    offset += 32;
+    std::memcpy(&stored_time, buf + offset, 4);
+    offset += 4;
+    std::memcpy(&delete_hash, buf + offset, 32);
+    offset += 32;
+    std::memcpy(&alg, buf + offset, 1);
+    offset += 1;
+
+    std::vector<uint8_t> data_for_verify(buf + offset, buf + len);
+
+    std::memcpy(&length, buf + offset, 2);
+    offset += 2;
+
+    if (from_net) {
+      stored_time = ntohl(stored_time);
+      length = ntohs(length);
+    }
+
+    LogPrint(eLogDebug, "Packet: EmailEncryptedPacket: fromBuffer: packet.stored_time: ", stored_time);
+    LogPrint(eLogDebug, "Packet: EmailEncryptedPacket: fromBuffer: packet.alg: ", unsigned(alg));
+    LogPrint(eLogDebug, "Packet: EmailEncryptedPacket: fromBuffer: packet.length: ", length);
+
+    i2p::data::Tag<32> ver_hash(key);
+    uint8_t data_hash[32];
+    SHA256(data_for_verify.data(), data_for_verify.size(), data_hash);
+    i2p::data::Tag<32> cur_hash(data_hash);
+
+    LogPrint(eLogDebug, "Packet: EmailEncryptedPacket: fromBuffer: ver_hash: ", ver_hash.ToBase64());
+    LogPrint(eLogDebug, "Packet: EmailEncryptedPacket: fromBuffer: cur_hash: ", cur_hash.ToBase64());
+
+    if (ver_hash != cur_hash) {
+      LogPrint(eLogError, "Packet: EmailEncryptedPacket: fromBuffer: hash mismatch");
+      return false;
+    }
+
+    LogPrint(eLogDebug, "Packet: EmailEncryptedPacket: fromBuffer: alg: ", unsigned(alg), ", length: ", length);
+    std::vector<uint8_t> data(buf + offset, buf + offset + length);
+    edata = data;
+    return true;
+  }
+
   std::vector<uint8_t> toByte() {
     /// Start basic part
     std::vector<uint8_t> result;
@@ -235,6 +302,67 @@ struct IndexPacket : public DataPacket{
   uint8_t hash[32]{};
   uint32_t nump;
   std::vector<Entry> data;
+
+  bool fromBuffer(const std::vector<uint8_t> &buf, bool from_net) {
+    /// because type[1] + ver[1] + DH[32] + nump[4] == 38 byte
+    if (buf.size() < 38) {
+      LogPrint(eLogWarning, "Packet: IndexPacket: fromBuffer: payload is too short");
+      return false;
+    }
+    uint16_t offset = 0;
+
+    std::memcpy(&type, buf.data(), 1);
+    offset += 1;
+    std::memcpy(&ver, buf.data() + offset, 1);
+    offset += 1;
+    std::memcpy(&hash, buf.data() + offset, 32);
+    offset += 32;
+
+    std::memcpy(&nump, buf.data() + offset, 4);
+    LogPrint(eLogDebug, "Packet: IndexPacket: fromBuffer: nump raw: ", nump, ", ntohl: ", ntohl(nump),
+             ", from_net: ", from_net ? "true" : "false");
+    if (from_net)
+      nump = ntohl(nump);
+
+    offset += 4;
+
+    LogPrint(eLogDebug, "Packet: IndexPacket: fromBuffer: nump: ", nump, ", type: ", type,
+             ", version: ", unsigned(ver));
+
+    if (type != (uint8_t) 'I') {
+      LogPrint(eLogWarning, "Packet: IndexPacket: fromBuffer: wrong packet type: ", type);
+      return false;
+    }
+
+    if (ver != (uint8_t) 4) {
+      LogPrint(eLogWarning, "Packet: IndexPacket: fromBuffer: wrong packet version: ", unsigned(ver));
+      return false;
+    }
+
+    // Check if payload length enough to parse all entries
+    if (buf.size() < (38 + (68 * nump))) {
+      LogPrint(eLogWarning, "Packet: IndexPacket: fromBuffer: incomplete packet!");
+      return false;
+    }
+
+    for (uint32_t i = 0; i < nump; i--) {
+      pbote::IndexPacket::Entry entry = {};
+      std::memcpy(&entry.key, buf.data() + offset, 32);
+      offset += 32;
+      i2p::data::Tag<32> key(entry.key);
+      LogPrint(eLogDebug, "Packet: IndexPacket: fromBuffer: mail key: ", key.ToBase64());
+
+      std::memcpy(&entry.dv, buf.data() + offset, 32);
+      offset += 32;
+      i2p::data::Tag<32> dv(entry.dv);
+      LogPrint(eLogDebug, "Packet: IndexPacket: fromBuffer: mail dvr: ", dv.ToBase64());
+
+      std::memcpy(&entry.time, buf.data() + offset, 4);
+      offset += 4;
+      data.push_back(entry);
+    }
+    return true;
+  }
 
   std::vector<uint8_t> toByte() {
     /// Start basic part
@@ -555,12 +683,12 @@ struct IndexDeleteRequestPacket : public CleanCommunicationPacket{
   IndexDeleteRequestPacket() : CleanCommunicationPacket(CommX) {}
 
   struct item {
-    uint8_t key[32];
-    uint8_t da[32];
+    uint8_t key[32]{};
+    uint8_t da[32]{};
   };
 
   uint8_t dht_key[32]{};
-  uint32_t count{};
+  uint8_t count{};
   std::vector<item> data;
 
   std::vector<uint8_t> toByte() {
@@ -572,6 +700,7 @@ struct IndexDeleteRequestPacket : public CleanCommunicationPacket{
     /// End basic part
 
     result.insert(result.end(), std::begin(dht_key), std::end(dht_key));
+
     result.push_back(count);
 
     for (auto entry : data) {

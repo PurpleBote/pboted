@@ -129,13 +129,11 @@ class EmailIdentityPrivate {
   const uint8_t * GetSigningPrivateKey() const { return m_SigningPrivateKey; };
   size_t GetSignatureLen() const; // might not match identity
   bool IsOfflineSignature() const { return m_TransientSignatureLen > 0; };
-  uint8_t * GetPadding();
   void RecalculateIdentHash(uint8_t * buf=nullptr) { m_Public->RecalculateIdentHash(buf); }
   size_t GetFullLen() const;
 
   void Sign(const uint8_t * buf, int len, uint8_t * signature) const;
 
-  //void Decrypt(const uint8_t * encrypted, uint8_t * data, CryptoKeyType preferredCrypto = CRYPTO_KEY_TYPE_ECDH_P256_SHA256_AES256CBC);
   std::vector<uint8_t> Decrypt(const uint8_t * encrypted, size_t elen);
   std::shared_ptr<pbote::ECDHP256Decryptor> CreateDecryptor(const uint8_t * key) const;
   static std::shared_ptr<pbote::ECDHP256Decryptor> CreateDecryptor(CryptoKeyType cryptoType, const uint8_t * key);

@@ -130,6 +130,11 @@ class DHTworker {
   std::vector<std::string> store(i2p::data::Tag<32> hash, uint8_t type, pbote::StoreRequestPacket packet);
   bool safe(const std::vector<uint8_t>& data) { return dht_storage_.safe(data); }
 
+  std::vector<std::string> deleteEmail(i2p::data::Tag<32> hash, uint8_t type, pbote::EmailDeleteRequestPacket packet);
+  std::vector<std::string> deleteIndexEntry(i2p::data::Tag<32> index_dht_key,
+                                            i2p::data::Tag<32> email_dht_key,
+                                            i2p::data::Tag<32> del_auth);
+
   std::vector<uint8_t> getIndex(i2p::data::Tag<32> key) { return dht_storage_.getIndex(key); }
   std::vector<uint8_t> getEmail(i2p::data::Tag<32> key) { return dht_storage_.getEmail(key); }
   std::vector<uint8_t> getContact(i2p::data::Tag<32> key) { return dht_storage_.getContact(key); }

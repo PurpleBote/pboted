@@ -7,5 +7,7 @@
 /CPackConfig.cmake
 /CPackSourceConfig.cmake
 /libi2pd.a
+/liblzma.a
 /Makefile
 /pbote
+/lib

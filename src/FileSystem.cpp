@@ -15,10 +15,8 @@
 #include <windows.h>
 #endif
 
-//#include "Base.h"
 #include "FileSystem.h"
 #include "Logging.h"
-//#include "Garlic.h"
 
 namespace pbote {
 namespace fs {
@@ -26,6 +24,7 @@ namespace fs {
 std::string appName = "pboted";
 std::string dataDir = "";
 std::string dirSep = "/";
+const std::vector<std::string> dir_list = {"DHTindex", "DHTemail", "DHTdirectory", "inbox", "incomplete", "outbox", "sent"};
 
 const std::string &GetAppName() { return appName; }
 
@@ -34,7 +33,7 @@ void SetAppName(const std::string &name) { appName = name; }
 const std::string &GetDataDir() { return dataDir; }
 
 void DetectDataDir(const std::string &cmdline_param, bool isService) {
-  if (cmdline_param != "") {
+  if (!cmdline_param.empty()) {
     dataDir = cmdline_param;
     return;
   }
@@ -53,34 +52,11 @@ bool Init() {
   if (!boost::filesystem::exists(dataDir))
     boost::filesystem::create_directory(dataDir);
 
-  // ToDo: make via loop
-  std::string DHTindex = DataDirPath("DHTindex");
-  if (!boost::filesystem::exists(DHTindex))
-    boost::filesystem::create_directory(DHTindex);
-
-  std::string DHTemails = DataDirPath("DHTemail");
-  if (!boost::filesystem::exists(DHTemails))
-    boost::filesystem::create_directory(DHTemails);
-
-  std::string DHTdirectory = DataDirPath("DHTdirectory");
-  if (!boost::filesystem::exists(DHTdirectory))
-    boost::filesystem::create_directory(DHTdirectory);
-
-  std::string inbox = DataDirPath("inbox");
-  if (!boost::filesystem::exists(inbox))
-    boost::filesystem::create_directory(inbox);
-
-  std::string incomplete = DataDirPath("incomplete");
-  if (!boost::filesystem::exists(incomplete))
-    boost::filesystem::create_directory(incomplete);
-
-  std::string outbox = DataDirPath("outbox");
-  if (!boost::filesystem::exists(outbox))
-    boost::filesystem::create_directory(outbox);
-
-  std::string sent = DataDirPath("sent");
-  if (!boost::filesystem::exists(sent))
-    boost::filesystem::create_directory(sent);
+  for (const auto& dir_name : dir_list) {
+    std::string dir_path = DataDirPath(dir_name);
+    if (!boost::filesystem::exists(dir_path))
+      boost::filesystem::create_directory(dir_path);
+  }
 
   return true;
 }

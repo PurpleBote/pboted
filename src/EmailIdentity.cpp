@@ -397,10 +397,6 @@ size_t EmailIdentityPrivate::GetPrivateKeyLen() const {
   return PRIVATE_KEY_LEN;
 }
 
-uint8_t *EmailIdentityPrivate::GetPadding() {
-  return nullptr; // TODO: implement me
-}
-
 std::vector<uint8_t> EmailIdentityPrivate::Decrypt(const uint8_t * encrypted, size_t elen) {
   auto decryptor = CreateDecryptor(nullptr);
   //auto decryptor = CreateDecryptor(m_SigningPrivateKey);
@@ -408,7 +404,7 @@ std::vector<uint8_t> EmailIdentityPrivate::Decrypt(const uint8_t * encrypted, si
     auto result = decryptor->Decrypt(encrypted, elen);
     return result;
   }
-  return std::vector<uint8_t>();
+  return {};
 }
 
 std::shared_ptr<pbote::ECDHP256Decryptor> EmailIdentityPrivate::CreateDecryptor(const uint8_t *key) const {
@@ -675,7 +671,7 @@ std::string identitiesStorage::getParam(std::string line, const std::string& pre
     }
     return line;
   } else {
-    return std::string();
+    return {};
   }
 }
 

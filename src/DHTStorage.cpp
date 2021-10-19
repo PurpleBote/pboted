@@ -47,14 +47,34 @@ bool DHTStorage::safe(const std::vector<uint8_t>& data) {
 
 bool DHTStorage::deleteIndex(i2p::data::Tag<32> key) {
   if(exist(pbote::type::DataI, key)) {
-    return true;
+    std::string packet_path = pbote::fs::DataDirPath("DHTindex", key.ToBase64() + ".dat");
+
+    int status = std::remove(packet_path.c_str());
+
+    if (status == 0) {
+      LogPrint(eLogInfo, "DHTStorage: deleteIndex: File ", packet_path, " removed");
+      return true;
+    } else {
+      LogPrint(eLogError, "DHTStorage: deleteIndex: Can't remove file ", packet_path);
+      return false;
+    }
   }
   return false;
 }
 
 bool DHTStorage::deleteEmail(i2p::data::Tag<32> key) {
   if(exist(pbote::type::DataE, key)) {
-    return true;
+    std::string packet_path = pbote::fs::DataDirPath("DHTemail", key.ToBase64() + ".dat");
+
+    int status = std::remove(packet_path.c_str());
+
+    if (status == 0) {
+      LogPrint(eLogInfo, "DHTStorage: deleteEmail: File ", packet_path, " removed");
+      return true;
+    } else {
+      LogPrint(eLogError, "DHTStorage: deleteEmail: Can't remove file ", packet_path);
+      return false;
+    }
   }
   return false;
 }
