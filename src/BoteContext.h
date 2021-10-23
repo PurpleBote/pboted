@@ -50,8 +50,10 @@ class BoteContext {
   std::shared_ptr<pbote::EmailIdentityFull> identityByName(const std::string &name);
   std::vector<std::shared_ptr<pbote::EmailIdentityFull>> getEmailIdentities() { return identities_storage_->getIdentities(); };
 
-  bool recipient_exist(const std::string &name) { return address_book_.exist(name); }
-  std::string recipient_get(const std::string &name) { return address_book_.get_address(name); }
+  bool name_exist(const std::string &name) { return address_book_.name_exist(name); }
+  bool alias_exist(const std::string &alias) { return address_book_.alias_exist(alias); }
+  std::string address_for_name(const std::string &name) { return address_book_.address_for_name(name); }
+  std::string address_for_alias(const std::string &alias) { return address_book_.address_for_alias(alias); }
 
   queue_type getSendQueue() { return m_sendQueue; }
   queue_type getRecvQueue() { return m_recvQueue; }

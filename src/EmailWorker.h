@@ -35,6 +35,8 @@ public:
   void startSendEmailTask();
   bool stopSendEmailTask();
 
+  std::vector<std::shared_ptr<pbote::Email>> check_inbox();
+
   std::vector<uint8_t>
   decryptData(const std::shared_ptr<pbote::EmailIdentityFull> &identity,
               uint8_t *enc, size_t elen);

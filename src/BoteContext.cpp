@@ -61,6 +61,9 @@ void BoteContext::init() {
 
   auto ident_test = identities_storage_->getIdentities();
   LogPrint(eLogInfo, "Context: Loaded identities: ", ident_test.size());
+
+  address_book_.load();
+  LogPrint(eLogInfo, "Context: Loaded contacts: ", address_book_.size());
 }
 
 void BoteContext::send(const PacketForQueue &packet) {
@@ -108,6 +111,8 @@ std::shared_ptr<pbote::EmailIdentityFull> BoteContext::identityByName(const std:
   //return std::find_if(email_identities.begin(), email_identities.end(), [&name](std::shared_ptr<pbote::EmailIdentityFull> i){ return i->publicName == name; }).operator*();
 
   for (auto identity : identities_storage_->getIdentities()) {
+    LogPrint(eLogDebug, "BoteContext: identityByName: name: ", name,
+             ", now: ", identity->publicName);
     if (identity->publicName == name)
       return identity;
   }

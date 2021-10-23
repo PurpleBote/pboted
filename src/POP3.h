@@ -23,9 +23,9 @@ namespace pop3 {
 const char capa_list[][100] = {
     {"+OK Capability list follows\n"},
     {"USER\n"}, // added USER PASS
-    {"APOP\n"}, // added APOP
-    {"TOP\n"}, // added TOP
-    {"UIDL\n"}, // added UIDL
+    // ToDo: {"APOP\n"}, // added APOP
+    // ToDo: {"TOP\n"}, // added TOP
+    // ToDo: {"UIDL\n"}, // added UIDL
     // ToDo: {"SASL\n"}, // added AUTH; reference: POP-AUTH, SASL
     // ToDo: {"STARTTLS\n"},
     // ToDo: {"RESP-CODES\n"},
@@ -50,18 +50,18 @@ const char capa_list[][100] = {
 #define OK_UIDL  11
 
 const char reply_ok[][100] = {
-    {"+OK\r\n"},                                         // 0
-    {"+OK pboted POP3 server ready <123@bote.i2p>\r\n"}, // 1
-    {"+OK name is a valid mailbox\r\n"},                 // 2
-    {"+OK maildrop locked and ready\r\n"},               // 3
-    {"+OK pboted POP3 server signing off\r\n"},          // 4
-    {"+OK maildrop has %d messages (%d octets)\r\n"},    // 5
-    {"+OK %d %d\r\n"},                                   // 6
-    {"+OK message %d deleted\r\n"},                      // 7
-    {"+OK %d messages (%d octets)\r\n"},                 // 8
-    {"+OK %d octets\r\n"},                               // 9
-    {"+OK top of message follows\r\n"},                  // 10
-    {"+OK unique-id listing follows\r\n"}                // 11
+    {"+OK\r\n"},                                          // 0
+    {"+OK pboted POP3 server ready <pboted.i2p>\r\n"},    // 1
+    {"+OK %s is a valid mailbox\r\n"},                    // 2
+    {"+OK maildrop locked and ready\r\n"},                // 3
+    {"+OK pboted POP3 server signing off\r\n"},           // 4
+    {"+OK maildrop has %d messages (%d octets)\r\n"},     // 5
+    {"+OK %d %d\r\n"},                                    // 6
+    {"+OK message %d deleted\r\n"},                       // 7
+    {"+OK %d messages (%d octets)\n"},                    // 8
+    {"+OK %d octets\n"},                                  // 9
+    {"+OK top of message follows\r\n"},                   // 10
+    {"+OK unique-id listing for %d emails follows\n"}     // 11
 };
 
 #define ERR_SIMP 0
@@ -77,13 +77,21 @@ const char reply_ok[][100] = {
 const char reply_err[][100] = {
     {"-ERR\r\n"},                                   // 0
     {"-ERR Command not implemented\r\n"},           // 1
-    {"-ERR never heard of mailbox name\r\n"},       // 2
+    {"-ERR never heard of mailbox %s\r\n"},       // 2
     {"-ERR invalid password\r\n"},                  // 3
     {"-ERR unable to lock maildrop\r\n"},           // 4
     {"-ERR permission denied\r\n"},                 // 5
     {"-ERR no such message\r\n"},                   // 6
     {"-ERR message %d already deleted\r\n"},        // 7
     {"-ERR some deleted messages not removed\r\n"}  // 8
+};
+
+#define TEMPLATE_LIST_ITEM 0
+#define TEMPLATE_UIDL_ITEM 0
+
+const char templates[][100] = {
+    {"%d %d"}, // 0
+    {"%d %s"}  // 1
 };
 
 class POP3session;
@@ -154,10 +162,10 @@ private:
   std::thread *session_thread;
 
   int client_sockfd;
-  int session_stat;
+  int session_state;
   char buf[BUF_SIZE];
 
-  pbote::Email mail;
+  std::vector<std::shared_ptr<pbote::Email>> emails;
 };
 
 inline std::string format_response(const char *format, ...) {

@@ -96,6 +96,48 @@ bool EmailWorker::stopSendEmailTask() {
   return true;
 }
 
+std::vector<std::shared_ptr<pbote::Email>> EmailWorker::check_inbox() {
+  LogPrint(eLogDebug, "EmailWorker: check_inbox: start");
+
+  // outbox - plain text packet
+  // ToDo: encrypt all local stored emails
+  std::string outboxPath = pbote::fs::DataDirPath("inbox");
+  std::vector<std::string> mails_path;
+  auto result = pbote::fs::ReadDir(outboxPath, mails_path);
+
+  std::vector<std::shared_ptr<pbote::Email>> emails;
+  if (result) {
+    for (const auto &mail_path: mails_path) {
+      // read mime packet
+      std::ifstream file(mail_path, std::ios::binary);
+      std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
+      file.close();
+
+      pbote::Email mailPacket;
+      mailPacket.fromMIME(bytes);
+
+      if (mailPacket.length() > 0) {
+        LogPrint(eLogDebug, "EmailWorker: check_inbox: file loaded: ", mail_path);
+      } else {
+        LogPrint(eLogWarning, "EmailWorker: check_inbox: can't read file: ", mail_path);
+        continue;
+      }
+
+      mailPacket.fillPacket();
+      mailPacket.filename(mail_path);
+      //mailPacket.compress(pbote::Email::CompressionAlgorithm::UNCOMPRESSED);
+
+      if (!mailPacket.empty()) {
+        emails.push_back(std::make_shared<pbote::Email>(mailPacket));
+      }
+    }
+  }
+
+  LogPrint(eLogDebug, "EmailWorker: check_inbox: found ", emails.size(), " email(s).");
+
+  return emails;
+}
+
 std::vector<uint8_t> EmailWorker::decryptData(const std::shared_ptr<pbote::EmailIdentityFull>& identity,
                                               uint8_t *enc, size_t elen) {
     std::vector<uint8_t> data = identity->identity.Decrypt(enc, elen);

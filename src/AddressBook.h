@@ -7,8 +7,18 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 namespace pbote {
+
+struct Contact {
+public:
+  Contact() = default;
+
+  std::string alias{};
+  std::string name{};
+  std::string dest{};
+};
 
 class AddressBook {
 public:
@@ -19,21 +29,27 @@ public:
   void load();
   void save();
 
-  void add(std::string &name, std::string &address);
-  bool exist(const std::string &name);
-  std::string get_address(const std::string &name);
+  void add(std::string &alias, std::string &name, std::string &address);
+  bool name_exist(const std::string &name);
+  bool alias_exist(const std::string &alias);
+  std::string address_for_name(const std::string &name);
+  std::string address_for_alias(const std::string &alias);
   void remove(const std::string &name);
 
-  void setPassword();
-  void changePassword();
-  void encrypt();
-  void decrypt();
+  size_t size() { return contacts.size(); }
+
+  //void setPassword();
+  //void changePassword();
+  //void encrypt();
+  //void decrypt();
 
 private:
+  std::vector<std::string> read();
+
   std::string filePath_;
   std::string passwordHolder_;
 
-  std::map<std::string, std::string> addresses;
+  std::vector<Contact> contacts;
 };
 
 } // namespace pbote

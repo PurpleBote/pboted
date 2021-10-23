@@ -176,6 +176,7 @@ std::vector<uint8_t> Email::bytes() {
 }
 
 bool Email::save(const std::string& dir) {
+  // ToDo: remove all not allowed header fields
   std::string emailPacketPath;
   // If email not loaded from file system, and we need to save it first time
   if (filename().empty() && !dir.empty()) {

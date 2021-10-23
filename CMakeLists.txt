@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(pbote VERSION 0.7.0)
+project(pbote VERSION 0.7.1)
 
 # for debugging
 #set(CMAKE_VERBOSE_MAKEFILE on)

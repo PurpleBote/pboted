@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "BoteContext.h"
+#include "EmailWorker.h"
 #include "Logging.h"
 #include "POP3.h"
 
@@ -101,7 +102,7 @@ void POP3::run() {
 
 POP3session::POP3session(int socket)
     : started(false), session_thread(nullptr), client_sockfd(socket),
-      session_stat(STATE_QUIT) {
+      session_state(STATE_QUIT) {
   memset(buf, 0, sizeof(buf));
 }
 
@@ -130,9 +131,8 @@ void POP3session::run() {
   ssize_t len;
 
   reply(reply_ok[OK_HELO]);
-  session_stat = STATE_USER;
+  session_state = STATE_USER;
 
-  LogPrint(eLogDebug, "POP3session: run: start loop");
   while (started) {
     memset(buf, 0, sizeof(buf));
     len = recv(client_sockfd, buf, sizeof(buf), 0);
@@ -204,14 +204,22 @@ void POP3session::reply(const char *data) {
 }
 
 void POP3session::USER(char *request) {
-  if (session_stat == STATE_USER) {
+  if (session_state == STATE_USER) {
     // User is identity public name
     std::string str_req(request);
-    if (check_user(str_req.substr(5, str_req.size()-2))) {
-      session_stat = STATE_PASS;
-      reply(reply_ok[OK_USER]);
+    LogPrint(eLogDebug, "POP3session: USER: request: ", request,
+             ", size: ", str_req.size());
+    str_req.erase(0, 5);
+    LogPrint(eLogDebug, "POP3session: USER: request: ", request,
+             ", size: ", str_req.size());
+    std::string user = str_req.substr(0, str_req.size() - 2);
+    if (check_user(user)) {
+      session_state = STATE_PASS;
+      auto res = format_response(reply_ok[OK_USER], user.c_str());
+      reply(res.c_str());
     } else {
-      reply(reply_err[ERR_USER]);
+      auto res = format_response(reply_err[ERR_USER], user.c_str());
+      reply(res.c_str());
     }
   } else {
     reply(reply_err[ERR_DENIED]);
@@ -219,16 +227,17 @@ void POP3session::USER(char *request) {
 }
 
 void POP3session::PASS(char *request) {
-  if (session_stat == STATE_PASS) {
+  if (session_state == STATE_PASS) {
     // ToDo: looks like we can keep pass hash in identity file
     //   for now ignored
     std::string str_req(request);
-    if (check_pass(str_req.substr(5, str_req.size()-2))) {
+    if (check_pass(str_req.substr(5, str_req.size() - 5))) {
       // ToDo: lock
-      session_stat = STATE_TRANSACTION;
+      session_state = STATE_TRANSACTION;
+      emails = pbote::kademlia::email_worker.check_inbox();
       reply(reply_ok[OK_LOCK]);
     } else {
-      session_stat = STATE_USER;
+      session_state = STATE_USER;
       reply(reply_err[ERR_PASS]);
     }
   } else {
@@ -237,40 +246,68 @@ void POP3session::PASS(char *request) {
 }
 
 void POP3session::STAT() {
-  if (session_stat == STATE_TRANSACTION) {
-    auto response = format_response(reply_ok[OK_STAT], 0, 0);
-    reply(response.c_str());
+  if (session_state == STATE_TRANSACTION) {
+    size_t emails_size = 0;
+    for (const auto& email : emails)
+      emails_size += email->bytes().size();
+
+    auto res = format_response(reply_ok[OK_STAT], emails.size(), emails_size);
+    reply(res.c_str());
   } else {
     reply(reply_err[ERR_DENIED]);
   }
 }
 
 void POP3session::LIST(char *request) {
-  if (session_stat == STATE_TRANSACTION) {
-    reply(reply_ok[OK_LIST]);
-    // ToDo
+  if (session_state == STATE_TRANSACTION) {
+    size_t emails_size = 0;
+    std::string mail_list;
+    size_t email_counter = 1;
+
+    for (const auto& email : emails) {
+      size_t email_size = email->bytes().size();
+      emails_size += email_size;
+      mail_list += format_response(templates[TEMPLATE_LIST_ITEM],
+                                   email_counter,
+                                   email_size) + "\n";
+      email_counter++;
+    }
+
+    auto res = format_response(reply_ok[OK_LIST],
+                               emails.size(),
+                               emails_size) + mail_list + ".\r\n";
+
+    reply(res.c_str());
   } else {
     reply(reply_err[ERR_DENIED]);
   }
 }
 
 void POP3session::RETR(char *request) {
-  if (session_stat == STATE_TRANSACTION) {
-    // ToDo
-    memset(buf, 0, sizeof(buf));
-
-    if (recv(client_sockfd, buf, sizeof(buf), 0) == -1) {
-      LogPrint(eLogError,
-               "POP3session: DATA: Receive error: ", strerror(errno));
-      reply(reply_ok[OK_RETR]);
+  if (session_state == STATE_TRANSACTION) {
+    std::string req_str(request);
+    LogPrint(eLogDebug, "POP3session: RETR: req_str: ", req_str);
+    req_str.erase(0, 5);
+    if (req_str.size() - 1 < 1) {
+      LogPrint(eLogError,"POP3session: RETR: Message is too short");
+      reply(reply_err[ERR_SIMP]);
     } else {
-      LogPrint(eLogDebug, "POP3session: DATA: mail content:\n", buf);
+      std::replace(req_str.begin(), req_str.end(), '\n', ';');
+      std::replace(req_str.begin(), req_str.end(), '\r', ';');
+      std::string message_number = req_str.substr(0, req_str.find(';'));
+      LogPrint(eLogDebug, "POP3session: RETR: message_number: ", message_number);
+      size_t message_num_int = size_t(std::stoi(message_number));
 
-      std::vector<uint8_t> mail_data(buf, buf + sizeof(buf));
-      mail.fromMIME(mail_data);
-      mail.save("outbox");
-
-      reply(reply_err[ERR_REMOVED]);
+      if (message_num_int > emails.size()) {
+        LogPrint(eLogError, "POP3session: RETR: Message number is to high");
+        reply(reply_err[ERR_NOT_FOUND]);
+      } else {
+        auto bytes = emails[message_num_int - 1]->bytes();
+        std::string res = format_response(reply_ok[OK_RETR], bytes.size());
+        res.append(bytes.begin(), bytes.end());
+        res.append(".\r\n");
+        reply(res.c_str());
+      }
     }
   } else {
     reply(reply_err[ERR_DENIED]);
@@ -278,7 +315,7 @@ void POP3session::RETR(char *request) {
 }
 
 void POP3session::DELE(char *request) {
-  if (session_stat == STATE_TRANSACTION) {
+  if (session_state == STATE_TRANSACTION) {
     auto response = format_response(reply_ok[OK_DEL], 1);
     reply(response.c_str());
   } else {
@@ -287,14 +324,14 @@ void POP3session::DELE(char *request) {
 }
 
 void POP3session::NOOP() {
-  if (session_stat == STATE_TRANSACTION)
+  if (session_state == STATE_TRANSACTION)
     reply(reply_ok[OK_SIMP]);
   else
     reply(reply_err[ERR_DENIED]);
 }
 
 void POP3session::RSET() {
-  if (session_stat == STATE_TRANSACTION) {
+  if (session_state == STATE_TRANSACTION) {
     // ToDo
     auto response = format_response(reply_ok[OK_MAILDROP], 0, 0);
     reply(response.c_str());
@@ -304,7 +341,7 @@ void POP3session::RSET() {
 }
 
 void POP3session::QUIT() {
-  session_stat = STATE_QUIT;
+  session_state = STATE_QUIT;
   reply(reply_ok[OK_QUIT]);
   stop();
 }
@@ -324,7 +361,7 @@ void POP3session::APOP(char *request) {
   if (strncmp(request, "APOP", 4) == 0) {
     // ToDo
     LogPrint(eLogDebug, "POP3session: APOP: Login successfully");
-    session_stat = STATE_TRANSACTION;
+    session_state = STATE_TRANSACTION;
     reply(reply_ok[OK_LOCK]);
   } else {
     reply(reply_err[ERR_DENIED]);
@@ -332,7 +369,7 @@ void POP3session::APOP(char *request) {
 }
 
 void POP3session::TOP(char *request) {
-  if (session_stat == STATE_TRANSACTION) {
+  if (session_state == STATE_TRANSACTION) {
     reply(reply_ok[OK_TOP]);
     // ToDo
   } else {
@@ -341,25 +378,37 @@ void POP3session::TOP(char *request) {
 }
 
 void POP3session::UIDL(char *request) {
-  if (session_stat == STATE_TRANSACTION) {
-    reply(reply_ok[OK_UIDL]);
-    // ToDo
+  if (session_state == STATE_TRANSACTION) {
+    std::string uidl_list;
+    size_t email_counter = 1;
+
+    for (const auto& email : emails) {
+      std::string email_uid = email->field("Message-ID");
+      uidl_list += format_response(templates[TEMPLATE_UIDL_ITEM],
+                                   email_counter,
+                                   email_uid.c_str()) + "\n";
+      email_counter++;
+    }
+    auto res = format_response(reply_ok[OK_UIDL],
+                               emails.size()) + uidl_list + ".\r\n";
+
+    reply(res.c_str());
   } else {
     reply(reply_err[ERR_DENIED]);
   }
 }
 
 bool POP3session::check_user(const std::string &user) {
-  LogPrint(eLogDebug, "POP3session: check_user: user: ",
-           user.substr(0, user.size() - 2));
-  //if (pbote::context.identityByName(user))
-  return true;
-  //return false;
+  LogPrint(eLogDebug, "POP3session: check_user: user: ", user);
+  if (pbote::context.identityByName(user))
+    return true;
+  return false;
 }
 
 bool POP3session::check_pass(const std::string &pass) {
   LogPrint(eLogDebug, "POP3session: check_pass: pass: ",
            pass.substr(0, pass.size() - 2));
+  // ToDo
   //if (pbote::context.recipient_exist(pass))
   return true;
   //return false;

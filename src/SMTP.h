@@ -21,15 +21,15 @@ namespace smtp {
 
 const char reply_info[][100] = {
     {"250-pboted.i2p is pleased to meet you\n"},
-    {"250-SIZE 10485760\n"}, // RFC 1870
+    // ToDo: {"250-SIZE 10485760\n"}, // RFC 1870
     {"250-AUTH LOGIN PLAIN\n"}, // RFC 4954
     // ToDo: {"250-ENHANCEDSTATUSCODES\n"}, // RFC 3463
     // ToDo: {"250-CHUNKING\n"}, // RFC 3030
     // ToDo: {"250-PIPELINING\n"}, // RFC 2920
     // ToDo: {"250-STARTTLS\n"}, // RFC 3207
-    {"250-8BITMIME\n"},
+    // ToDo: {"250-8BITMIME\n"},
     // ToDo: {"250-SMTPUTF8\n"}, // RFC 6531
-    {"250-EXPN\n"},
+    // ToDo: {"250-EXPN\n"},
     {"250-HELP\n"}, // RFC 821
     {"250 HELO\r\n"}
 };
@@ -178,7 +178,7 @@ private:
   std::thread *session_thread;
 
   int client_sockfd;
-  int session_stat;
+  int session_state;
   char buf[BUF_SIZE];
 
   int rcpt_user_num;
