@@ -14,17 +14,18 @@ namespace util {
 
 class Daemon_Singleton_Private;
 class Daemon_Singleton {
- public:
-  virtual bool init(int argc, char *argv[], std::shared_ptr<std::ostream> logstream);
+public:
+  virtual bool init(int argc, char *argv[],
+                    std::shared_ptr<std::ostream> logstream);
   virtual bool init(int argc, char *argv[]);
   virtual int start();
   virtual bool stop();
-  virtual void run() {};
+  virtual void run(){};
 
   bool isDaemon;
   bool running;
 
- protected:
+protected:
   Daemon_Singleton();
   virtual ~Daemon_Singleton();
 
@@ -37,7 +38,7 @@ class Daemon_Singleton {
 
 #define Daemon pbote::util::DaemonLinux::Instance()
 class DaemonLinux : public Daemon_Singleton {
- public:
+public:
   static DaemonLinux &Instance() {
     static DaemonLinux instance;
     return instance;
@@ -49,11 +50,11 @@ class DaemonLinux : public Daemon_Singleton {
   bool stop() override;
   void run() override;
 
- private:
+private:
   std::string pidfile;
   int pidFH;
 
- public:
+public:
   int gracefulShutdownInterval; // in seconds
 };
 

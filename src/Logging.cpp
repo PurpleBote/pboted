@@ -221,5 +221,12 @@ void Logging::Reopen() {
 }
 
 Logging &Logger() { return logger; }
+
+static ThrowFunction g_ThrowFunction;
+
+ThrowFunction GetThrowFunction () { return g_ThrowFunction; }
+
+void SetThrowFunction (ThrowFunction f) { g_ThrowFunction = f; }
+
 } // namespace log
 } // namespace pbote

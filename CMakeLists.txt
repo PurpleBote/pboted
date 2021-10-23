@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(pbote VERSION 0.6.0)
+project(pbote VERSION 0.7.0)
 
 # for debugging
 #set(CMAKE_VERBOSE_MAKEFILE on)
@@ -48,7 +48,9 @@ set(PBOTE_SRC
         "${PBOTE_SRC_DIR}/Logging.cpp"
         "${PBOTE_SRC_DIR}/NetworkWorker.cpp"
         "${PBOTE_SRC_DIR}/PacketHandler.cpp"
+        "${PBOTE_SRC_DIR}/POP3.cpp"
         "${PBOTE_SRC_DIR}/RelayPeersWorker.cpp"
+        "${PBOTE_SRC_DIR}/SMTP.cpp"
         "${PBOTE_SRC_DIR}/UnixDaemon.cpp"
         )
 

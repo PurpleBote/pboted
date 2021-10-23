@@ -15,36 +15,34 @@ AddressBook::AddressBook(std::string path, std::string pass)
 
 AddressBook::~AddressBook() {}
 
-void AddressBook::load() {
+void AddressBook::load() {}
 
+void AddressBook::save() {}
+
+void AddressBook::add(std::string &name, std::string &address) {
+  addresses.insert(std::pair<std::string, std::string>(name, address));
 }
 
-void AddressBook::save() {
-
+bool AddressBook::exist(const std::string &name) {
+  return addresses.find(name) != addresses.end();
 }
 
-void AddressBook::add() {
-
+std::string AddressBook::get_address(const std::string &name) {
+  if (exist(name))
+    return addresses.find(name)->second;
+  return {};
 }
 
-void AddressBook::remove() {
-
+void AddressBook::remove(const std::string &name) {
+  addresses.erase(name);
 }
 
-void AddressBook::setPassword() {
+void AddressBook::setPassword() {}
 
-}
+void AddressBook::changePassword() {}
 
-void AddressBook::changePassword() {
+void AddressBook::encrypt() {}
 
-}
+void AddressBook::decrypt() {}
 
-void AddressBook::encrypt() {
-
-}
-
-void AddressBook::decrypt() {
-
-}
-
-} // pbote
+} // namespace pbote

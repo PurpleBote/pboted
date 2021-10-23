@@ -89,22 +89,25 @@ void Init() {
   ("delivery.delay", bool_switch()->default_value(true),     "Use delay on relay for mail sending (default: enabled)")
   ("delivery.delaymin", value<uint8_t>()->default_value(5),  "Minimum delay for mail sending in minutes(default: 5)")
   ("delivery.delaymax", value<uint8_t>()->default_value(15), "Maximum delay for mail sending in minutes(default: 15)")
-  ;
+  ;*/
   options_description smtp("SMTP options");
   smtp.add_options()
   ("smtp.enabled", bool_switch()->default_value(false), "Allow connect via SMTP (default: disabled)")
+  ("smtp.address", value<std::string>()->default_value("127.0.0.1"),   "SMTP listen address (default: 127.0.0.1)")
   ("smtp.port", value<uint16_t>()->default_value(25),   "SMTP listen port (default: 25)")
-  ;
-  options_description imap("IMAP options");
-  imap.add_options()
-  ("imap.enabled", bool_switch()->default_value(false), "Allow connect via IMAP (default: disabled)")
-  ("imap.port", value<uint16_t>()->default_value(143),  "IMAP listen port (default: 143)")
   ;
   options_description pop3("POP3 options");
   pop3.add_options()
   ("pop3.enabled", bool_switch()->default_value(false), "Allow connect via POP3 (default: disabled)")
+  ("pop3.address", value<std::string>()->default_value("127.0.0.1"),   "POP3 listen address (default: 127.0.0.1)")
   ("pop3.port", value<uint16_t>()->default_value(110),  "POP3 listen port (default: 110)")
   ;
+  /*options_description imap("IMAP options");
+  imap.add_options()
+  ("imap.enabled", bool_switch()->default_value(false), "Allow connect via IMAP (default: disabled)")
+  ("imap.port", value<uint16_t>()->default_value(143),  "IMAP listen port (default: 143)")
+  ;
+
   options_description clearnet("Clearnet proxy options");
   clearnet.add_options()
   ("clearnet.enable", bool_switch()->default_value(false),          "Use node for sending mail via clearnet (default: disabled)")
@@ -115,10 +118,10 @@ void Init() {
       .add(sam)
       .add(bootstrap)
     /*.add(mail)
-    .add(delivery)
+    .add(delivery)*/
     .add(smtp)
-    .add(imap)
     .add(pop3)
+    /*.add(imap)
     .add(clearnet)*/
       ;
 }

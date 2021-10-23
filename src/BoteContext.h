@@ -47,7 +47,11 @@ class BoteContext {
   std::shared_ptr<i2p::data::IdentityEx> getLocalDestination() { return localDestination; }
   std::shared_ptr<i2p::data::PrivateKeys> getlocalKeys() { return local_keys_; }
 
+  std::shared_ptr<pbote::EmailIdentityFull> identityByName(const std::string &name);
   std::vector<std::shared_ptr<pbote::EmailIdentityFull>> getEmailIdentities() { return identities_storage_->getIdentities(); };
+
+  bool recipient_exist(const std::string &name) { return address_book_.exist(name); }
+  std::string recipient_get(const std::string &name) { return address_book_.get_address(name); }
 
   queue_type getSendQueue() { return m_sendQueue; }
   queue_type getRecvQueue() { return m_recvQueue; }

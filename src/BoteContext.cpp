@@ -103,6 +103,17 @@ void BoteContext::removeBatch(const std::shared_ptr<PacketBatch<pbote::Communica
   }
 }
 
+std::shared_ptr<pbote::EmailIdentityFull> BoteContext::identityByName(const std::string &name) {
+  // ToDo: well is it really better?
+  //return std::find_if(email_identities.begin(), email_identities.end(), [&name](std::shared_ptr<pbote::EmailIdentityFull> i){ return i->publicName == name; }).operator*();
+
+  for (auto identity : identities_storage_->getIdentities()) {
+    if (identity->publicName == name)
+      return identity;
+  }
+  return nullptr;
+}
+
 unsigned long BoteContext::get_uptime() {
   unsigned long raw_uptime = std::chrono::system_clock::now().time_since_epoch().count() - start_time_;
   return raw_uptime * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den;

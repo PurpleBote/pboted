@@ -37,7 +37,7 @@ void EmailWorker::start() {
       startCheckEmailTasks();
       startSendEmailTask();
     }
-    m_worker_thread_ = new std::thread(std::bind(&EmailWorker::run, this));
+    m_worker_thread_ = new std::thread([this] { run(); });
   }
 }
 
@@ -62,7 +62,7 @@ void EmailWorker::startCheckEmailTasks() {
     for (const auto &email_identity: email_identities) {
       // ToDo: move to object?
       LogPrint(eLogInfo, "EmailWorker: start startCheckEmailTasks for identity ", email_identity->publicName);
-      auto new_thread = std::make_shared<std::thread>(std::bind(&EmailWorker::checkEmailTask, this, email_identity));
+      auto new_thread = std::make_shared<std::thread>([this, email_identity] { checkEmailTask(email_identity); });
       m_check_email_threads_.push_back(new_thread);
     }
   }
@@ -80,7 +80,7 @@ bool EmailWorker::stopCheckEmailTasks() {
 void EmailWorker::startSendEmailTask() {
   if (started_) {
     LogPrint(eLogInfo, "EmailWorker: start sendEmailTask");
-    m_send_email_thread_ = new std::thread(std::bind(&EmailWorker::sendEmailTask, this));
+    m_send_email_thread_ = new std::thread([this] { sendEmailTask(); });
   }
 }
 
@@ -139,8 +139,11 @@ void EmailWorker::checkEmailTask(const std::shared_ptr<pbote::EmailIdentityFull>
 
     auto local_index_packet = DHT_worker.getIndex(email_identity->identity.GetPublic()->GetIdentHash());
     if (!local_index_packet.empty()) {
-      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ", email_identity->publicName,
-               ": got ", local_index_packet.size(), " local index packet(s) for identity");
+      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
+               email_identity->publicName,
+               ": got ", local_index_packet.size(),
+               " local index packet(s) for identity");
+
       /// from_net is true, because we save it as is
       pbote::IndexPacket parsed_local_index_packet;
       bool parsed = parsed_local_index_packet.fromBuffer(local_index_packet, true);
@@ -149,20 +152,24 @@ void EmailWorker::checkEmailTask(const std::shared_ptr<pbote::EmailIdentityFull>
         index_packets.push_back(parsed_local_index_packet);
       }
     } else {
-      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ", email_identity->publicName,
+      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
+               email_identity->publicName,
                ": can't find local index packets for identity");
     }
-    LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ", email_identity->publicName,
+    LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
+             email_identity->publicName,
              ": index count: ", index_packets.size());
 
     auto enc_mail_packets = retrieveEmailPacket(index_packets);
-    LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ", email_identity->publicName,
+    LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
+             email_identity->publicName,
              ": mail count: ", enc_mail_packets.size());
 
     if (!enc_mail_packets.empty()) {
       auto emails = processEmail(email_identity, enc_mail_packets);
 
-      LogPrint(eLogInfo, "EmailWorker: checkEmailTask: ", email_identity->publicName,
+      LogPrint(eLogInfo, "EmailWorker: checkEmailTask: ",
+               email_identity->publicName,
                ": email(s) processed: ", emails.size());
 
       // ToDo: check mail signature
@@ -189,41 +196,22 @@ void EmailWorker::checkEmailTask(const std::shared_ptr<pbote::EmailIdentityFull>
                                     email_dht_key, email_del_auth);
       }
     } else {
-      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ", email_identity->publicName, ": have no emails for process");
+      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
+               email_identity->publicName, ": have no emails for process");
     }
 
     // ToDo: check sent emails status
     //   if nodes sent empty response - mark as deleted (delivered)
 
-    LogPrint(eLogInfo, "EmailWorker: checkEmailTask: ", email_identity->publicName, ": Round complete");
+    LogPrint(eLogInfo, "EmailWorker: checkEmailTask: ",
+             email_identity->publicName, ": Round complete");
     // ToDo: read interval parameter from config
     std::this_thread::sleep_for(std::chrono::seconds(CHECK_EMAIL_INTERVAL));
   }
 }
 
 void EmailWorker::incompleteEmailTask() {
-  // ToDo: just for tests, need to implement
-  //   for multipart mail packets
-  /*uint8_t compress_alg;
-  memcpy(&compress_alg, buf + offset, 1);
-  offset += 1;
-
-  uint32_t output_sz;
-  LogPrint(eLogDebug, "Email: parseEmailUnencryptedPkt: compress alg: ", (unsigned) compress_alg);
-  if ((unsigned) compress_alg == (uint8_t) 1) {
-    LogPrint(eLogDebug, "Email: parseEmailUnencryptedPkt: data compressed, start decompress");
-    std::vector<uint8_t> output;
-    UncompressInc(output, std::vector<uint8_t>(buf + offset, buf + len));
-    auto decomp = lzmaDecompress(buf + offset, len - offset, &output_sz);
-    if (!decomp) {
-      LogPrint(eLogWarning, "Email: parseEmailUnencryptedPkt: decompressing error");
-      return pbote::EmailUnencryptedPacket();
-    }
-    packet.data = std::vector<uint8_t>(decomp, decomp + output_sz);
-  } else {
-    LogPrint(eLogDebug, "Email: parseEmailUnencryptedPkt: data uncompressed, save as is");
-  }
-  LogPrint(eLogDebug, "Email: parseEmailUnencryptedPkt: data: ", packet.data.data());*/
+  // ToDo: need to implement for multipart mail packets
 }
 
 void EmailWorker::sendEmailTask() {
@@ -271,7 +259,8 @@ void EmailWorker::sendEmailTask() {
         // Get FROM identity
         auto from_name = email->field("From");
         auto identity_name = from_name.substr(0, from_name.find(' '));
-        auto identity = identityByName(identity_name);
+        auto identity = pbote::context.identityByName(identity_name);
+        // ToDo: sign email
         if (!identity) {
           if (!email_identities.empty()) {
             LogPrint(eLogWarning, "EmailWorker: sendEmailTask: Can't find identity with name: ", identity_name,
@@ -426,17 +415,6 @@ void EmailWorker::sendEmailTask() {
     LogPrint(eLogInfo, "EmailWorker: sendEmailTask: Round complete");
     std::this_thread::sleep_for(std::chrono::seconds(SEND_EMAIL_INTERVAL));
   }
-}
-
-std::shared_ptr<pbote::EmailIdentityFull> EmailWorker::identityByName(const std::string &name) {
-  // ToDo: well is it really better?
-  //return std::find_if(email_identities.begin(), email_identities.end(), [&name](std::shared_ptr<pbote::EmailIdentityFull> i){ return i->publicName == name; }).operator*();
-
-  for (auto identity : email_identities) {
-    if (identity->publicName == name)
-      return identity;
-  }
-  return nullptr;
 }
 
 std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr<pbote::EmailIdentityFull> &identity) {

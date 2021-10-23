@@ -144,6 +144,11 @@ struct LogMsg {
 };
 
 Logging &Logger();
+
+typedef std::function<void (const std::string&)>  ThrowFunction;
+ThrowFunction GetThrowFunction ();
+void SetThrowFunction (ThrowFunction f);
+
 } // namespace log
 } // namespace pbote
 
@@ -179,6 +184,25 @@ void LogPrint(LogLevel level, TArgs &&... args) noexcept {
   auto msg = std::make_shared<pbote::log::LogMsg>(level, std::time(nullptr), ss.str());
   msg->tid = std::this_thread::get_id();
   log.Append(msg);
+}
+
+/**
+ * @brief Throw fatal error message with the list of arguments
+ * @param args Array of message parts
+ */
+template<typename... TArgs>
+void ThrowFatal (TArgs&&... args) noexcept
+{
+  auto f = pbote::log::GetThrowFunction ();
+  if (!f) return;
+  // fold message to single string
+  std::stringstream ss("");
+#if (__cplusplus >= 201703L) // C++ 17 or higher
+  (LogPrint (ss, std::forward<TArgs>(args)), ...);
+#else
+  LogPrint (ss, std::forward<TArgs>(args)...);
+#endif
+  f (ss.str ());
 }
 
 #endif // LOG_H__

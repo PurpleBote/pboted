@@ -11,7 +11,7 @@
 #define MAKE_VERSION(a, b, c, d) STRINGIZE(a) "." STRINGIZE(b) "." STRINGIZE(c) "-" STRINGIZE(d)
 
 #define PBOTE_VERSION_MAJOR 0
-#define PBOTE_VERSION_MINOR 6
+#define PBOTE_VERSION_MINOR 7
 #define PBOTE_VERSION_MICRO 0
 #define PBOTE_VERSION_PATCH 0
 #define PBOTE_VERSION                                                          \

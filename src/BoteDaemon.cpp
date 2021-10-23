@@ -5,11 +5,15 @@
 #include "BoteContext.h"
 #include "ConfigParser.h"
 #include "BoteDaemon.h"
+
+#include <memory>
 #include "DHTworker.h"
 #include "EmailWorker.h"
 #include "FileSystem.h"
 #include "Logging.h"
+#include "POP3.h"
 #include "RelayPeersWorker.h"
+#include "SMTP.h"
 #include "version.h"
 
 namespace pbote {
@@ -19,6 +23,9 @@ class Daemon_Singleton::Daemon_Singleton_Private {
  public:
   Daemon_Singleton_Private() {};
   ~Daemon_Singleton_Private() {};
+
+  std::unique_ptr<bote::smtp::SMTP> SMTPserver;
+  std::unique_ptr<bote::pop3::POP3> POP3server;
 };
 
 Daemon_Singleton::Daemon_Singleton()
@@ -35,7 +42,8 @@ bool Daemon_Singleton::init(int argc, char *argv[]) {
   return init(argc, argv, nullptr);
 }
 
-bool Daemon_Singleton::init(int argc, char *argv[], std::shared_ptr<std::ostream> logstream) {
+bool Daemon_Singleton::init(int argc, char *argv[],
+                            std::shared_ptr<std::ostream> logstream) {
   pbote::config::Init();
   pbote::config::ParseCmdline(argc, argv);
 
@@ -123,6 +131,48 @@ int Daemon_Singleton::start() {
   LogPrint(eLogInfo, "Daemon: starting Email");
   pbote::kademlia::email_worker.start();
 
+  bool smtp;
+  pbote::config::GetOption("smtp.enabled", smtp);
+  if (smtp) {
+    std::string SMTPaddr;
+    uint16_t SMTPport;
+    pbote::config::GetOption("smtp.address", SMTPaddr);
+    pbote::config::GetOption("smtp.port", SMTPport);
+    LogPrint(eLogInfo, "Daemon: starting SMTP server at ",
+             SMTPaddr, ":", SMTPport);
+
+    try {
+      d.SMTPserver = std::make_unique<bote::smtp::SMTP>(SMTPaddr, SMTPport);
+      d.SMTPserver->start();
+    } catch (std::exception &ex) {
+      LogPrint(eLogError, "Daemon: failed to start SMTP server: ",
+               ex.what());
+      ThrowFatal("Unable to start SMTP server at ",
+                 SMTPaddr, ":", SMTPport, ": ", ex.what());
+    }
+  }
+
+  bool pop3;
+  pbote::config::GetOption("pop3.enabled", pop3);
+  if (pop3) {
+    std::string POP3addr;
+    uint16_t POP3port;
+    pbote::config::GetOption("pop3.address", POP3addr);
+    pbote::config::GetOption("pop3.port", POP3port);
+    LogPrint(eLogInfo, "Daemon: starting POP3 server at ",
+             POP3addr, ":", POP3port);
+
+    try {
+      d.POP3server = std::make_unique<bote::pop3::POP3>(POP3addr, POP3port);
+      d.POP3server->start();
+    } catch (std::exception &ex) {
+      LogPrint(eLogError, "Daemon: failed to start POP3 server: ",
+               ex.what());
+      ThrowFatal("Unable to start POP3 server at ",
+                 POP3addr, ":", POP3port, ": ", ex.what());
+    }
+  }
+
   LogPrint(eLogInfo, "Daemon: started");
 
   return EXIT_SUCCESS;
@@ -130,6 +180,18 @@ int Daemon_Singleton::start() {
 
 bool Daemon_Singleton::stop() {
   LogPrint(eLogInfo, "Daemon: start shutting down");
+
+  if (d.SMTPserver) {
+    LogPrint(eLogInfo, "Daemon: stopping SMTP Server");
+    d.SMTPserver->stop();
+    d.SMTPserver = nullptr;
+  }
+
+  if (d.POP3server) {
+    LogPrint(eLogInfo, "Daemon: stopping POP3 Server");
+    d.POP3server->stop();
+    d.POP3server = nullptr;
+  }
 
   LogPrint(eLogInfo, "Daemon: stopping Email worker");
   pbote::kademlia::email_worker.stop();
