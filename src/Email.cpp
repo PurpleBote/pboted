@@ -189,10 +189,10 @@ bool Email::save(const std::string& dir) {
     emailPacketPath = filename();
   }
 
-  LogPrint(eLogDebug, "EmailWorker: save: save packet to ", emailPacketPath);
+  LogPrint(eLogDebug, "Email: save: save packet to ", emailPacketPath);
   std::ofstream file(emailPacketPath, std::ofstream::binary | std::ofstream::out);
   if (!file.is_open()) {
-    LogPrint(eLogError, "EmailWorker: save: can't open file ", emailPacketPath);
+    LogPrint(eLogError, "Email: save: can't open file ", emailPacketPath);
     return false;
   }
 

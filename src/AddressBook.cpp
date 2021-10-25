@@ -31,7 +31,7 @@ void AddressBook::load() {
       address_str.erase(0, address_str.find(delimiter) + delimiter.length());
       contact.name = address_str.substr(0, address_str.find(delimiter));
       address_str.erase(0, address_str.find(delimiter) + delimiter.length());
-      contact.dest = address_str.substr(0, address_str.size() - 1);
+      contact.dest = address_str.substr(0, address_str.size());
 
       if (!contact.alias.empty()) {
         LogPrint(eLogDebug, "AddressBook: load: alias: ", contact.alias,
