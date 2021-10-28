@@ -14,7 +14,6 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include <map>
 #include <string>
 
 #include "ConfigParser.h"
@@ -32,50 +31,36 @@ boost::program_options::typed_value<T> *make_value(T *store_to) {
 
 options_description m_OptionsDesc;
 variables_map m_Options;
-//std::vector<std::string> bootstrap_addresses;
 
 void Init() {
   options_description general("General options");
   general.add_options()
       ("help", "Show this message")
       ("version", "Show pboted version")
-      ("conf",
-       value<std::string>()->default_value(""),
-       "Path to main pboted config file (default: try ~/.pboted/pboted.conf or /var/lib/pboted/pboted.conf)")
-      ("pidfile",
-       value<std::string>()->default_value(""),
-       "Path to pidfile (default: ~/pboted/pboted.pid or /var/lib/pboted/pbote.pid)")
+      ("conf",value<std::string>()->default_value(""),"Path to main pboted config file (default: try ~/.pboted/pboted.conf or /var/lib/pboted/pboted.conf)")
+      ("pidfile",value<std::string>()->default_value(""),"Path to pidfile (default: ~/pboted/pboted.pid or /var/lib/pboted/pbote.pid)")
       ("log", value<std::string>()->default_value("file"), "Logs destination: stdout, file, syslog (file if not set)")
       ("logfile", value<std::string>()->default_value(""), "Path to logfile (stdout if not set, autodetect if daemon)")
-      ("loglevel",
-       value<std::string>()->default_value("info"),
-       "Set the minimal level of log messages (debug, info, warn, error, none)")
-      ("logclftime",
-       bool_switch()->default_value(false),
-       "Write full CLF-formatted date and time to log (default: disabled, write only time)")
-      ("datadir",
-       value<std::string>()->default_value(""),
-       "Path to storage of pboted data (keys, peer, packets, etc.) (default: try ~/.pboted/ or /var/lib/pboted/)")
+      ("loglevel",value<std::string>()->default_value("info"),"Set the minimal level of log messages (debug, info, warn, error, none)")
+      ("logclftime",bool_switch()->default_value(false),"Write full CLF-formatted date and time to log (default: disabled, write only time)")
+      ("datadir",value<std::string>()->default_value(""),"Path to storage of pboted data (keys, peer, packets, etc.) (default: try ~/.pboted/ or /var/lib/pboted/)")
       ("host", value<std::string>()->default_value("0.0.0.0"), "External IP")
       ("port", value<uint16_t>()->default_value(5050), "Port to listen for incoming connections (default: auto)")
       ("daemon", bool_switch()->default_value(false), "Router will go to background after start (default: disabled)")
-      ("service",
-       bool_switch()->default_value(false),
-       "Service will use system folders like '/var/lib/pboted' (default: disabled)");
+      ("service",bool_switch()->default_value(false),"Service will use system folders like '/var/lib/pboted' (default: disabled)");
   options_description sam("SAM options");
   sam.add_options()
-      ("sam.name", value<std::string>()->default_value("pbote"), "What name we send to I2P router (default: disabled)")
+  ("sam.name", value<std::string>()->default_value("pboted"), "What name we send to I2P router (default: pboted)")
       ("sam.address", value<std::string>()->default_value("127.0.0.1"), "I2P SAM address (default: 127.0.0.1)")
       ("sam.tcp", value<uint16_t>()->default_value(7656), "I2P SAM port (default: 7656)")
       ("sam.udp", value<uint16_t>()->default_value(7655), "I2P SAM port (default: 7655)")
-    /*("sam.auth", bool_switch()->default_value(false),                 "If SAM authentication requered (default: disabled)")
-    ("sam.login", value<std::string>()->default_value(""),            "SAM login")
-    ("sam.password", value<std::string>()->default_value(""),         "SAM password")*/
+      /*("sam.auth", bool_switch()->default_value(false),"If SAM authentication requered (default: false)")
+      ("sam.login", value<std::string>()->default_value(""),"SAM login")
+      ("sam.password", value<std::string>()->default_value(""),"SAM password")*/
       ;
   options_description bootstrap("Bootstrap options");
   bootstrap.add_options()
-      //("bootstrap.address", make_value(&bootstrap_addresses), "516-byte I2P destination key in Base64 format")
-      ("bootstrap.address", value<std::vector<std::string>>(), "516-byte I2P destination key in Base64 format");
+      ("bootstrap.address", value<std::vector<std::string>>(), "I2P destination key in Base64 format");
   /*options_description mail("Mail options");
   mail.add_options()
   ("mail.autocheck", bool_switch()->default_value(true),       "Allow auto mail check (default: enabled)")
@@ -92,26 +77,20 @@ void Init() {
   ;*/
   options_description smtp("SMTP options");
   smtp.add_options()
-  ("smtp.enabled", bool_switch()->default_value(false), "Allow connect via SMTP (default: disabled)")
-  ("smtp.address", value<std::string>()->default_value("127.0.0.1"),   "SMTP listen address (default: 127.0.0.1)")
-  ("smtp.port", value<uint16_t>()->default_value(25),   "SMTP listen port (default: 25)")
+  ("smtp.enabled", bool_switch()->default_value(true), "Allow connect via SMTP (default: true)")
+  ("smtp.address", value<std::string>()->default_value("127.0.0.1"), "SMTP listen address (default: 127.0.0.1)")
+  ("smtp.port", value<uint16_t>()->default_value(25), "SMTP listen port (default: 25)")
   ;
   options_description pop3("POP3 options");
   pop3.add_options()
-  ("pop3.enabled", bool_switch()->default_value(false), "Allow connect via POP3 (default: disabled)")
-  ("pop3.address", value<std::string>()->default_value("127.0.0.1"),   "POP3 listen address (default: 127.0.0.1)")
-  ("pop3.port", value<uint16_t>()->default_value(110),  "POP3 listen port (default: 110)")
+  ("pop3.enabled", bool_switch()->default_value(true), "Allow connect via POP3 (default: true)")
+  ("pop3.address", value<std::string>()->default_value("127.0.0.1"), "POP3 listen address (default: 127.0.0.1)")
+  ("pop3.port", value<uint16_t>()->default_value(110), "POP3 listen port (default: 110)")
   ;
   /*options_description imap("IMAP options");
   imap.add_options()
   ("imap.enabled", bool_switch()->default_value(false), "Allow connect via IMAP (default: disabled)")
-  ("imap.port", value<uint16_t>()->default_value(143),  "IMAP listen port (default: 143)")
-  ;
-
-  options_description clearnet("Clearnet proxy options");
-  clearnet.add_options()
-  ("clearnet.enable", bool_switch()->default_value(false),          "Use node for sending mail via clearnet (default: disabled)")
-  ("clearnet.destination", value<std::string>()->default_value(""), "Node addresses for sending mail via clearnet")
+  ("imap.port", value<uint16_t>()->default_value(143), "IMAP listen port (default: 143)")
   ;*/
   m_OptionsDesc
       .add(general)
@@ -121,8 +100,7 @@ void Init() {
     .add(delivery)*/
     .add(smtp)
     .add(pop3)
-    /*.add(imap)
-    .add(clearnet)*/
+    /*.add(imap)*/
       ;
 }
 
