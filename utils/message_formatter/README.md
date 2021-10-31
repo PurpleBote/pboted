@@ -1,6 +1,6 @@
 # Message formatter
 
-Simple script for fomatting the message for further sending through **pboted**.   
+Simple script to format the message for further sending through **pboted**.   
 Also, compatible with Java I2P-Bote decrypted identities file.
 
 Once the script has been completed, it will produce a formatted message.
