@@ -85,7 +85,7 @@ make
 - Put binary to `/usr/sbin/`
 
 ```
-mv pboted /usr/sbin/pboted
+sudo mv pboted /usr/sbin/pboted
 ```
 
 ## Configuration
