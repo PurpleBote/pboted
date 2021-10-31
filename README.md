@@ -105,10 +105,10 @@ enabled = true
 
 ### User service configuration
 
-- Copy example config from `contib/pboted.conf` to `~/.pboted/pboted.conf`:
+- Copy example config from `contrib/pboted.conf` to `~/.pboted/pboted.conf`:
 
 ```
-cp contib/pboted.conf ~/.pboted/pboted.conf`
+cp contrib/pboted.conf ~/.pboted/pboted.conf`
 ```
 
 - Edit the config to suit your needs. The file is well documented, comments will help you.
@@ -126,10 +126,10 @@ cp contib/pboted.conf ~/.pboted/pboted.conf`
 mkdir /etc/pboted
 ```
 
-- Copy example config from `contib/pboted.conf` to `~/.pboted/pboted.conf`:
+- Copy example config from `contrib/pboted.conf` to `~/.pboted/pboted.conf`:
 
 ```
-cp contib/pboted.conf /etc/pboted/pboted.conf`
+cp contrib/pboted.conf /etc/pboted/pboted.conf`
 ```
 
 - Edit the config to suit your needs. The file is well documented, comments will help you.
@@ -143,10 +143,10 @@ mkdir /var/log/pboted
 chown -R pboted: /var/log/pboted
 ```
 
-- Copy example systemd service from `contib/pboted.service` to `/lib/systemd/system/pboted.service`:
+- Copy example systemd service from `contrib/pboted.service` to `/lib/systemd/system/pboted.service`:
 
 ```
-cp contib/pboted.service /lib/systemd/system/pboted.service`
+cp contrib/pboted.service /lib/systemd/system/pboted.service`
 ```
 
 - Reload daemons configuration and start unit:
