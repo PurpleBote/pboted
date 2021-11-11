@@ -9,50 +9,41 @@ option(WITH_BINARY "Build binary" ON)
 option(WITH_STATIC "Static build" OFF)
 
 # paths
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/build/cmake_modules")
-set(CMAKE_SOURCE_DIR "")
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules")
+set(CMAKE_SOURCE_DIR "..")
 
 #Handle paths nicely
 include(GNUInstallDirs)
+
+include(ExternalProject)
 
 # architecture
 include(TargetArch)
 target_architecture(ARCHITECTURE)
 
-set(LIBLZMA_SRC_DIR lib/lzma)
-set(PBOTE_SRC_DIR src)
+set(LIBI2PD_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/i2pd/libi2pd)
+set(I2PSAM_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/i2psam)
+set(LIBLZMA_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/lzma)
+set(PBOTE_SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 
-add_subdirectory(lib/libi2pd)
-add_subdirectory(lib/sam)
-
+include_directories(${LIBI2PD_SRC_DIR})
+include_directories(${I2PSAM_SRC_DIR})
 include_directories(${LIBLZMA_SRC_DIR})
 include_directories(${PBOTE_SRC_DIR})
+
+FILE(GLOB LIBI2PD_SRC ${LIBI2PD_SRC_DIR}/*.cpp)
+add_library(libi2pd ${LIBI2PD_SRC})
+set_target_properties(libi2pd PROPERTIES PREFIX "")
+
+FILE(GLOB I2PSAM_SRC ${I2PSAM_SRC_DIR}/*.cpp)
+add_library(i2psam ${I2PSAM_SRC})
+set_target_properties(i2psam PROPERTIES PREFIX "")
 
 FILE(GLOB LIBLZMA_SRC ${LIBLZMA_SRC_DIR}/*.c)
 add_library(liblzma ${LIBLZMA_SRC})
 set_target_properties(liblzma PROPERTIES PREFIX "")
 
-set(PBOTE_SRC
-        "${PBOTE_SRC_DIR}/pboted.cpp"
-        "${PBOTE_SRC_DIR}/AddressBook.cpp"
-        "${PBOTE_SRC_DIR}/BoteContext.cpp"
-        "${PBOTE_SRC_DIR}/ConfigParser.cpp"
-        "${PBOTE_SRC_DIR}/Cryptography.cpp"
-        "${PBOTE_SRC_DIR}/BoteDaemon.cpp"
-        "${PBOTE_SRC_DIR}/DHTworker.cpp"
-        "${PBOTE_SRC_DIR}/DHTStorage.cpp"
-        "${PBOTE_SRC_DIR}/Email.cpp"
-        "${PBOTE_SRC_DIR}/EmailIdentity.cpp"
-        "${PBOTE_SRC_DIR}/EmailWorker.cpp"
-        "${PBOTE_SRC_DIR}/FileSystem.cpp"
-        "${PBOTE_SRC_DIR}/Logging.cpp"
-        "${PBOTE_SRC_DIR}/NetworkWorker.cpp"
-        "${PBOTE_SRC_DIR}/PacketHandler.cpp"
-        "${PBOTE_SRC_DIR}/POP3.cpp"
-        "${PBOTE_SRC_DIR}/RelayPeersWorker.cpp"
-        "${PBOTE_SRC_DIR}/SMTP.cpp"
-        "${PBOTE_SRC_DIR}/UnixDaemon.cpp"
-        )
+FILE(GLOB PBOTE_SRC ${PBOTE_SRC_DIR}/*.cpp)
 
 # compiler flags customization (by vendor)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Winvalid-pch -Wno-unused-parameter")
@@ -139,12 +130,41 @@ if (ZLIB_FOUND)
     link_directories(${ZLIB_ROOT}/lib)
 endif ()
 
+ExternalProject_Add(
+    mimetic_buid
+
+    #URL https://protobuf.googlecode.com/files/protobuf-2.5.0.tar.gz
+
+    UPDATE_COMMAND ""
+    PATCH_COMMAND ""
+
+    SOURCE_DIR "${CMAKE_SOURCE_DIR}/lib/mimetic"
+    CONFIGURE_COMMAND "${CMAKE_SOURCE_DIR}/lib/mimetic/configure"
+
+    BUILD_COMMAND make
+    BUILD_IN_SOURCE 1
+
+    INSTALL_COMMAND ""
+
+    TEST_COMMAND ""
+    LOG_DOWNLOAD 1
+    LOG_BUILD 1
+)
+
 # ToDo: add to sources with cmake
-add_library(mimetic SHARED IMPORTED) # or STATIC instead of SHARED
-set_target_properties(mimetic PROPERTIES
-        IMPORTED_LOCATION "/usr/local/lib/libmimetic.so"
-        INTERFACE_INCLUDE_DIRECTORIES "/usr/local/include/mimetic"
-        )
+#add_library(mimetic SHARED IMPORTED) # or STATIC instead of SHARED
+#add_dependencies(mimetic mimetic_build)
+#link_directories(${CMAKE_SOURCE_DIR}/lib/mimetic/mimetic/.libs)
+#set_target_properties(mimetic PROPERTIES
+#    IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/lib/mimetic/mimetic/.libs/libmimetic.so"
+#    INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_SOURCE_DIR}/../lib/mimetic/mimetic"
+#)
+
+set(MIMETIC_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/../lib/mimetic/mimetic)
+include_directories(${MIMETIC_INCLUDE_DIRS})
+FILE(GLOB MIMETIC_SRC ${MIMETIC_INCLUDE_DIRS}/*.cxx)
+add_library(mimetic ${MIMETIC_SRC})
+set_target_properties(mimetic PROPERTIES PREFIX "")
 
 # load includes
 include_directories(SYSTEM ${Boost_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR} ${ZLIB_INCLUDE_DIR})
@@ -185,7 +205,7 @@ if (WITH_BINARY)
         set(DL_LIB ${CMAKE_DL_LIBS})
     endif ()
 
-    target_link_libraries("${PROJECT_NAME}" libi2pd liblzma libsam mimetic ${DL_LIB} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES}
+    target_link_libraries("${PROJECT_NAME}" libi2pd liblzma i2psam mimetic ${DL_LIB} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES}
             ${ZLIB_LIBRARY} ${CMAKE_THREAD_LIBS_INIT} ${MINGW_EXTRA} ${DL_LIB} ${CMAKE_REQUIRED_LIBRARIES})
 
     #install(TARGETS "${PROJECT_NAME}" RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime)
@@ -195,9 +215,9 @@ endif ()
 
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "pboted, a C++ secure mail daemon")
 set(CPACK_PACKAGE_VENDOR "Purple Bote")
-set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
-set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
-file(READ src/version.h version_hpp)
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_SOURCE_DIR}/README.md")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+file(READ ${CMAKE_SOURCE_DIR}/src/version.h version_hpp)
 string(REGEX REPLACE ".*PBOTE_VERSION_MAJOR ([0-9]+).*" "\\1" CPACK_PACKAGE_VERSION_MAJOR "${version_hpp}")
 string(REGEX REPLACE ".*PBOTE_VERSION_MINOR ([0-9]+).*" "\\1" CPACK_PACKAGE_VERSION_MINOR "${version_hpp}")
 string(REGEX REPLACE ".*PBOTE_VERSION_MICRO ([0-9]+).*" "\\1" CPACK_PACKAGE_VERSION_MICRO "${version_hpp}")
