@@ -8,8 +8,7 @@
 #include <algorithm>
 
 #include "Cryptography.h"
-//#include "Tag.h"
-#include "../lib/libi2pd/Tag.h"
+#include "../lib/i2pd/libi2pd/Tag.h"
 namespace pbote {
 
 ECDHP256Encryptor::ECDHP256Encryptor(const byte *pubkey) {
