@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#include "../lib/libi2pd/Tag.h"
+#include "../lib/i2pd/libi2pd/Tag.h"
 
 #include "Logging.h"
 

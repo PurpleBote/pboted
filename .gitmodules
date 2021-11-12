@@ -1,0 +1,8 @@
+[submodule "lib/i2pd"]
+	path = lib/i2pd
+	url = https://github.com/PurpleI2P/i2pd.git
+	branch = openssl
+[submodule "lib/i2psam"]
+	path = lib/i2psam
+	url = https://github.com/polistern/i2psam.git
+	branch = master

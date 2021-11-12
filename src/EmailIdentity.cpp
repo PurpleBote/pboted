@@ -7,8 +7,8 @@
 
 #include "EmailIdentity.h"
 
-#include "../lib/libi2pd/Base.h"
-#include "../lib/libi2pd/I2PEndian.h"
+#include "../lib/i2pd/libi2pd/Base.h"
+#include "../lib/i2pd/libi2pd/I2PEndian.h"
 
 namespace pbote {
 

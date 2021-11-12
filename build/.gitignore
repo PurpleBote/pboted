@@ -7,7 +7,10 @@
 /CPackConfig.cmake
 /CPackSourceConfig.cmake
 /libi2pd.a
+/i2psam.a
 /liblzma.a
 /Makefile
+/mimetic/
 /pbote
 /lib
+/pboted*

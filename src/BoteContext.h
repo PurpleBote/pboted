@@ -15,7 +15,7 @@
 #include "Logging.h"
 #include "Packet.h"
 
-#include "../lib/libi2pd/Identity.h"
+#include "../lib/i2pd/libi2pd/Identity.h"
 
 namespace pbote {
 

@@ -30,54 +30,30 @@ Proposals for improving the 5th version of the protocol are accepted for conside
 
 ## Build process
 
-### The pboted needs MIME library - mimetic 
-
-_Will be added to build process later._
-
-For now you need to build this library before starting build pboted
-
-Sources: [link](http://www.codesink.org/mimetic_mime_library.html)   
-Tested with version: 0.9.8
-
-- Download archive with sources
-- Go to source directory
-- Build and install library:
-
-```
-./configure
-make
-sudo make install
-```
-
-- If you don't like to use raw `make install` (like me) you can use `checkinstall`:
-
-```
-apt install checkinstall
-./configure
-make
-sudo checkinstall --pkgname=mimetic --pkgversion=0.9.8
-```
-
 ### For Debian/Ubuntu:
 
 _Tested with Debian 10 and Ubuntu 20.04._
 
-- Install development libraries:
+- Install development libraries and tools:
 
 ```
-apt install git cmake build-essential libboost-filesystem-dev libboost-system-dev libssl-dev libboost-program-options-dev libboost-date-time-dev libboost-thread-dev zlib1g-dev
+sudo apt install git cmake build-essential zlib1g-dev libssl-dev \
+libboost-filesystem-dev libboost-system-dev libboost-program-options-dev \
+libboost-date-time-dev libboost-thread-dev libmimetic-dev
 ```
 
 - Clone repository:
 
 ```
 git clone https://github.com/polistern/pboted.git
+cd pboted
+git submodule update --init
 ```
 
 - Build:
 
 ```
-cd pboted
+cd build
 cmake -DCMAKE_BUILD_TYPE=Release
 make
 ```

@@ -15,9 +15,9 @@
 #include "FileSystem.h"
 #include "Logging.h"
 
-#include "../lib/libi2pd/Tag.h"
-#include "../lib/libi2pd/Signature.h"
-#include "../lib/libi2pd/CryptoKey.h"
+#include "../lib/i2pd/libi2pd/Tag.h"
+#include "../lib/i2pd/libi2pd/Signature.h"
+#include "../lib/i2pd/libi2pd/CryptoKey.h"
 
 namespace pbote {
 

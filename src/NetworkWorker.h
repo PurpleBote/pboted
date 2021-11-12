@@ -19,7 +19,7 @@
 #include "Logging.h"
 #include "Queue.h"
 
-#include "../lib/sam/i2psam.h"
+#include "../lib/i2psam/i2psam.h"
 
 namespace pbote {
 
