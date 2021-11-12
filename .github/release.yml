@@ -1,0 +1,17 @@
+changelog:
+  exclude:
+    authors:
+      - polistern
+  categories:
+    - title: Breaking Changes
+      labels:
+        - breaking-change
+    - title: Features
+      labels:
+        - enhancement
+    - title: Bugfixes
+      labels:
+        - bug
+    - title: Other Changes
+      labels:
+        - "*"
