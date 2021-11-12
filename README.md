@@ -39,7 +39,7 @@ _Tested with Debian 10 and Ubuntu 20.04._
 ```
 sudo apt install git cmake build-essential zlib1g-dev libssl-dev \
 libboost-filesystem-dev libboost-system-dev libboost-program-options-dev \
-libboost-date-time-dev libboost-thread-dev
+libboost-date-time-dev libboost-thread-dev libmimetic-dev
 ```
 
 - Clone repository:

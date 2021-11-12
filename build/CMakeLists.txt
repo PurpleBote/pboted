@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.7)
 project("pboted")
 
 #set(CMAKE_VERBOSE_MAKEFILE on) # for debugging
@@ -129,56 +129,15 @@ if (ZLIB_FOUND)
     link_directories(${ZLIB_ROOT}/lib)
 endif ()
 
+find_package(Mimetic REQUIRED)
+if(NOT MIMETIC_FOUND)
+  message(SEND_ERROR "Could not find Mimetic. Please download and install it first!")
+endif()
+
 find_program(MAKE_EXE NAMES make)
 
-ExternalProject_Add(
-        mimetic_build
-
-        PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/mimetic
-
-        URL http://www.codesink.org/download/mimetic-0.9.8.tar.gz
-
-        UPDATE_COMMAND ""
-        PATCH_COMMAND ""
-        CONFIGURE_COMMAND "<SOURCE_DIR>/configure"
-        BUILD_COMMAND ${MAKE_EXE}
-        INSTALL_COMMAND ""
-        TEST_COMMAND ""
-
-        BUILD_IN_SOURCE 1
-
-        LOG_DOWNLOAD 1
-        LOG_BUILD 1
-)
-
-set(MIMETIC_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/mimetic")
-set(MIMETIC_LIB_INCLUDE "${MIMETIC_PREFIX_PATH}/src/mimetic_build")
-
-file(MAKE_DIRECTORY ${MIMETIC_LIB_INCLUDE})
-
-#add_library(mimetic SHARED IMPORTED) # or STATIC instead of SHARED
-add_library(mimetic INTERFACE)
-add_dependencies(mimetic mimetic_build)
-#target_link_libraries(mimetic INTERFACE ${MIMETIC_LIB_INCLUDE}/.libs/libmimetic.so)
-#FILE(GLOB MIMETIC_OBJS ${MIMETIC_LIB_INCLUDE}/.libs/*.o)
-#target_include_directories(mimetic INTERFACE ${MIMETIC_LIB_INCLUDE})
-set_target_properties(mimetic PROPERTIES
-        #IMPORTED_LOCATION "/usr/local/lib/libmimetic.so"
-        #INTERFACE_INCLUDE_DIRECTORIES "/usr/local/include/mimetic"
-        IMPORTED_LOCATION "${MIMETIC_LIB_INCLUDE}/.libs/libmimetic.so"
-        #INTERFACE_INCLUDE_DIRECTORIES "${MIMETIC_LIB_INCLUDE}"
-)
-
-#add_library(mimetic OBJECT IMPORTED)
-#add_dependencies(mimetic mimetic_build)
-#set_property(TARGET mimetic PROPERTY IMPORTED_OBJECTS
-#        "${MIMETIC_OBJS}"
-#        )
-
 # load includes
-include_directories(SYSTEM ${MIMETIC_LIB_INCLUDE} ${Boost_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR} ${ZLIB_INCLUDE_DIR})
-
-link_directories(mimetic)
+include_directories(SYSTEM ${MIMETIC_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR} ${ZLIB_INCLUDE_DIR})
 
 include(CheckAtomic)
 
@@ -214,6 +173,6 @@ if (WITH_BINARY)
         set(DL_LIB ${CMAKE_DL_LIBS})
     endif ()
 
-    target_link_libraries("${PROJECT_NAME}" mimetic libi2pd i2psam liblzma ${DL_LIB} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES}
+    target_link_libraries("${PROJECT_NAME}" libi2pd i2psam liblzma ${DL_LIB} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${MIMETIC_LIBRARIES}
             ${ZLIB_LIBRARY} ${CMAKE_THREAD_LIBS_INIT} ${MINGW_EXTRA} ${DL_LIB} ${CMAKE_REQUIRED_LIBRARIES})
 endif ()
