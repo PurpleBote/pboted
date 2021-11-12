@@ -1,3 +1,6 @@
+[![GitHub release](https://img.shields.io/github/release/polistern/pboted.svg?label=latest%20release)](https://github.com/polistern/pboted/releases/latest)
+[![License](https://img.shields.io/github/license/polistern/pboted.svg)](https://github.com/polistern/pboted/blob/master/LICENSE)
+
 # pboted
 
 pboted (Plus Bote Daemon) - is a standalone C++ implementation of I2P-Bote (server-less Kademlia DHT-based email) protocol.   
@@ -28,7 +31,13 @@ You can see the implementation details in `docs/techdoc_v5 (draft).txt` file.
 
 Proposals for improving the 5th version of the protocol are accepted for consideration.
 
-## Build process
+## Building
+
+**Supported systems:**
+
+* GNU/Linux
+  - Debian / Ubuntu - [![Build on Ubuntu](https://github.com/polistern/pboted/actions/workflows/build.yml/badge.svg)](https://github.com/polistern/pboted/actions/workflows/build.yml)
+
 
 ### For Debian/Ubuntu:
 
