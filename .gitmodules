@@ -6,7 +6,3 @@
 	path = lib/i2psam
 	url = git@github.com:polistern/i2psam.git
 	branch = master
-[submodule "lib/mimetic"]
-	path = lib/mimetic
-	url = git@github.com:tat/mimetic.git
-	branch = master
