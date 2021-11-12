@@ -1,0 +1,21 @@
+name: Build on Ubuntu
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: CMake build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    - name: install packages
+      run: |
+        sudo apt-get update
+        sudo apt-get install build-essential cmake libboost-filesystem-dev libboost-system-dev libboost-program-options-dev libboost-date-time-dev libboost-thread-dev libssl-dev zlib1g-dev libmimetic-dev
+    - name: build application
+      run: |
+        cd build
+        cmake .
+        make -j3
