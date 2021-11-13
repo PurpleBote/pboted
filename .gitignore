@@ -1,17 +1,20 @@
+# pboted
+*.o
+*.a
+*.so
+pboted
+
+# IDE
 /.idea/
 /.vscode/
 /.gradle/
-/bin/
 /gradle/
-/misc_old/
-/my_tests/
+*.code-workspace
+
+# Build stuff
 /cmake-build-debug/
-/venv
+*.deb
 
-pbote.code-workspace
-build.gradle
-gradlew
-gradlew.bat
-settings.gradle
-
-config
+# Dev stuff
+/bin/
+/venv/
