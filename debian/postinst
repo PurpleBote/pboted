@@ -1,0 +1,39 @@
+#!/bin/sh
+set -e
+
+PBOTED_LOGFILE='/var/log/pboted/pboted.log'
+PBOTED_HOME='/var/lib/pboted'
+PBOTED_USER='pboted'
+
+case "$1" in
+  configure|reconfigure)
+    # Older versions of adduser created the home directory.
+    # The version of adduser in Debian unstable does not.
+    # Create user and group as a system user.
+    if getent passwd $PBOTED_USER > /dev/null 2>&1; then
+      groupadd -f $PBOTED_USER || true
+    else
+      adduser --system --quiet --group --home $PBOTED_HOME $PBOTED_USER
+    fi
+
+    mkdir -p -m0750 /var/log/pboted
+    chown -f ${PBOTED_USER}:adm /var/log/pboted
+    touch $PBOTED_LOGFILE
+    chmod 640 $PBOTED_LOGFILE
+    chown -f ${PBOTED_USER}:adm $PBOTED_LOGFILE
+    mkdir -p -m0750 $PBOTED_HOME
+    chown -f -P ${PBOTED_USER}:${PBOTED_USER} ${PBOTED_HOME}
+  ;;
+  abort-upgrade|abort-remove|abort-deconfigure)
+    echo "Aborting upgrade"
+    exit 0
+  ;;
+  *)
+    echo "postinst called with unknown argument '$1'" >&2
+    exit 0
+  ;;
+esac
+
+#DEBHELPER#
+
+exit 0
