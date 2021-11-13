@@ -1,0 +1,9 @@
+debhelper-build-stamp
+files
+pboted-dbg.substvars
+pboted.postinst.debhelper
+pboted.postrm.debhelper
+pboted.prerm.debhelper
+pboted.substvars
+pboted/
+pboted-dbg/
