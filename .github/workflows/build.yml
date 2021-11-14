@@ -13,7 +13,7 @@ jobs:
     - name: install packages
       run: |
         sudo apt-get update
-        sudo apt-get install build-essential cmake libboost-filesystem-dev libboost-system-dev libboost-program-options-dev libboost-date-time-dev libboost-thread-dev libssl-dev zlib1g-dev libmimetic-dev
+        sudo apt-get install build-essential cmake libboost-filesystem-dev libboost-system-dev libboost-program-options-dev libboost-date-time-dev libboost-thread-dev libmimetic-dev libssl-dev zlib1g-dev
     - name: build application
       run: |
         cd build
@@ -29,7 +29,7 @@ jobs:
     - name: change debian changelog
       run: |
         sudo apt-get update
-        sudo apt-get install cmake devscripts debhelper-compat
+        sudo apt-get install cmake devscripts debhelper
         debchange -v "`git describe --tags | sed 's/^.//'`-buster" -M --distribution buster "trunk build"
     - uses: singingwolfboy/build-dpkg-buster@v1
       id: build
