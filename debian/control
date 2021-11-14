@@ -6,6 +6,7 @@ Build-Depends:
  cmake (>= 3.7),
  debhelper (>= 10),
  dh-apparmor (>= 2.11),
+ dpkg-dev (>= 1.18),
  gcc (>= 6.3) | clang (>= 3.8),
  libboost-filesystem-dev (>= 1.62),
  libboost-system-dev (>= 1.62),
