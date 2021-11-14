@@ -1,5 +1,7 @@
+.debhelper
 debhelper-build-stamp
 files
+pboted.debhelper.log
 pboted-dbg.substvars
 pboted.postinst.debhelper
 pboted.postrm.debhelper
