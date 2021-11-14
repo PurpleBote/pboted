@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.7)
-project("pboted")
+project(pboted C CXX)
 
 #set(CMAKE_VERBOSE_MAKEFILE on) # for debugging
 
