@@ -1,8 +1,6 @@
 /* LzFind.c -- Match finder for LZ algorithms
 2021-04-01 : Igor Pavlov : Public domain */
 
-#include "Precomp.h"
-
 #include <string.h>
 
 #include "CpuArch.h"

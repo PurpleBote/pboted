@@ -1,8 +1,6 @@
 /* LzmaEnc.c -- LZMA Encoder
 2021-04-01: Igor Pavlov : Public domain */
 
-#include "Precomp.h"
-
 #include <string.h>
 
 /* #define SHOW_STAT */

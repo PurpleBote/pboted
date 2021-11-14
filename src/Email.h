@@ -9,29 +9,16 @@
 #include <string>
 #include <vector>
 
-#include "../lib/lzma/LzmaDec.h"
-#include "../lib/lzma/LzmaEnc.h"
-#include "../lib/lzma/7zTypes.h"
 #include <mimetic/mimetic.h>
+
+#include "LzmaDec.h"
+#include "LzmaEnc.h"
+#include "7zTypes.h"
 
 #include "EmailIdentity.h"
 #include "Packet.h"
 
 namespace pbote {
-
-static void *_lzmaAlloc(ISzAllocPtr, size_t size) {
-  return new uint8_t[size];
-}
-static void _lzmaFree(ISzAllocPtr, void *addr) {
-  if (!addr)
-    return;
-
-  delete[] reinterpret_cast<uint8_t *>(addr);
-}
-
-static ISzAlloc _allocFuncs = {
-    _lzmaAlloc, _lzmaFree
-};
 
 const std::string SIGNATURE_HEADER = "X-I2PBote-Signature"; // contains the sender's base64-encoded signature
 const std::string SIGNATURE_VALID_HEADER = "X-I2PBote-Sig-Valid"; // contains the string "true" or "false"

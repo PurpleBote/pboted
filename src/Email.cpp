@@ -13,6 +13,22 @@
 
 namespace pbote {
 
+void *_lzmaAlloc(ISzAllocPtr, size_t size) {
+  return new uint8_t[size];
+}
+
+void _lzmaFree(ISzAllocPtr, void *addr) {
+  if (!addr)
+    return;
+
+  delete[] reinterpret_cast<uint8_t *>(addr);
+}
+
+
+ISzAlloc _allocFuncs = {
+    _lzmaAlloc, _lzmaFree
+};
+
 Email::Email()
   : incomplete_(false),
     empty_(true),

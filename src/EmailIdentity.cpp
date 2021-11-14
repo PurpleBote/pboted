@@ -468,8 +468,11 @@ void EmailIdentityPrivate::GenerateSigningKeyPair(SigningKeyType type, uint8_t *
 
 void EmailIdentityPrivate::GenerateCryptoKeyPair(CryptoKeyType type, uint8_t *priv, uint8_t *pub) {
   switch (type) {
-    case CRYPTO_KEY_TYPE_ECDH_P256_SHA256_AES256CBC:i2p::crypto::CreateECIESP256RandomKeys(priv, pub);
-    default:LogPrint(eLogError, "Identity: Crypto key type ", (int) type, " is not supported");
+    case CRYPTO_KEY_TYPE_ECDH_P256_SHA256_AES256CBC:
+      i2p::crypto::CreateECIESP256RandomKeys(priv, pub);
+      break;
+    default:
+      LogPrint(eLogError, "Identity: Crypto key type ", (int) type, " is not supported");
   }
 }
 
