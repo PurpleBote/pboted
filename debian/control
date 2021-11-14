@@ -3,15 +3,15 @@ Section: mail
 Priority: optional
 Maintainer: polistern <polistern@i2pmail.org>
 Build-Depends:
- cmake,
- debhelper-compat (= 13),
- dh-apparmor,
+ cmake (>= 3.7),
+ debhelper (>= 10),
+ dh-apparmor (>= 2.11),
  libboost-filesystem-dev (>= 1.62),
  libboost-system-dev (>= 1.62),
  libboost-program-options-dev (>= 1.62),
  libboost-date-time-dev (>= 1.62),
  libboost-thread-dev (>= 1.62),
- libmimetic-dev,
+ libmimetic-dev (>= 0.9.8),
  libssl-dev,
  zlib1g-dev
 Standards-Version: 4.6.0
