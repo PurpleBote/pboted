@@ -24,7 +24,7 @@ void AddressBook::load() {
 
   if (!address_list.empty()) {
     for (auto address_str: address_list) {
-      size_t pos;
+      //size_t pos;
       Contact contact;
 
       contact.alias = address_str.substr(0, address_str.find(delimiter));
@@ -91,7 +91,7 @@ bool AddressBook::alias_exist(const std::string &alias) {
   for (const auto& contact : contacts)
     if (contact.alias == alias)
       return true;
-    return false;
+  return false;
 }
 
 std::string AddressBook::address_for_name(const std::string &name) {
