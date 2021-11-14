@@ -14,6 +14,7 @@ pboted
 # Build stuff
 /cmake-build-debug/
 *.deb
+/obj-x86_64-linux-gnu
 
 # Dev stuff
 /bin/
