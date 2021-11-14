@@ -2,7 +2,7 @@ Source: pboted
 Section: mail
 Priority: optional
 Maintainer: polistern <polistern@i2pmail.org>
-Build-Depends: debhelper (>= 12), dpkg-dev (>= 1.17.2~), gcc (>= 6.3) | clang (>= 3.7), libboost-filesystem-dev (>= 1.62), libboost-system-dev (>= 1.62), libboost-program-options-dev (>= 1.62), libboost-date-time-dev (>= 1.62), libboost-thread-dev (>= 1.62), libssl-dev, zlib1g-dev, libmimetic-dev
+Build-Depends: debhelper-compat (= 13), libboost-filesystem-dev (>= 1.62), libboost-system-dev (>= 1.62), libboost-program-options-dev (>= 1.62), libboost-date-time-dev (>= 1.62), libboost-thread-dev (>= 1.62), libssl-dev, zlib1g-dev, libmimetic-dev, cmake, dh-apparmor
 Standards-Version: 3.9.8
 Homepage: http://github.com/polistern/pboted
 Vcs-Git: git://github.com/polistern/pboted.git
