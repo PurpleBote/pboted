@@ -82,8 +82,6 @@ if (NOT (CMAKE_SYSTEM_NAME STREQUAL "OpenBSD" OR APPLE))
 endif ()
 
 # libraries
-# TODO: once CMake 3.1+ becomes mainstream, see e.g. http://stackoverflow.com/a/29871891/673826
-# use imported Threads::Threads instead
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 if (IOS)
     set(CMAKE_THREAD_LIBS_INIT "-lpthread")
@@ -104,7 +102,7 @@ if (WITH_STATIC)
     set(BUILD_SHARED_LIBS OFF)
     if (${CMAKE_CXX_COMPILER} MATCHES ".*-openwrt-.*")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
-        # set( CMAKE_THREAD_LIBS_INIT "gcc_eh -Wl,--whole-archive -lpthread -Wl,--no-whole-archive" )
+        #set(CMAKE_THREAD_LIBS_INIT "gcc_eh -Wl,--whole-archive -lpthread -Wl,--no-whole-archive")
         set(CMAKE_THREAD_LIBS_INIT "gcc_eh -Wl,-u,pthread_create,-u,pthread_once,-u,pthread_mutex_lock,-u,pthread_mutex_unlock,-u,pthread_join,-u,pthread_equal,-u,pthread_detach,-u,pthread_cond_wait,-u,pthread_cond_signal,-u,pthread_cond_destroy,-u,pthread_cond_broadcast,-u,pthread_cancel")
     endif ()
 else ()
@@ -173,8 +171,8 @@ if (WITH_BINARY)
         set(DL_LIB ${CMAKE_DL_LIBS})
     endif ()
 
-    target_link_libraries("${PROJECT_NAME}" libi2pd i2psam liblzma ${DL_LIB} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${MIMETIC_LIBRARIES}
-            ${ZLIB_LIBRARY} ${CMAKE_THREAD_LIBS_INIT} ${MINGW_EXTRA} ${DL_LIB} ${CMAKE_REQUIRED_LIBRARIES})
+    target_link_libraries("${PROJECT_NAME}" libi2pd i2psam liblzma Threads::Threads ${MIMETIC_LIBRARIES}
+            ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARY} ${MINGW_EXTRA} ${DL_LIB} ${CMAKE_REQUIRED_LIBRARIES})
     install(TARGETS "${PROJECT_NAME}" RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime)
     set(APPS "\${CMAKE_INSTALL_PREFIX}/bin/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}")
     set(DIRS "${MIMETIC_INCLUDE_DIRS}${Boost_LIBRARY_DIR};${OPENSSL_INCLUDE_DIR}/../bin;${ZLIB_INCLUDE_DIR}/../bin;/mingw32/bin")
