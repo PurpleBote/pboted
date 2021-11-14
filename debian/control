@@ -6,7 +6,6 @@ Build-Depends:
  cmake (>= 3.7),
  cmake-data (>=3.7),
  debhelper (>= 10),
- dh-apparmor (>= 2.11),
  dpkg-dev (>= 1.18),
  gcc (>= 6.3) | clang (>= 3.8),
  libboost-filesystem-dev (>= 1.62),
@@ -34,4 +33,5 @@ Depends:
  lsb-base
 Description: C++ implementation of I2P-Bote.
  I2P-Bote is a server-less Kademlia DHT-based email protocol.
- Interaction with the I2P network occurs through the SAMv3 interface (tested with i2pd and Java I2P).
+ Interaction with the I2P network occurs through the SAMv3 interface
+ (tested with i2pd and Java I2P).
