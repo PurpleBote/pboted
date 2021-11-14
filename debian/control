@@ -4,6 +4,7 @@ Priority: optional
 Maintainer: polistern <polistern@i2pmail.org>
 Build-Depends:
  cmake (>= 3.7),
+ cmake-data (>=3.7),
  debhelper (>= 10),
  dh-apparmor (>= 2.11),
  dpkg-dev (>= 1.18),
@@ -15,6 +16,7 @@ Build-Depends:
  libboost-thread-dev (>= 1.62),
  libmimetic-dev (>= 0.9.8),
  libssl-dev,
+ pkg-config,
  zlib1g-dev
 Standards-Version: 4.6.0
 Homepage: http://github.com/polistern/pboted
