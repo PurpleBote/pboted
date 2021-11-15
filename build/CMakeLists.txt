@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.7)
-project(pboted C CXX)
+project("pboted")
 
 #set(CMAKE_VERBOSE_MAKEFILE on) # for debugging
 
@@ -173,7 +173,4 @@ if (WITH_BINARY)
 
     target_link_libraries("${PROJECT_NAME}" libi2pd i2psam liblzma Threads::Threads ${MIMETIC_LIBRARIES}
             ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${ZLIB_LIBRARY} ${MINGW_EXTRA} ${DL_LIB} ${CMAKE_REQUIRED_LIBRARIES})
-    install(TARGETS "${PROJECT_NAME}" RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime)
-    set(APPS "\${CMAKE_INSTALL_PREFIX}/bin/${PROJECT_NAME}${CMAKE_EXECUTABLE_SUFFIX}")
-    set(DIRS "${MIMETIC_INCLUDE_DIRS}${Boost_LIBRARY_DIR};${OPENSSL_INCLUDE_DIR}/../bin;${ZLIB_INCLUDE_DIR}/../bin;/mingw32/bin")
 endif ()
