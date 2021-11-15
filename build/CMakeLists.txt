@@ -4,7 +4,6 @@ project("pboted")
 #set(CMAKE_VERBOSE_MAKEFILE on) # for debugging
 
 # configurale options
-option(WITH_BINARY "Build binary" ON)
 option(WITH_STATIC "Static build" OFF)
 
 # paths
@@ -82,17 +81,8 @@ if (NOT (CMAKE_SYSTEM_NAME STREQUAL "OpenBSD" OR APPLE))
 endif ()
 
 # libraries
-# TODO: once CMake 3.1+ becomes mainstream, see e.g. http://stackoverflow.com/a/29871891/673826
-# use imported Threads::Threads instead
 set(THREADS_PREFER_PTHREAD_FLAG ON)
-if (IOS)
-    set(CMAKE_THREAD_LIBS_INIT "-lpthread")
-    set(CMAKE_HAVE_THREADS_LIBRARY 1)
-    set(CMAKE_USE_WIN32_THREADS_INIT 0)
-    set(CMAKE_USE_PTHREADS_INIT 1)
-else ()
-    find_package(Threads REQUIRED)
-endif ()
+find_package(Threads REQUIRED)
 if (THREADS_HAVE_PTHREAD_ARG) # compile time flag
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 endif ()
@@ -104,7 +94,7 @@ if (WITH_STATIC)
     set(BUILD_SHARED_LIBS OFF)
     if (${CMAKE_CXX_COMPILER} MATCHES ".*-openwrt-.*")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
-        # set( CMAKE_THREAD_LIBS_INIT "gcc_eh -Wl,--whole-archive -lpthread -Wl,--no-whole-archive" )
+        #set(CMAKE_THREAD_LIBS_INIT "gcc_eh -Wl,--whole-archive -lpthread -Wl,--no-whole-archive")
         set(CMAKE_THREAD_LIBS_INIT "gcc_eh -Wl,-u,pthread_create,-u,pthread_once,-u,pthread_mutex_lock,-u,pthread_mutex_unlock,-u,pthread_join,-u,pthread_equal,-u,pthread_detach,-u,pthread_cond_wait,-u,pthread_cond_signal,-u,pthread_cond_destroy,-u,pthread_cond_broadcast,-u,pthread_cancel")
     endif ()
 else ()
@@ -115,29 +105,27 @@ else ()
 endif ()
 
 find_package(Boost COMPONENTS system filesystem program_options date_time thread REQUIRED)
-if (NOT DEFINED Boost_INCLUDE_DIRS)
+if (NOT Boost_FOUND)
     message(SEND_ERROR "Boost is not found, or your boost version was below 1.46. Please download Boost!")
 endif ()
 
 find_package(OpenSSL REQUIRED)
-if (NOT DEFINED OPENSSL_INCLUDE_DIR)
+if (NOT OPENSSL_FOUND)
     message(SEND_ERROR "Could not find OpenSSL. Please download and install it first!")
 endif ()
 
-find_package(ZLIB)
-if (ZLIB_FOUND)
-    link_directories(${ZLIB_ROOT}/lib)
+find_package(ZLIB REQUIRED)
+if (NOT ZLIB_FOUND)
+    message(SEND_ERROR "Could not find ZLIB. Please download and install it first!")
 endif ()
 
 find_package(Mimetic REQUIRED)
 if(NOT MIMETIC_FOUND)
-  message(SEND_ERROR "Could not find Mimetic. Please download and install it first!")
+    message(SEND_ERROR "Could not find Mimetic. Please download and install it first!")
 endif()
 
-find_program(MAKE_EXE NAMES make)
-
 # load includes
-include_directories(SYSTEM ${MIMETIC_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR} ${ZLIB_INCLUDE_DIR})
+include_directories(SYSTEM ${MIMETIC_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${OPENSSL_INCLUDE_DIR} ${ZLIB_INCLUDE_DIRS})
 
 include(CheckAtomic)
 
@@ -150,29 +138,26 @@ message(STATUS "Compiler path      : ${CMAKE_CXX_COMPILER}")
 message(STATUS "Architecture       : ${ARCHITECTURE}")
 message(STATUS "Install prefix     : ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "Options:")
-message(STATUS "  BINARY           : ${WITH_BINARY}")
 message(STATUS "  STATIC BUILD     : ${WITH_STATIC}")
 message(STATUS "----------------------------------------")
 
-if (WITH_BINARY)
-    add_executable("${PROJECT_NAME}" ${PBOTE_SRC})
+add_executable("${PROJECT_NAME}" ${PBOTE_SRC})
 
-    if (NOT MSVC)
-        if (WITH_STATIC)
-            set_target_properties("${PROJECT_NAME}" PROPERTIES LINK_FLAGS "-static")
-        endif ()
-    endif ()
-
-    # FindBoost pulls pthread for thread which is broken for static linking at least on Ubuntu 15.04
-    list(GET Boost_LIBRARIES -1 LAST_Boost_LIBRARIES)
-    if (${LAST_Boost_LIBRARIES} MATCHES ".*pthread.*")
-        list(REMOVE_AT Boost_LIBRARIES -1)
-    endif ()
-
+if (NOT MSVC)
     if (WITH_STATIC)
-        set(DL_LIB ${CMAKE_DL_LIBS})
+        set_target_properties("${PROJECT_NAME}" PROPERTIES LINK_FLAGS "-static")
     endif ()
-
-    target_link_libraries("${PROJECT_NAME}" libi2pd i2psam liblzma ${DL_LIB} ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${MIMETIC_LIBRARIES}
-            ${ZLIB_LIBRARY} ${CMAKE_THREAD_LIBS_INIT} ${MINGW_EXTRA} ${DL_LIB} ${CMAKE_REQUIRED_LIBRARIES})
 endif ()
+
+# FindBoost pulls pthread for thread which is broken for static linking at least on Ubuntu 15.04
+list(GET Boost_LIBRARIES -1 LAST_Boost_LIBRARIES)
+if (${LAST_Boost_LIBRARIES} MATCHES ".*pthread.*")
+    list(REMOVE_AT Boost_LIBRARIES -1)
+endif ()
+
+if (WITH_STATIC)
+    set(DL_LIB ${CMAKE_DL_LIBS})
+endif ()
+
+target_link_libraries("${PROJECT_NAME}" libi2pd i2psam liblzma Threads::Threads ZLIB::ZLIB ${MIMETIC_LIBRARIES} ${Boost_LIBRARIES}
+    ${OPENSSL_LIBRARIES} ${MINGW_EXTRA} ${DL_LIB} ${CMAKE_REQUIRED_LIBRARIES})

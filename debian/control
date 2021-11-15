@@ -1,0 +1,37 @@
+Source: pboted
+Section: mail
+Priority: optional
+Maintainer: polistern <polistern@i2pmail.org>
+Build-Depends:
+ cmake (>= 3.7),
+ cmake-data (>=3.7),
+ debhelper (>= 10),
+ dpkg-dev (>= 1.18),
+ gcc (>= 6.3) | clang (>= 3.8),
+ libboost-filesystem-dev (>= 1.62),
+ libboost-system-dev (>= 1.62),
+ libboost-program-options-dev (>= 1.62),
+ libboost-date-time-dev (>= 1.62),
+ libboost-thread-dev (>= 1.62),
+ libmimetic-dev (>= 0.9.8),
+ libssl-dev,
+ pkg-config,
+ zlib1g-dev
+Standards-Version: 4.6.0
+Homepage: http://github.com/polistern/pboted
+Vcs-Git: git://github.com/polistern/pboted.git
+Vcs-Browser: https://github.com/polistern/pboted
+
+Package: pboted
+Architecture: any
+Pre-Depends:
+ ${misc:Pre-Depends},
+ adduser
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ lsb-base
+Description: C++ implementation of I2P-Bote.
+ I2P-Bote is a server-less Kademlia DHT-based email protocol.
+ Interaction with the I2P network occurs through the SAMv3 interface
+ (tested with i2pd and Java I2P).

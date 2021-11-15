@@ -10,12 +10,38 @@ jobs:
     - uses: actions/checkout@v2
       with:
         submodules: 'recursive'
-    - name: install packages
+    - name: Install packages
       run: |
         sudo apt-get update
-        sudo apt-get install build-essential cmake libboost-filesystem-dev libboost-system-dev libboost-program-options-dev libboost-date-time-dev libboost-thread-dev libssl-dev zlib1g-dev libmimetic-dev
-    - name: build application
+        sudo apt-get install build-essential cmake libboost-filesystem-dev libboost-system-dev libboost-program-options-dev libboost-date-time-dev libboost-thread-dev libmimetic-dev libssl-dev zlib1g-dev
+    - name: Build application
       run: |
         cd build
         cmake .
         make -j3
+  build-deb-buster:
+    name: Build package for buster
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        submodules: 'recursive'
+    - name: Update debian changelog
+      run: |
+        sudo apt-get update
+        sudo apt-get install cmake devscripts debhelper
+        debchange -v "`git describe --tags | sed 's/^.//'`-buster" -M --distribution buster "trunk build"
+    - name: Build package
+      uses: singingwolfboy/build-dpkg-buster@v1
+      id: build
+      with:
+        args: --unsigned-source --unsigned-changes -b
+    - uses: actions/upload-artifact@v1
+      with:
+        name: ${{ steps.build.outputs.filename }}
+        path: ${{ steps.build.outputs.filename }}
+    - uses: actions/upload-artifact@v1
+      with:
+        name: ${{ steps.build.outputs.filename-dbgsym }}
+        path: ${{ steps.build.outputs.filename-dbgsym }}

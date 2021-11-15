@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "purge" ]; then
+	rm -rf /etc/pboted
+	rm -rf /var/lib/pboted
+	rm -rf /var/log/pboted
+	rm -rf /run/pboted
+fi
+
+#DEBHELPER#
+
+exit 0
