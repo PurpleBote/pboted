@@ -19,9 +19,12 @@ void DHTStorage::update() {
   loadLocalContactPackets();
 
   set_storage_limit();
+  update_storage_usage();
+
+  double disk_used = (double)((100 / (double)limit) * (double)used);
 
   LogPrint(eLogDebug, "DHTStorage: loaded index: ", local_index_packets.size(),
-           ", emails: ", local_email_packets.size(), ", contacts: ", local_contact_packets.size());
+           ", emails: ", local_email_packets.size(), ", contacts: ", local_contact_packets.size(), ", disk usage: ", disk_used, "%");
 }
 
 bool DHTStorage::safe(const std::vector<uint8_t>& data) {
@@ -308,7 +311,9 @@ size_t DHTStorage::suffix_to_multiplier(const std::string &size_str) {
   if (pos != std::string::npos) {
     suffix.erase(0, pos + 1);
   } else {
-    LogPrint(eLogError, "Context:  can't parse data size suffix: ", size_str);
+    LogPrint(eLogError,
+             "DHTStorage: suffix_to_multiplier: can't parse data size suffix: ",
+             size_str);
     suffix = "MB";
   }
 
@@ -336,6 +341,7 @@ void DHTStorage::set_storage_limit() {
 
   size_t base = std::stoi(limit_str);
   limit = base * multiplier;
+  LogPrint(eLogDebug, "DHTStorage: set_storage_limit: limit: ", limit);
 }
 
 void DHTStorage::update_storage_usage() {
@@ -349,10 +355,14 @@ void DHTStorage::update_storage_usage() {
       if (!boost::filesystem::is_directory(*it))
         used += boost::filesystem::file_size(*it);
     }
+    LogPrint(eLogDebug, "DHTStorage: update_storage_usage: directory: ",
+             dir, ", used: ", used);
   }
 }
 
 bool DHTStorage::limit_reached(size_t data_size) {
+  LogPrint(eLogDebug, "DHTStorage: limit_reached: ",
+           (limit < (used + data_size)) ? "true" : "false");
   return limit <= (used + data_size);
 }
 
