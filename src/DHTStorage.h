@@ -40,20 +40,30 @@ class DHTStorage {
   std::vector<std::string> getEmailList() {return local_email_packets;}
   std::vector<std::string> getContactList() {return local_contact_packets;}
 
+  bool limit_reached(size_t data_size);
+
  private:
   std::vector<uint8_t> getPacket(pbote::type type, i2p::data::Tag<32> key);
   bool exist(pbote::type type, i2p::data::Tag<32> key);
   static bool find(const std::vector<std::string>& list, i2p::data::Tag<32> key);
 
-  static bool safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
-  static bool safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
-  static bool safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+
+  bool safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+  bool safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+  bool safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
 
   void loadLocalIndexPackets();
   void loadLocalEmailPackets();
   void loadLocalContactPackets();
 
-  // ToDo: remove files older than 100 * 24 * 3600 * 1000L ( 100 days)
+  size_t suffix_to_multiplier(const std::string &size_str);
+
+  void set_storage_limit();
+  void update_storage_usage();
+
+  // ToDo: remove files older than 100 * 24 * 3600 * 1000L (100 days)
+  size_t limit;
+  size_t used;
 
   std::vector<std::string> local_index_packets;
   std::vector<std::string> local_email_packets;

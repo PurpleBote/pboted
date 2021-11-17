@@ -373,11 +373,18 @@ void EmailWorker::sendEmailTask() {
 
         // Send Store Request with Encrypted Email Packet to nodes
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Send Store Request with Encrypted Email Packet to nodes");
-        // ToDo: check response status
         nodes = DHT_worker.store(i2p::data::Tag<32>(email->getEncrypted().key),
                                  email->getEncrypted().type, store_packet);
-        DHT_worker.safe(email->getEncrypted().toByte());
-        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Email send to ", nodes.size(), " node(s)");
+
+        /// If have no OK store responses - mark message as skipped
+        if (nodes.empty()) {
+          email->skip(true);
+          LogPrint(eLogWarning, "EmailWorker: sendEmailTask: email not sent");
+        } else {
+          DHT_worker.safe(email->getEncrypted().toByte());
+          LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Email send to ",
+                   nodes.size(), " node(s)");
+        }
       }
 
       // Create and store Index Packet
@@ -436,11 +443,18 @@ void EmailWorker::sendEmailTask() {
         store_index_packet.length = index_packet.size();
         store_index_packet.data = index_packet;
 
-        // send Store Request with Index Packet to nodes
-        // ToDo: check response status
+        /// Send Store Request with Index Packet to nodes
         nodes = DHT_worker.store(recipient_identity.GetIdentHash(), new_index_packet.type, store_index_packet);
-        DHT_worker.safe(new_index_packet.toByte());
-        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Index send to ", nodes.size(), " node(s)");
+
+        /// If have no OK store responses - mark message as skipped
+        if (nodes.empty()) {
+          email->skip(true);
+          LogPrint(eLogWarning, "EmailWorker: sendEmailTask: Index not sent");
+        } else {
+          DHT_worker.safe(new_index_packet.toByte());
+          LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Index send to ",
+                   nodes.size(), " node(s)");
+        }
       }
 
       for (const auto &email: outbox) {
@@ -699,14 +713,15 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::checkOutbox() {
       bool changed = false;
       std::string et_char("@"), less_char("<");
       size_t from_less_pos = from_address.find(less_char);
-      if (from_less_pos != std::string::npos) {
+      size_t from_et_pos = from_address.find(et_char);
+      if (from_less_pos != std::string::npos && from_et_pos != std::string::npos) {
         LogPrint(eLogDebug, "EmailWorker: checkOutbox: try to replace FROM: ",
                  from_address);
 
         std::string old_from_address = from_address;
         std::string pub_name = from_address.substr(0, from_less_pos - 1);
         from_address.erase(0, from_less_pos + 1);
-        size_t from_et_pos = from_address.find(et_char);
+        from_et_pos = from_address.find(et_char);
         std::string alias_name = from_address.substr(0, from_et_pos);
 
         auto pub_from_identity = context.identityByName(pub_name);
@@ -738,14 +753,15 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::checkOutbox() {
 
       // Now replace TO
       size_t to_less_pos = to_address.find(less_char);
-      if (to_less_pos != std::string::npos) {
+      size_t to_et_pos = to_address.find(et_char);
+      if (to_less_pos != std::string::npos && to_et_pos != std::string::npos) {
         LogPrint(eLogDebug, "EmailWorker: checkOutbox: try to replace TO: ",
                  to_address);
 
         std::string old_to_address = to_address;
         std::string pub_name = to_address.substr(0, to_less_pos - 1);
         to_address.erase(0, to_less_pos + 1);
-        size_t to_et_pos = to_address.find(et_char);
+        to_et_pos = to_address.find(et_char);
         std::string alias_name = to_address.substr(0, to_et_pos);
 
         auto pub_to_address = context.address_for_name(pub_name);

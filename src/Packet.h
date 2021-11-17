@@ -75,6 +75,24 @@ enum type : uint8_t {
   CommF = 0x46, // CommC = 0x43, // find close peers
 };
 
+inline std::string statusToString(uint8_t status_code) {
+    if (status_code == StatusCode::OK)
+        return {"OK"};
+    if (status_code == StatusCode::GENERAL_ERROR)
+        return {"GENERAL ERROR"};
+    if (status_code == StatusCode::NO_DATA_FOUND)
+        return {"NO DATA FOUND"};
+    if (status_code == StatusCode::INVALID_PACKET)
+        return {"INVALID PACKET"};
+    if (status_code == StatusCode::INVALID_HASHCASH)
+        return {"INVALID HASHCASH"};
+    if (status_code == StatusCode::INSUFFICIENT_HASHCASH)
+        return {"INSUFFICIENT HASHCASH"};
+    if (status_code == StatusCode::NO_DISK_SPACE)
+        return {"NO DISK SPACE"};
+    return {"UNKNOWN STATUS"};
+}
+
 struct PacketForQueue {
   PacketForQueue(std::string destination, uint8_t * buf, size_t len)
       : destination(std::move(destination)), payload(buf, buf + len) {}
@@ -545,7 +563,39 @@ struct ResponsePacket : public CleanCommunicationPacket{
   // 'I' = Index Packet
   // 'C' = Directory Entry
   // 'E' = Email Packet
+  // or empty with non-OK status
   std::vector<uint8_t> data;
+
+  bool fromBuffer(uint8_t *buf, size_t len, bool from_net) {
+    /// 3 cause status[1] + length[2]
+    if (len < 3) {
+      LogPrint(eLogWarning, "Packet: ResponsePacket: fromBuffer: payload is too short: ", len);
+      return false;
+    }
+
+    size_t offset = 0;
+
+    std::memcpy(&status, buf, 1);
+    offset += 1;
+    std::memcpy(&length, buf + offset, 2);
+    offset += 2;
+
+    if (from_net)
+      length = ntohs(length);
+
+    if (status != StatusCode::OK) {
+      LogPrint(eLogWarning, "Packet: ResponsePacket: response status: ", statusToString(status));
+      return true;
+    }
+
+    if (length == 0) {
+      LogPrint(eLogWarning, "Packet: ResponsePacket: packet without payload, skip parsing");
+      return true;
+    }
+
+    data = std::vector<uint8_t>(buf + offset, buf + offset + length);
+    return true;
+  }
 
   std::vector<uint8_t> toByte() {
     /// Start basic part
@@ -732,24 +782,6 @@ struct FindClosePeersRequestPacket : public CleanCommunicationPacket{
     return result;
   }
 };
-
-inline std::string statusToString(uint8_t status_code) {
-  if (status_code == StatusCode::OK)
-    return {"OK"};
-  if (status_code == StatusCode::GENERAL_ERROR)
-    return {"GENERAL ERROR"};
-  if (status_code == StatusCode::NO_DATA_FOUND)
-    return {"NO DATA FOUND"};
-  if (status_code == StatusCode::INVALID_PACKET)
-    return {"INVALID PACKET"};
-  if (status_code == StatusCode::INVALID_HASHCASH)
-    return {"INVALID HASHCASH"};
-  if (status_code == StatusCode::INSUFFICIENT_HASHCASH)
-    return {"INSUFFICIENT HASHCASH"};
-  if (status_code == StatusCode::NO_DISK_SPACE)
-    return {"NO DISK SPACE"};
-  return {"UNKNOWN STATUS"};
-}
 
 inline std::string ToHex(const std::string &s, bool upper_case) {
   std::ostringstream ret;

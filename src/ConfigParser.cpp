@@ -47,7 +47,8 @@ void Init() {
       ("host", value<std::string>()->default_value("0.0.0.0"), "External IP")
       ("port", value<uint16_t>()->default_value(5050), "Port to listen for incoming connections (default: auto)")
       ("daemon", bool_switch()->default_value(false), "Router will go to background after start (default: disabled)")
-      ("service",bool_switch()->default_value(false),"Service will use system folders like '/var/lib/pboted' (default: disabled)");
+      ("service",bool_switch()->default_value(false),"Service will use system folders like '/var/lib/pboted' (default: disabled)")
+      ("storage", value<std::string>()->default_value("50 MB"), "Limit for local storage usage (default: 50 MB)");
   options_description sam("SAM options");
   sam.add_options()
   ("sam.name", value<std::string>()->default_value("pboted"), "What name we send to I2P router (default: pboted)")
