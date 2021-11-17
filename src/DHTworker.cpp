@@ -315,8 +315,14 @@ std::vector<std::string> DHTworker::store(i2p::data::Tag<32> hash, uint8_t type,
   auto responses = batch->getResponses();
 
   res.reserve(responses.size());
-  for (const auto &response: responses)
-    res.push_back(response->from);
+  for (const auto &response: responses) {
+    ResponsePacket response_packet = {};
+    if (response_packet.fromBuffer(response->payload.data(),
+                                   response->payload.size(), true)) {
+      if (response_packet.status == StatusCode::OK)
+        res.push_back(response->from);
+    }
+  }
 
   return res;
 }
@@ -836,7 +842,7 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
       LogPrint(eLogDebug, "DHT: receiveStoreRequest: packet saved");
       response.status = pbote::StatusCode::OK;
       response.length = 0;
-    } else {
+    } else if (prev_status) {
       LogPrint(eLogWarning, "DHT: receiveStoreRequest: got error while try to save packet");
       response.status = pbote::StatusCode::GENERAL_ERROR;
       response.length = 0;
