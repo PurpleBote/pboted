@@ -803,22 +803,26 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
   offset += 2;
   LogPrint(eLogDebug, "DHT: receiveStoreRequest: length: ", new_packet.length);
 
-  //uint8_t data[new_packet.length];
-  //std::memcpy(&data, packet->payload.data() + offset, new_packet.length);
-  //new_packet.data = std::vector<uint8_t>(data, data + new_packet.length);
   new_packet.data = std::vector<uint8_t>(packet->payload.begin() + offset,
                                          packet->payload.begin() + offset + new_packet.length);
 
-  LogPrint(eLogDebug, "DHT: receiveStoreRequest: got request for type: ", new_packet.data[0],
-           ", ver: ", unsigned(new_packet.data[1]));
+  LogPrint(eLogDebug, "DHT: receiveStoreRequest: got request for type: ",
+           new_packet.data[0], ", ver: ", unsigned(new_packet.data[1]));
 
   pbote::ResponsePacket response;
   memcpy(response.cid, packet->cid, 32);
 
-  if ((new_packet.data[0] == (uint8_t) 'I' || new_packet.data[0] == (uint8_t) 'E' || new_packet.data[0] == (uint8_t) 'C') && new_packet.data[1] == 4) {
-    // ToDo: Check available space
-    //response.status = pbote::StatusCode::NO_DISK_SPACE;
-    //response.length = 0;
+  if ((new_packet.data[0] == (uint8_t) 'I' ||
+       new_packet.data[0] == (uint8_t) 'E' ||
+       new_packet.data[0] == (uint8_t) 'C') && new_packet.data[1] == 4) {
+    bool prev_status = true;
+
+    if (dht_storage_.limit_reached(new_packet.data.size())) {
+      LogPrint(eLogWarning, "DHT: receiveStoreRequest: storage limit reached!");
+      response.status = pbote::StatusCode::NO_DISK_SPACE;
+      response.length = 0;
+      prev_status = false;
+    }
 
     // ToDo: Check if not enough HashCash provided
     //response.status = pbote::StatusCode::INSUFFICIENT_HASHCASH;
@@ -828,7 +832,7 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
     //response.status = pbote::StatusCode::INVALID_HASHCASH;
     //response.length = 0;
 
-    if (dht_storage_.safe(new_packet.data)) {
+    if (prev_status && dht_storage_.safe(new_packet.data)) {
       LogPrint(eLogDebug, "DHT: receiveStoreRequest: packet saved");
       response.status = pbote::StatusCode::OK;
       response.length = 0;

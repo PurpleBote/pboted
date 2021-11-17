@@ -2,10 +2,12 @@
  * Copyright (c) 2019-2021 polistern
  */
 
+#include <boost/filesystem.hpp>
 #include <cstring>
 #include <fstream>
 #include <iterator>
 
+#include "ConfigParser.h"
 #include "DHTStorage.h"
 
 namespace pbote {
@@ -15,6 +17,8 @@ void DHTStorage::update() {
   loadLocalIndexPackets();
   loadLocalEmailPackets();
   loadLocalContactPackets();
+
+  set_storage_limit();
 
   LogPrint(eLogDebug, "DHTStorage: loaded index: ", local_index_packets.size(),
            ", emails: ", local_email_packets.size(), ", contacts: ", local_contact_packets.size());
@@ -53,6 +57,7 @@ bool DHTStorage::deleteIndex(i2p::data::Tag<32> key) {
 
     if (status == 0) {
       LogPrint(eLogInfo, "DHTStorage: deleteIndex: File ", packet_path, " removed");
+      update_storage_usage();
       return true;
     } else {
       LogPrint(eLogError, "DHTStorage: deleteIndex: Can't remove file ", packet_path);
@@ -70,6 +75,7 @@ bool DHTStorage::deleteEmail(i2p::data::Tag<32> key) {
 
     if (status == 0) {
       LogPrint(eLogInfo, "DHTStorage: deleteEmail: File ", packet_path, " removed");
+      update_storage_usage();
       return true;
     } else {
       LogPrint(eLogError, "DHTStorage: deleteEmail: Can't remove file ", packet_path);
@@ -192,6 +198,8 @@ bool DHTStorage::safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& d
   file.write(reinterpret_cast<const char *>(data.data()), data.size());
   file.close();
 
+  update_storage_usage();
+
   return true;
 }
 
@@ -213,6 +221,8 @@ bool DHTStorage::safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& d
   file.write(reinterpret_cast<const char *>(data.data()), data.size());
   file.close();
 
+  update_storage_usage();
+
   return true;
 }
 
@@ -232,8 +242,10 @@ bool DHTStorage::safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>&
   }
 
   file.write(reinterpret_cast<const char *>(data.data()), data.size());
-
   file.close();
+
+  update_storage_usage();
+
   return true;
 }
 
@@ -286,6 +298,62 @@ void DHTStorage::loadLocalContactPackets() {
   } else {
     LogPrint(eLogWarning, "DHTStorage: loadLocalContactPackets: have no contact files");
   }
+}
+
+size_t DHTStorage::suffix_to_multiplier(const std::string &size_str) {
+  std::vector<std::string> sizes = { "B", "KB", "MB", "GB", "TB" };
+  std::string suffix = size_str;
+  std::size_t pos = suffix.find(' ');
+
+  if (pos != std::string::npos) {
+    suffix.erase(0, pos + 1);
+  } else {
+    LogPrint(eLogError, "Context:  can't parse data size suffix: ", size_str);
+    suffix = "MB";
+  }
+
+  size_t iexp = 0;
+
+  for (size_t i = 0; i < sizes.size(); i++) {
+    if (sizes[i] == suffix) {
+      /// Because first element is 0
+      iexp = i;
+      break;
+    }
+  }
+
+  return (size_t)std::pow(1024, iexp);
+}
+
+void DHTStorage::set_storage_limit() {
+  std::string limit_str;
+  pbote::config::GetOption("storage", limit_str);
+
+  size_t multiplier = suffix_to_multiplier(limit_str);
+
+  std::size_t pos = limit_str.find(' ');
+  limit_str.erase(pos, limit_str.size() - pos);
+
+  size_t base = std::stoi(limit_str);
+  limit = base * multiplier;
+}
+
+void DHTStorage::update_storage_usage() {
+  std::vector<std::string> dirs = {"DHTindex", "DHTemail", "DHTdirectory"};
+  used = 0;
+
+  for (const auto& dir : dirs) {
+    std::string dir_path = pbote::fs::DataDirPath(dir);
+    for (boost::filesystem::recursive_directory_iterator it(dir_path);
+         it != boost::filesystem::recursive_directory_iterator(); ++it) {
+      if (!boost::filesystem::is_directory(*it))
+        used += boost::filesystem::file_size(*it);
+    }
+  }
+}
+
+bool DHTStorage::limit_reached(size_t data_size) {
+  return limit <= (used + data_size);
 }
 
 } // kademlia
