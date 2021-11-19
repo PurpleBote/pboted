@@ -79,6 +79,8 @@ class Email {
   bool incomplete() const { return incomplete_; };
   void skip(bool s) { skip_ = s; };
   bool skip() { return skip_; };
+  void deleted(bool s) { deleted_ = s; };
+  bool deleted() { return deleted_; };
   bool verify(uint8_t *hash);
 
   std::string filename() { return filename_; }
@@ -107,6 +109,7 @@ class Email {
   bool incomplete_;
   bool empty_;
   bool skip_;
+  bool deleted_;
   // i2p::data::Tag<32> messageId;
   // metadata?
   // sendtime

@@ -12,6 +12,7 @@
 
 #include "BoteContext.h"
 #include "EmailWorker.h"
+#include "FileSystem.h"
 #include "Logging.h"
 #include "POP3.h"
 
@@ -316,8 +317,31 @@ void POP3session::RETR(char *request) {
 
 void POP3session::DELE(char *request) {
   if (session_state == STATE_TRANSACTION) {
-    auto response = format_response(reply_ok[OK_DEL], 1);
-    reply(response.c_str());
+    std::string req_str(request);
+    LogPrint(eLogDebug, "POP3session: DELE: req_str: ", req_str);
+
+    req_str.erase(0, 5);
+
+    // ToDo: validation
+    int message_number = std::stoi(req_str) - 1;
+    if (message_number >= 0 && (size_t)message_number < emails.size()) {
+      /// On DELE step we can only mark message as deleted
+      /// file deletion occurs only in phase UPDATE at step QUIT
+      /// https://datatracker.ietf.org/doc/html/rfc1939#page-8
+      if (!emails[message_number]->deleted()) {
+        emails[message_number]->deleted(true);
+        auto response = format_response(reply_ok[OK_DEL],
+                                        message_number + 1);
+        reply(response.c_str());
+      } else {
+        auto response = format_response(reply_err[ERR_REMOVED],
+                                        message_number + 1);
+        reply(response.c_str());
+      }
+    } else {
+      auto response = format_response(reply_err[ERR_NOT_FOUND]);
+      reply(response.c_str());
+    }
   } else {
     reply(reply_err[ERR_DENIED]);
   }
@@ -341,6 +365,14 @@ void POP3session::RSET() {
 }
 
 void POP3session::QUIT() {
+  if (session_state == STATE_TRANSACTION) {
+    /// Now we can remove marked emails
+    /// https://datatracker.ietf.org/doc/html/rfc1939#section-6
+    for (const auto& email : emails) {
+      if (email->deleted())
+        pbote::fs::Remove(email->filename());
+    }
+  }
   session_state = STATE_QUIT;
   reply(reply_ok[OK_QUIT]);
   stop();
