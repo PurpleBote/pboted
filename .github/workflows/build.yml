@@ -31,7 +31,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install cmake devscripts debhelper
-        debchange -v "`git describe --tags | sed 's/^.//'`-buster" -M --distribution buster "trunk build"
+        debchange -v "`git describe --tags`-buster" -M --distribution buster "trunk build"
     - name: Build package
       uses: singingwolfboy/build-dpkg-buster@v1
       id: build
