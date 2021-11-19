@@ -1,5 +1,6 @@
 [![GitHub release](https://img.shields.io/github/release/polistern/pboted.svg?label=latest%20release)](https://github.com/polistern/pboted/releases/latest)
 [![License](https://img.shields.io/github/license/polistern/pboted.svg)](https://github.com/polistern/pboted/blob/master/LICENSE)
+[![Documentation Status](https://readthedocs.org/projects/pboted/badge/?version=latest)](http://pboted.readthedocs.io/?badge=latest)
 
 # pboted
 
@@ -14,10 +15,10 @@ Tested with [i2pd](https://github.com/PurpleI2P/i2pd) and [Java I2P](https://git
 ## Features
 
 - Sending and receiving emails
-- Basic support for short recipient names
+- Basic support for short recipient names (alias)
 - Elliptic Curve encryption (ECDH-256/ECDSA-256/AES-256/SHA-256)
 - Runnable as daemon or as user service
-- SMTP / POP3 (basic support, work in progress)
+- SMTP / POP3 support (tested with [Mozilla Thunderbird](https://www.thunderbird.net/en-US/))
 
 ### Planned Features
 
@@ -25,7 +26,7 @@ Tested with [i2pd](https://github.com/PurpleI2P/i2pd) and [Java I2P](https://git
 - Sending email anonymously
 - Delivery confirmation
 - Sending and receiving via relays, similar to Mixmaster
-- CLI interface and tools
+- CLI and tools
 - Interfaces for interaction with third-party applications (IMAP, etc.)
 
 ## Resources
@@ -40,7 +41,7 @@ Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/in
 
 ## Building
 
-See [documentation](https://pboted.readthedocs.io/en/latest/) for how to build **pboted** from source.
+See [documentation](https://pboted.readthedocs.io/en/latest/devs/building/requirements/) for how to build **pboted** from source.
 
 **Supported systems:**
 
