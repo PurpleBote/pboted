@@ -11,6 +11,8 @@
 namespace pbote {
 namespace kademlia {
 
+const int32_t store_duration = 8640000; /// 100 * 24 * 3600 (100 days)
+
 template<class T>
 T base_name(T const & path, T const & delims = "/\\") {
   return path.substr(path.find_last_of(delims) + 1);
@@ -61,9 +63,11 @@ class DHTStorage {
   void set_storage_limit();
   void update_storage_usage();
 
-  // ToDo: remove files older than 100 * 24 * 3600 * 1000L (100 days)
+  void remove_old_packets();
+
   size_t limit;
   size_t used;
+  int update_counter;
 
   std::vector<std::string> local_index_packets;
   std::vector<std::string> local_email_packets;

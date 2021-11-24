@@ -3,9 +3,11 @@
  */
 
 #include <boost/filesystem.hpp>
+#include <chrono>
 #include <cstring>
 #include <fstream>
 #include <iterator>
+#include <cstdio>
 
 #include "ConfigParser.h"
 #include "DHTStorage.h"
@@ -21,10 +23,21 @@ void DHTStorage::update() {
   set_storage_limit();
   update_storage_usage();
 
-  double disk_used = (double)((100 / (double)limit) * (double)used);
+  double storage_usage = (double)((100 / (double)limit) * (double)used);
 
-  LogPrint(eLogDebug, "DHTStorage: loaded index: ", local_index_packets.size(),
-           ", emails: ", local_email_packets.size(), ", contacts: ", local_contact_packets.size(), ", disk usage: ", disk_used, "%");
+  /// There is no need to check this too often
+  if (update_counter > 20) {
+    remove_old_packets();
+    update_counter = 0;
+  }
+
+  LogPrint(eLogDebug, "DHTStorage:",
+           " loaded index: ", local_index_packets.size(),
+           ", emails: ", local_email_packets.size(),
+           ", contacts: ", local_contact_packets.size(),
+           ", storage usage: ", storage_usage, "%");
+
+  update_counter++;
 }
 
 bool DHTStorage::safe(const std::vector<uint8_t>& data) {
@@ -107,6 +120,12 @@ std::vector<uint8_t> DHTStorage::getContact(i2p::data::Tag<32> key) {
     return getPacket(pbote::type::DataC, key);
   }
   return {};
+}
+
+bool DHTStorage::limit_reached(size_t data_size) {
+  LogPrint(eLogDebug, "DHTStorage: limit_reached: ",
+           (limit < (used + data_size)) ? "true" : "false");
+  return limit <= (used + data_size);
 }
 
 std::vector<uint8_t> DHTStorage::getPacket(pbote::type type, i2p::data::Tag<32> key) {
@@ -221,7 +240,14 @@ bool DHTStorage::safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& d
     return false;
   }
 
-  file.write(reinterpret_cast<const char *>(data.data()), data.size());
+  EmailEncryptedPacket email_packet = {};
+  email_packet.fromBuffer(const_cast<uint8_t *>(data.data()), data.size(), true);
+  const auto time_now = std::chrono::system_clock::now();
+  email_packet.stored_time = (int32_t)std::chrono::duration_cast<std::chrono::seconds>(time_now.time_since_epoch()).count();
+  auto packet_bytes = email_packet.toByte();
+
+  file.write(reinterpret_cast<const char *>(packet_bytes.data()),
+             (long)packet_bytes.size());
   file.close();
 
   update_storage_usage();
@@ -360,10 +386,61 @@ void DHTStorage::update_storage_usage() {
   }
 }
 
-bool DHTStorage::limit_reached(size_t data_size) {
-  LogPrint(eLogDebug, "DHTStorage: limit_reached: ",
-           (limit < (used + data_size)) ? "true" : "false");
-  return limit <= (used + data_size);
+void DHTStorage::remove_old_packets() {
+  size_t removed_count = 0;
+
+  const auto time_now = std::chrono::system_clock::now();
+  const auto current_timestamp =  (int32_t)std::chrono::duration_cast<std::chrono::seconds>(time_now.time_since_epoch()).count();
+
+  std::string dir_path = pbote::fs::DataDirPath("DHTemail");
+    for (auto& entry : boost::filesystem::recursive_directory_iterator(dir_path)) {
+      if (!boost::filesystem::is_directory(entry)) {
+        LogPrint(eLogDebug, "DHTStorage: remove_old_packets: checking file: ", entry.path());
+
+        std::ifstream file(entry.path(), std::ios::binary);
+        if (!file.is_open()) {
+          LogPrint(eLogError, "DHTStorage: remove_old_packets: can't open file ", entry.path());
+          continue;
+        }
+
+        uint8_t * bytes = (uint8_t *) malloc(38);
+
+        file.read(reinterpret_cast<char*>(bytes), 38);
+        file.close();
+
+        uint8_t type;
+        uint8_t version;
+        uint8_t key[32]{};
+        int32_t stored_time{};
+
+        size_t offset = 0;
+        memcpy(&type, bytes, 1);
+        offset += 1;
+        memcpy(&version, bytes + offset, 1);
+        offset += 1;
+        memcpy(&key, bytes + offset, 32);
+        offset += 32;
+        memcpy(&stored_time, bytes + offset, 4);
+
+        stored_time = (int32_t)ntohl((uint32_t)stored_time);
+
+        LogPrint(eLogDebug, "DHTStorage: remove_old_packets: current_timestamp: ", current_timestamp);
+        LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packet_timestamp: ", stored_time + store_duration);
+
+        if (stored_time + store_duration < current_timestamp) {
+          LogPrint(eLogInfo, "DHTStorage: remove_old_packets: remove: ", entry.path());
+          if (deleteEmail(i2p::data::Tag<32>(key)))
+            removed_count++;
+          else
+            LogPrint(eLogError, "DHTStorage: remove_old_packets: can't remove file: ", entry.path());
+        } else {
+          LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packet ", entry.path(), " is too young to die.");
+        }
+      }
+    }
+
+    LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packets removed: ",
+             removed_count);
 }
 
 } // kademlia
