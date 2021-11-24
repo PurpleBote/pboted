@@ -11,7 +11,7 @@ namespace network {
 
 NetworkWorker network_worker;
 
-std::string SAM_NICKNAME = "pBote";
+std::string SAM_NICKNAME = "pboted";
 
 /**
  * Receive handle class
