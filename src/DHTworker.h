@@ -16,10 +16,11 @@
 #include "ConfigParser.h"
 #include "DHTStorage.h"
 #include "FileSystem.h"
-#include "../lib/i2pd/libi2pd/Identity.h"
 #include "Logging.h"
 #include "NetworkWorker.h"
 #include "PacketHandler.h"
+
+#include "Identity.h"
 
 namespace pbote {
 namespace kademlia {
