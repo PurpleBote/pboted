@@ -7,8 +7,10 @@
 #include <openssl/sha.h>
 #include <algorithm>
 
+#include "Tag.h"
+
 #include "Cryptography.h"
-#include "../lib/i2pd/libi2pd/Tag.h"
+
 namespace pbote {
 
 ECDHP256Encryptor::ECDHP256Encryptor(const byte *pubkey) {
@@ -62,7 +64,7 @@ std::vector<byte> ECDHP256Encryptor::Encrypt(const byte *data, int len) {
     LogPrint(eLogDebug, "Crypto: Encrypt: secret_hash: ", secret_h.ToBase64());
 
     // Encrypt the data using the hash of the shared secret as an AES key
-    byte *ivec = new byte[AES_BLOCK_SIZE];
+    byte ivec[AES_BLOCK_SIZE];
     std::generate(ivec, ivec + AES_BLOCK_SIZE, std::ref(rbe));
     result.insert(result.end(), ivec, ivec + AES_BLOCK_SIZE);
 
@@ -72,7 +74,6 @@ std::vector<byte> ECDHP256Encryptor::Encrypt(const byte *data, int len) {
     LogPrint(eLogDebug, "Crypto: Encrypt: len: ", len, ", pad: ", len % 16);
     len += len % 16;
 
-    //byte *encrypted = new byte[len];
     byte encrypted[len];
 
     LogPrint(eLogDebug, "Crypto: Encrypt: len: ", len);
@@ -82,7 +83,6 @@ std::vector<byte> ECDHP256Encryptor::Encrypt(const byte *data, int len) {
     LogPrint(eLogDebug, "Crypto: Encrypt: len: ", len);
 
     std::vector<byte> enc_data(encrypted, encrypted + len);
-    //std::vector<byte> enc_data(encrypted, encrypted + (sizeof encrypted / sizeof encrypted[0]));
     LogPrint(eLogDebug, "Crypto: Encrypt: enc_data.size(): ", enc_data.size());
     result.insert(result.end(), enc_data.begin(), enc_data.end());
 
