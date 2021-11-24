@@ -21,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-#include "../lib/i2pd/libi2pd/Tag.h"
+#include "Tag.h"
 
 #include "Logging.h"
 
@@ -172,7 +172,7 @@ struct EmailEncryptedPacket : public DataPacket{
   EmailEncryptedPacket() : DataPacket(DataE) {}
 
   uint8_t key[32]{};
-  uint32_t stored_time{};
+  int32_t stored_time{};
   uint8_t delete_hash[32]{};
   uint8_t alg{};
   uint16_t length{};
@@ -217,7 +217,7 @@ struct EmailEncryptedPacket : public DataPacket{
     offset += 2;
 
     if (from_net) {
-      stored_time = ntohl(stored_time);
+      stored_time = (int32_t)ntohl((uint32_t)stored_time);
       length = ntohs(length);
     }
 
@@ -314,7 +314,7 @@ struct IndexPacket : public DataPacket{
   struct Entry {
     uint8_t key[32];
     uint8_t dv[32];
-    long time;
+    int32_t time;
   };
 
   uint8_t hash[32]{};
