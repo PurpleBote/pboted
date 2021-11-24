@@ -15,7 +15,7 @@ namespace packet {
 RequestHandler packet_handler;
 
 IncomingRequest::IncomingRequest(RequestHandler &parent)
-    : m_Parent(parent) {
+    : m_Parent(parent), incomingPacketHandlers_{nullptr} {
   // ToDo: re-make with std::function
   incomingPacketHandlers_[type::CommR] = &IncomingRequest::receiveRelayRequest;
   incomingPacketHandlers_[type::CommK] = &IncomingRequest::receiveRelayReturnRequest;
@@ -45,9 +45,8 @@ bool IncomingRequest::handleNewPacket(const std::shared_ptr<PacketForQueue>& que
 
     LogPrint(eLogDebug, "Packet: got non-batch packet with type ", packet->type);
 
-    auto it = incomingPacketHandlers_.find(packet->type);
-    if (it != incomingPacketHandlers_.end())
-      return (this->*(it->second))(packet);
+    if (incomingPacketHandlers_[packet->type])
+      return (this->*(incomingPacketHandlers_[packet->type]))(packet);
     else {
       LogPrint(eLogWarning, "Packet: got unknown packet type");
       return false;
