@@ -2,9 +2,9 @@
  * Copyright (c) 2019-2021 polistern
  */
 
+#include <boost/filesystem.hpp>
 #include <chrono>
 #include <cstring>
-#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <cstdio>
@@ -376,10 +376,10 @@ void DHTStorage::update_storage_usage() {
 
   for (const auto& dir : dirs) {
     std::string dir_path = pbote::fs::DataDirPath(dir);
-    for (std::filesystem::recursive_directory_iterator it(dir_path);
-         it != std::filesystem::recursive_directory_iterator(); ++it) {
-      if (!std::filesystem::is_directory(*it))
-        used += std::filesystem::file_size(*it);
+    for (boost::filesystem::recursive_directory_iterator it(dir_path);
+         it != boost::filesystem::recursive_directory_iterator(); ++it) {
+      if (!boost::filesystem::is_directory(*it))
+        used += boost::filesystem::file_size(*it);
     }
     LogPrint(eLogDebug, "DHTStorage: update_storage_usage: directory: ",
              dir, ", used: ", used);
@@ -393,8 +393,8 @@ void DHTStorage::remove_old_packets() {
   const auto current_timestamp =  (int32_t)std::chrono::duration_cast<std::chrono::seconds>(time_now.time_since_epoch()).count();
 
   std::string dir_path = pbote::fs::DataDirPath("DHTemail");
-    for (auto& entry : std::filesystem::recursive_directory_iterator(dir_path)) {
-      if (!std::filesystem::is_directory(entry)) {
+    for (auto& entry : boost::filesystem::recursive_directory_iterator(dir_path)) {
+      if (!boost::filesystem::is_directory(entry)) {
         LogPrint(eLogDebug, "DHTStorage: remove_old_packets: checking file: ", entry.path());
 
         std::ifstream file(entry.path(), std::ios::binary);
