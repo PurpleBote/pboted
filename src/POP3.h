@@ -168,6 +168,11 @@ private:
 };
 
 template<typename... t_args>
+std::string format_response(const char *msg) {
+  return {msg};
+}
+
+template<typename... t_args>
 std::string format_response(const char *format, t_args &&... args) {
   const int bufferStatus = std::snprintf(nullptr, 0, format, args...);
 
