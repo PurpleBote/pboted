@@ -21,7 +21,7 @@
 
 namespace pbote {
 
-static const unsigned int EPH_KEY_LEN = 33;
+#define EPH_KEY_LEN 33
 
 typedef uint8_t byte;
 

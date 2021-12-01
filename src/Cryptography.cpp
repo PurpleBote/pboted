@@ -2,10 +2,10 @@
  * Copyright (c) 2019-2021 polistern
  */
 
+#include <algorithm>
 #include <openssl/aes.h>
 #include <openssl/rand.h>
 #include <openssl/sha.h>
-#include <algorithm>
 
 #include "Tag.h"
 
@@ -39,7 +39,7 @@ std::vector<byte> ECDHP256Encryptor::Encrypt(const byte *data, int len) {
     // Get shared point
     const EC_POINT* ec_eph_point = EC_KEY_get0_public_key(ec_ephemeral_key);
     byte shared_key[EPH_KEY_LEN];
-    EC_POINT_point2oct(ec_curve, ec_eph_point, POINT_CONVERSION_COMPRESSED, shared_key, 33, nullptr);
+    EC_POINT_point2oct(ec_curve, ec_eph_point, POINT_CONVERSION_COMPRESSED, shared_key, EPH_KEY_LEN, nullptr);
     std::vector<byte> result(shared_key, shared_key + EPH_KEY_LEN);
 
     // Create the shared secret
@@ -56,11 +56,11 @@ std::vector<byte> ECDHP256Encryptor::Encrypt(const byte *data, int len) {
     LogPrint(eLogDebug, "Crypto: Encrypt: secret len: ", secret_len);
 
     // Generate hash of shared secret
-    byte secret_hash[secret_len];
-    SHA256(secret, secret_len, secret_hash);
+    std::vector<byte> secret_hash(secret_len);
+    SHA256(secret, secret_len, secret_hash.data());
     OPENSSL_free(secret);
 
-    i2p::data::Tag<32> secret_h(secret_hash);
+    i2p::data::Tag<32> secret_h(secret_hash.data());
     LogPrint(eLogDebug, "Crypto: Encrypt: secret_hash: ", secret_h.ToBase64());
 
     // Encrypt the data using the hash of the shared secret as an AES key
@@ -69,22 +69,23 @@ std::vector<byte> ECDHP256Encryptor::Encrypt(const byte *data, int len) {
     result.insert(result.end(), ivec, ivec + AES_BLOCK_SIZE);
 
     AES_KEY encrypt_key;
-    AES_set_encrypt_key(secret_hash, 256, &encrypt_key);
+    int key_status = AES_set_encrypt_key(secret_hash.data(), 256, &encrypt_key);
+    if (key_status == -1) {
+      LogPrint(eLogError, "Crypto: Encrypt: AES key is null");
+      return {};
+    }
+    if (key_status == -2) {
+      LogPrint(eLogError, "Crypto: Encrypt: AES unsupported number of bits");
+      return {};
+    }
 
-    LogPrint(eLogDebug, "Crypto: Encrypt: len: ", len, ", pad: ", len % 16);
-    len += len % 16;
+    const int padding = len % 16;
 
-    byte encrypted[len];
+    std::vector<byte> encrypted(len + padding);
+    AES_cbc_encrypt(data, encrypted.data(), len, &encrypt_key, ivec, AES_ENCRYPT);
 
-    LogPrint(eLogDebug, "Crypto: Encrypt: len: ", len);
-
-    AES_cbc_encrypt(data, encrypted, len, &encrypt_key, ivec, AES_ENCRYPT);
-
-    LogPrint(eLogDebug, "Crypto: Encrypt: len: ", len);
-
-    std::vector<byte> enc_data(encrypted, encrypted + len);
-    LogPrint(eLogDebug, "Crypto: Encrypt: enc_data.size(): ", enc_data.size());
-    result.insert(result.end(), enc_data.begin(), enc_data.end());
+    LogPrint(eLogDebug, "Crypto: Encrypt: encrypted size: ", encrypted.size());
+    result.insert(result.end(), encrypted.begin(), encrypted.end());
 
     return result;
   }
@@ -142,33 +143,38 @@ std::vector<byte> ECDHP256Decryptor::Decrypt(const byte *encrypted, int elen) {
     LogPrint(eLogDebug, "Crypto: Decrypt: secret len: ", secret_len);
 
     // generate hash of shared secret
-    byte secret_hash[secret_len];
-    SHA256(secret, secret_len, secret_hash);
+    std::vector<byte> secret_hash(secret_len);
+    SHA256(secret, secret_len, secret_hash.data());
     OPENSSL_free(secret);
 
-    i2p::data::Tag<32> secret_h(secret_hash);
+    i2p::data::Tag<32> secret_h(secret_hash.data());
     LogPrint(eLogDebug, "Crypto: Decrypt: secret_hash: ", secret_h.ToBase64());
 
     // decrypt using the shared secret hash as AES key
-    byte *ivec = new byte[AES_BLOCK_SIZE];
+    byte ivec[AES_BLOCK_SIZE];
     memcpy(ivec, encrypted + offset, AES_BLOCK_SIZE);
     offset += AES_BLOCK_SIZE;
 
     size_t dlen = elen - offset;
-    LogPrint(eLogDebug, "Crypto: Decrypt: dlen: ", dlen, ", elen: ", elen);
+    LogPrint(eLogDebug, "Crypto: Decrypt: elen: ", elen, ", dlen: ", dlen);
 
-    byte *edata = new byte[dlen];
-    memcpy(edata, encrypted + offset, dlen);
+    std::vector<byte> edata(encrypted + offset, encrypted + offset + dlen);
 
     AES_KEY dkey;
-    AES_set_decrypt_key(secret_hash, 256, &dkey);
+    int key_status = AES_set_decrypt_key(secret_hash.data(), 256, &dkey);
+    if (key_status == -1) {
+      LogPrint(eLogError, "Crypto: Decrypt: AES key is null");
+      return {};
+    }
+    if (key_status == -2) {
+      LogPrint(eLogError, "Crypto: Decrypt: AES unsupported number of bits");
+      return {};
+    }
 
-    byte *decrypted = new byte[dlen];
+    std::vector<byte> decrypted(dlen);
+    AES_cbc_encrypt(edata.data(), decrypted.data(), dlen, &dkey, ivec, AES_DECRYPT);
 
-    AES_cbc_encrypt(edata, decrypted, dlen, &dkey, ivec, AES_DECRYPT);
-
-    std::vector<byte> dec_data(decrypted, decrypted + dlen);
-    return dec_data;
+    return decrypted;
   }
   return {};
 }
