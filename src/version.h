@@ -2,20 +2,19 @@
  * Copyright (c) 2019-2021 polistern
  */
 
-#ifndef _VERSION_H__
-#define _VERSION_H__
+#ifndef BOTE_VERSION_H__
+#define BOTE_VERSION_H__
 
 #define CODENAME "Purple Boat"
 
 #define STRINGIZE(x) #x
-#define MAKE_VERSION(a, b, c, d) STRINGIZE(a) "." STRINGIZE(b) "." STRINGIZE(c) "-" STRINGIZE(d)
+#define MAKE_VERSION(a, b, c) STRINGIZE(a) "." STRINGIZE(b) "." STRINGIZE(c)
 
 #define PBOTE_VERSION_MAJOR 0
 #define PBOTE_VERSION_MINOR 7
-#define PBOTE_VERSION_MICRO 3
-#define PBOTE_VERSION_PATCH 0
-#define PBOTE_VERSION                                                          \
-  MAKE_VERSION(PBOTE_VERSION_MAJOR, PBOTE_VERSION_MINOR, PBOTE_VERSION_MICRO, PBOTE_VERSION_PATCH)
+#define PBOTE_VERSION_MICRO 4
+
+#define PBOTE_VERSION MAKE_VERSION(PBOTE_VERSION_MAJOR, PBOTE_VERSION_MINOR, PBOTE_VERSION_MICRO)
 #define VERSION PBOTE_VERSION
 
-#endif // _VERSION_H__
+#endif // BOTE_VERSION_H__
