@@ -49,45 +49,16 @@ int DaemonLinux::start() {
       return EXIT_FAILURE;
     }
 
-    /*pid_t pid, sid;
-    pid = fork();
-
-    if (pid > 0) {
-      LogPrint(eLogDebug, "Daemon: Exit parent process");
-      //::exit(EXIT_SUCCESS); // Exit parent
-      return pid;
-    }
-
-    // On error
-    if (pid < 0) {
-      LogPrint(eLogError, "Daemon: could not fork: ", strerror(errno));
-      return EXIT_FAILURE;
-    }
-
-    // child
-    umask(S_IWGRP | S_IRWXO); // 0027
-
-    sid = setsid();
-    if (sid < 0) {
-      LogPrint(eLogError, "Daemon: could not create process group: ", strerror(errno));
-      return EXIT_FAILURE;
-    }*/
-
     const std::string& d = pbote::fs::GetDataDir();
     if (chdir(d.c_str()) != 0) {
       LogPrint(eLogError, "Daemon: could not chdir: ", strerror(errno));
       return EXIT_FAILURE;
     }
-
-    // point std{in,out,err} descriptors to /dev/null
-    /*freopen("/dev/null", "r", stdin);
-    freopen("/dev/null", "w", stdout);
-    freopen("/dev/null", "w", stderr);*/
   }
 
   // set proc limits
-  struct rlimit limit;
-  uint16_t nfiles;
+  struct rlimit limit = {};
+  uint16_t nfiles = 0;
   pbote::config::GetOption("limits.openfiles", nfiles);
   getrlimit(RLIMIT_NOFILE, &limit);
   if (nfiles == 0) {
@@ -102,7 +73,7 @@ int DaemonLinux::start() {
   } else {
     LogPrint(eLogError,"Daemon: limits.openfiles exceeds system limit: ", limit.rlim_max);
   }
-  uint32_t cfsize;
+  uint32_t cfsize = 0;
   pbote::config::GetOption("limits.coresize", cfsize);
   if (cfsize) // core file size set
   {
@@ -124,7 +95,6 @@ int DaemonLinux::start() {
 
   // Pidfile
   // this code is c-styled and a bit ugly, but we need fd for locking pidfile
-  //std::string pidfile;
   pbote::config::GetOption("pidfile", pidfile);
   if (pidfile.empty()) {
     pidfile = pbote::fs::DataDirPath("pbote.pid");
@@ -177,19 +147,6 @@ void DaemonLinux::run() {
              ", DHT nodes: ", pbote::kademlia::DHT_worker.getNodesCount(),
              ", Relay peers: ", pbote::relay::relay_peers_worker.getPeersCount());
 
-    /*if (pbote::context::context.isHeathy()) {
-      LogPrint(eLogDebug, "Context: is healthy!");
-    }*/
-    /*if (gracefulShutdownInterval)
-            {
-                    gracefulShutdownInterval--; // - 1 second
-                    if (gracefulShutdownInterval <= 0 ||
-       i2p::tunnel::tunnels.CountTransitTunnels() <= 0)
-                    {
-                            LogPrint(eLogInfo, "Graceful shutdown");
-                            return;
-                    }
-            }*/
     std::this_thread::sleep_for(std::chrono::seconds(60));
   }
 }
