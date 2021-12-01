@@ -523,8 +523,8 @@ std::vector<Node> DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key) {
     }
 
     size_t offset = 0;
-    uint8_t status;
-    uint16_t dataLen;
+    uint8_t status = 0;
+    uint16_t dataLen = 0;
 
     std::memcpy(&status, response->payload.data(), 1);
     offset += 1;
@@ -542,16 +542,16 @@ std::vector<Node> DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key) {
       continue;
     }
 
-    uint8_t data[dataLen];
-    std::memcpy(&data, response->payload.data() + offset, dataLen);
+    std::vector<uint8_t> data = {response->payload.data() + offset,
+                                 response->payload.data() + offset + dataLen};
 
     LogPrint(eLogDebug, "DHT: closestNodesLookupTask: type: ", response->type, ", ver: ", unsigned(response->ver));
     std::vector<Node> peers_list;
     if (unsigned(data[1]) == 4 && (data[0] == (uint8_t) 'L' || data[0] == (uint8_t) 'P')) {
-      peers_list = receivePeerListV4(data, dataLen);
+      peers_list = receivePeerListV4(data.data(), dataLen);
     }
     if (unsigned(data[1]) == 5 && (data[0] == (uint8_t) 'L' || data[0] == (uint8_t) 'P')) {
-      peers_list = receivePeerListV5(data, dataLen);
+      peers_list = receivePeerListV5(data.data(), dataLen);
     }
 
     if (!peers_list.empty()) {
@@ -800,8 +800,8 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
   offset += 2;
   LogPrint(eLogDebug, "DHT: receiveStoreRequest: hc_length: ", new_packet.hc_length);
 
-  uint8_t hashCash[new_packet.hc_length];
-  std::memcpy(&hashCash, packet->payload.data() + offset, new_packet.hc_length);
+  std::vector<uint8_t> hashCash = {packet->payload.data() + offset,
+                                   packet->payload.data() + offset + new_packet.hc_length};
   offset += new_packet.hc_length;
 
   std::memcpy(&new_packet.length, packet->payload.data() + offset, 2);
