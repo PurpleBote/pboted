@@ -319,7 +319,7 @@ std::vector<std::string> DHTworker::store(i2p::data::Tag<32> hash, uint8_t type,
     ResponsePacket response_packet = {};
     if (response_packet.fromBuffer(response->payload.data(),
                                    response->payload.size(), true)) {
-      if (response_packet.status == StatusCode::OK)
+      if (response_packet.status == StatusCode::OK || response_packet.status == StatusCode::DUPLICATED_DATA)
         res.push_back(response->from);
     }
   }
@@ -838,13 +838,21 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
     //response.status = pbote::StatusCode::INVALID_HASHCASH;
     //response.length = 0;
 
-    if (prev_status && dht_storage_.safe(new_packet.data)) {
+    int save_status = 0;
+
+    if (prev_status)
+      save_status = dht_storage_.safe(new_packet.data);
+
+    if (prev_status && save_status == STORE_SUCCESS) {
       LogPrint(eLogDebug, "DHT: receiveStoreRequest: packet saved");
       response.status = pbote::StatusCode::OK;
       response.length = 0;
     } else if (prev_status) {
       LogPrint(eLogWarning, "DHT: receiveStoreRequest: got error while try to save packet");
-      response.status = pbote::StatusCode::GENERAL_ERROR;
+      if (save_status == STORE_FILE_EXIST)
+        response.status = pbote::StatusCode::DUPLICATED_DATA;
+      else
+        response.status = pbote::StatusCode::GENERAL_ERROR;
       response.length = 0;
     }
   } else {
@@ -994,23 +1002,26 @@ void DHTworker::receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::Com
       if (equals) {
         // Delete "old" and write "new" packet, if not empty
         bool deleted = dht_storage_.deleteIndex(t_key);
-        bool saved = false;
+        int saved = false;
 
         if (!index_packet.data.empty())
           saved = dht_storage_.safe(index_packet.toByte());
 
-        if (deleted && saved) {
-          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: packet replaced");
+        if (deleted && saved == STORE_SUCCESS) {
+          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: Packet replaced");
           response.status = pbote::StatusCode::OK;
-        } else if (saved) {
-          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: new packet saved");
+        } else if (saved == STORE_SUCCESS) {
+          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: New packet saved");
           response.status = pbote::StatusCode::OK;
         } else if (index_packet.data.empty() && deleted) {
-          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: delete empty packet");
+          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: Delete empty packet");
           response.status = pbote::StatusCode::OK;
         } else {
           LogPrint(eLogError, "DHT: receiveIndexPacketDeleteRequest: Can't save new packet");
-          response.status = pbote::StatusCode::GENERAL_ERROR;
+          if (saved == STORE_FILE_EXIST)
+            response.status = pbote::StatusCode::DUPLICATED_DATA;
+          else
+            response.status = pbote::StatusCode::GENERAL_ERROR;
         }
       }
     } else {

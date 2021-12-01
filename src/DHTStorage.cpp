@@ -40,9 +40,9 @@ void DHTStorage::update() {
   update_counter++;
 }
 
-bool DHTStorage::safe(const std::vector<uint8_t>& data) {
+int DHTStorage::safe(const std::vector<uint8_t>& data) {
   uint8_t dataType = data[0];
-  bool success = false;
+  int success = 0;
   uint8_t key[32];
   memcpy(key, data.data() + 2, 32);
   i2p::data::Tag<32> dht_key(key);
@@ -202,19 +202,19 @@ bool DHTStorage::find(const std::vector<std::string>& list, i2p::data::Tag<32> k
   return false;
 }
 
-bool DHTStorage::safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data) {
+int DHTStorage::safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data) {
   std::string packetPath = pbote::fs::DataDirPath("DHTindex", key.ToBase64() + ".dat");
 
   if (pbote::fs::Exists(packetPath)) {
     LogPrint(eLogDebug, "DHTStorage: safeIndex: packet already exist: ", packetPath);
-    return false;
+    return STORE_FILE_EXIST;
   }
 
   LogPrint(eLogDebug, "DHTStorage: safeIndex: save packet to ", packetPath);
   std::ofstream file(packetPath, std::ofstream::binary | std::ofstream::out);
   if (!file.is_open()) {
     LogPrint(eLogError, "DHTStorage: safeIndex: can't open file ", packetPath);
-    return false;
+    return STORE_FILE_OPEN_ERROR;
   }
 
   file.write(reinterpret_cast<const char *>(data.data()), data.size());
@@ -222,22 +222,22 @@ bool DHTStorage::safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& d
 
   update_storage_usage();
 
-  return true;
+  return STORE_SUCCESS;
 }
 
-bool DHTStorage::safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data) {
+int DHTStorage::safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data) {
   std::string packetPath = pbote::fs::DataDirPath("DHTemail", key.ToBase64() + ".dat");
 
   if (pbote::fs::Exists(packetPath)) {
     LogPrint(eLogDebug, "DHTStorage: safeEmail: packet already exist: ", packetPath);
-    return false;
+    return STORE_FILE_EXIST;
   }
 
   LogPrint(eLogDebug, "DHTStorage: safeEmail: save packet to ", packetPath);
   std::ofstream file(packetPath, std::ofstream::binary | std::ofstream::out);
   if (!file.is_open()) {
     LogPrint(eLogError, "DHTStorage: safeEmail: can't open file ", packetPath);
-    return false;
+    return STORE_FILE_OPEN_ERROR;
   }
 
   EmailEncryptedPacket email_packet = {};
@@ -246,28 +246,27 @@ bool DHTStorage::safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& d
   email_packet.stored_time = (int32_t)std::chrono::duration_cast<std::chrono::seconds>(time_now.time_since_epoch()).count();
   auto packet_bytes = email_packet.toByte();
 
-  file.write(reinterpret_cast<const char *>(packet_bytes.data()),
-             (long)packet_bytes.size());
+  file.write(reinterpret_cast<const char *>(packet_bytes.data()), (long)packet_bytes.size());
   file.close();
 
   update_storage_usage();
 
-  return true;
+  return STORE_SUCCESS;
 }
 
-bool DHTStorage::safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& data) {
+int DHTStorage::safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& data) {
   std::string packetPath = pbote::fs::DataDirPath("DHTdirectory", key.ToBase64() + ".dat");
 
   if (pbote::fs::Exists(packetPath)) {
     LogPrint(eLogDebug, "DHTStorage: safeContact: packet already exist: ", packetPath);
-    return false;
+    return STORE_FILE_EXIST;
   }
 
   LogPrint(eLogDebug, "DHTStorage: safeContact: save packet to ", packetPath);
   std::ofstream file(packetPath, std::ofstream::binary | std::ofstream::out);
   if (!file.is_open()) {
     LogPrint(eLogError, "DHTStorage: safeContact: can't open file ", packetPath);
-    return false;
+    return STORE_FILE_OPEN_ERROR;
   }
 
   file.write(reinterpret_cast<const char *>(data.data()), data.size());
@@ -275,7 +274,7 @@ bool DHTStorage::safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>&
 
   update_storage_usage();
 
-  return true;
+  return STORE_SUCCESS;
 }
 
 void DHTStorage::loadLocalIndexPackets() {
@@ -393,54 +392,60 @@ void DHTStorage::remove_old_packets() {
   const auto current_timestamp =  (int32_t)std::chrono::duration_cast<std::chrono::seconds>(time_now.time_since_epoch()).count();
 
   std::string dir_path = pbote::fs::DataDirPath("DHTemail");
-    for (auto& entry : boost::filesystem::recursive_directory_iterator(dir_path)) {
-      if (!boost::filesystem::is_directory(entry)) {
-        LogPrint(eLogDebug, "DHTStorage: remove_old_packets: checking file: ", entry.path());
 
-        std::ifstream file(entry.path(), std::ios::binary);
-        if (!file.is_open()) {
-          LogPrint(eLogError, "DHTStorage: remove_old_packets: can't open file ", entry.path());
-          continue;
-        }
+  if (boost::filesystem::is_empty(dir_path.c_str())) {
+    LogPrint(eLogDebug, "DHTStorage: remove_old_packets: DHTemail directory is empty");
+    return;
+  }
 
-        uint8_t * bytes = (uint8_t *) malloc(38);
+  for (auto& entry : boost::filesystem::recursive_directory_iterator(dir_path)) {
+    if (boost::filesystem::is_directory(entry))
+      continue;
 
-        file.read(reinterpret_cast<char*>(bytes), 38);
-        file.close();
+    LogPrint(eLogDebug, "DHTStorage: remove_old_packets: checking file: ", entry.path());
 
-        uint8_t type;
-        uint8_t version;
-        uint8_t key[32]{};
-        int32_t stored_time{};
-
-        size_t offset = 0;
-        memcpy(&type, bytes, 1);
-        offset += 1;
-        memcpy(&version, bytes + offset, 1);
-        offset += 1;
-        memcpy(&key, bytes + offset, 32);
-        offset += 32;
-        memcpy(&stored_time, bytes + offset, 4);
-
-        stored_time = (int32_t)ntohl((uint32_t)stored_time);
-
-        LogPrint(eLogDebug, "DHTStorage: remove_old_packets: current_timestamp: ", current_timestamp);
-        LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packet_timestamp: ", stored_time + store_duration);
-
-        if (stored_time + store_duration < current_timestamp) {
-          LogPrint(eLogInfo, "DHTStorage: remove_old_packets: remove: ", entry.path());
-          if (deleteEmail(i2p::data::Tag<32>(key)))
-            removed_count++;
-          else
-            LogPrint(eLogError, "DHTStorage: remove_old_packets: can't remove file: ", entry.path());
-        } else {
-          LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packet ", entry.path(), " is too young to die.");
-        }
-      }
+    std::ifstream file(entry.path(), std::ios::binary);
+    if (!file.is_open()) {
+      LogPrint(eLogError, "DHTStorage: remove_old_packets: can't open file ", entry.path());
+      continue;
     }
 
-    LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packets removed: ",
-             removed_count);
+    uint8_t * bytes = (uint8_t *) malloc(38);
+
+    file.read(reinterpret_cast<char*>(bytes), 38);
+    file.close();
+
+    uint8_t type;
+    uint8_t version;
+    uint8_t key[32]{};
+    int32_t stored_time{};
+
+    size_t offset = 0;
+    memcpy(&type, bytes, 1);
+    offset += 1;
+    memcpy(&version, bytes + offset, 1);
+    offset += 1;
+    memcpy(&key, bytes + offset, 32);
+    offset += 32;
+    memcpy(&stored_time, bytes + offset, 4);
+
+    stored_time = (int32_t)ntohl((uint32_t)stored_time);
+
+    LogPrint(eLogDebug, "DHTStorage: remove_old_packets: current_timestamp: ", current_timestamp);
+    LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packet_timestamp: ", stored_time + store_duration);
+
+    if (stored_time + store_duration < current_timestamp) {
+      LogPrint(eLogInfo, "DHTStorage: remove_old_packets: remove: ", entry.path());
+      if (deleteEmail(i2p::data::Tag<32>(key)))
+        removed_count++;
+      else
+        LogPrint(eLogError, "DHTStorage: remove_old_packets: can't remove file: ", entry.path());
+    } else {
+      LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packet ", entry.path(), " is too young to die.");
+    }
+  }
+
+  LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packets removed: ", removed_count);
 }
 
 } // kademlia
