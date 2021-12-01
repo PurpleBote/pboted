@@ -537,10 +537,11 @@ struct CleanCommunicationPacket {
   uint8_t cid[32]{};
 };
 
-struct RelayRequestPacket : public CleanCommunicationPacket{
+/// not implemented
+/*struct RelayRequestPacket : public CleanCommunicationPacket{
  public:
   RelayRequestPacket() : CleanCommunicationPacket(CommR) {}
-};
+};*/
 
 /// not implemented
 /*struct RelayReturnRequestPacket : public CleanCommunicationPacket{
@@ -821,7 +822,7 @@ inline std::shared_ptr<CommunicationPacket> parseCommPacket(const std::shared_pt
     }
 
     /// 38 cause prefix[4] + type[1] + ver[1] +  cid[32]
-    long clean_payload_size = packet->payload.size() - 38;
+    long clean_payload_size = (long)packet->payload.size() - 38;
     if (clean_payload_size < 0) {
       LogPrint(eLogWarning, "Packet: payload too short");
       return nullptr;
@@ -832,7 +833,7 @@ inline std::shared_ptr<CommunicationPacket> parseCommPacket(const std::shared_pt
     memcpy(res.cid, data.cid, 32);
 
     res.from = std::move(packet->destination);
-    std::vector<uint8_t> v_payload(packet->payload.begin() + packet->payload.size() - clean_payload_size, packet->payload.end());
+    std::vector<uint8_t> v_payload(packet->payload.begin() + (long)packet->payload.size() - clean_payload_size, packet->payload.end());
     res.payload = v_payload;
 
     return std::make_shared<CommunicationPacket>(res);
