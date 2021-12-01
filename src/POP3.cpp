@@ -91,8 +91,7 @@ void POP3::run() {
       sessions.push_back(new_session);
     }
 
-    // ToDo:
-    //   Check and remove closed sessions
+    // ToDo: Check and remove closed sessions
     /*for (auto it = sessions.begin(); it != sessions.end(); it++) {
       if (it.operator*()->stopped()) {
         sessions.erase(it);
