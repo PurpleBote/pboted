@@ -130,8 +130,8 @@ bool RelayPeersWorker::checkPeersTask() {
       }
 
       size_t offset = 0;
-      uint8_t status;
-      uint16_t dataLen;
+      uint8_t status = 0;
+      uint16_t dataLen = 0;
 
       std::memcpy(&status, response->payload.data(), 1);
       offset += 1;
@@ -149,13 +149,12 @@ bool RelayPeersWorker::checkPeersTask() {
         continue;
       }
 
-      uint8_t data[dataLen];
-      std::memcpy(&data, response->payload.data() + offset, dataLen);
+      std::vector<uint8_t> data = {response->payload.data() + offset, response->payload.data() + offset + dataLen};
 
       // ToDo: looks like it can be too slow, need to think how it can be optimized
       LogPrint(eLogDebug, "RelayPeers: type: ", response->type, ", ver: ", unsigned(response->ver));
       if (unsigned(data[1]) == 5 && (data[0] == (uint8_t) 'L' || data[0] == (uint8_t) 'P')) {
-        if (receivePeerListV5(data, dataLen)) {
+        if (receivePeerListV5(data.data(), dataLen)) {
           /// Increment peer metric back, if we have response
           for (const auto &m_peer: m_peers_) {
             if (m_peer.second->ToBase64() == response->from) {
@@ -165,7 +164,7 @@ bool RelayPeersWorker::checkPeersTask() {
           }
         }
       } else if (unsigned(data[1]) == 4 && (data[0] == (uint8_t) 'L' || data[0] == (uint8_t) 'P')) {
-        if (receivePeerListV4(data, dataLen)) {
+        if (receivePeerListV4(data.data(), dataLen)) {
           /// Increment peer metric back, if we have response
           for (const auto &m_peer: m_peers_) {
             if (m_peer.second->ToBase64() == response->from) {

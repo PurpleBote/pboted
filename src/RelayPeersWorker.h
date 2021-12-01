@@ -16,15 +16,15 @@ namespace pbote {
 namespace relay {
 
 /// maximum number of peers to keep track of
-const int MAX_PEERS = 50;
+#define MAX_PEERS 50
 /// maximum number of peers to send in a peer list (the bigger a datagram, the less chance of it getting through)
-const int MAX_PEERS_TO_SEND = 20;
+#define MAX_PEERS_TO_SEND 20
 /// percentage of requests sent to a peer / responses received back
-const int MIN_REACHABILITY = 0; //ToDo: change to 80
+#define MIN_REACHABILITY  80
 /// time in minutes between updating peers if no high-reachability peers are known
-const int UPDATE_INTERVAL_SHORT = 2 * 60;
+#define UPDATE_INTERVAL_SHORT (2 * 60)
 /// time in minutes between updating peers if at least one high-reachability peer is known
-const int UPDATE_INTERVAL_LONG = 60 * 60;
+#define UPDATE_INTERVAL_LONG (60 * 60)
 
 class RelayPeer : public i2p::data::IdentityEx {
  public:
