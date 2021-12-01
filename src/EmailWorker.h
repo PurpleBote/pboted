@@ -39,10 +39,10 @@ public:
 
   std::vector<uint8_t>
   decryptData(const std::shared_ptr<pbote::EmailIdentityFull> &identity,
-              uint8_t *enc, size_t elen);
+              std::vector<uint8_t> data);
   std::vector<uint8_t>
   encryptData(const std::shared_ptr<pbote::EmailIdentityFull> &identity,
-              uint8_t *data, size_t dlen,
+              std::vector<uint8_t> data,
               const pbote::EmailIdentityPublic &recipient);
 
 private:
