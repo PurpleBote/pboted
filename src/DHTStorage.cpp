@@ -206,8 +206,17 @@ int DHTStorage::safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& da
   std::string packetPath = pbote::fs::DataDirPath("DHTindex", key.ToBase64() + ".dat");
 
   if (pbote::fs::Exists(packetPath)) {
-    LogPrint(eLogDebug, "DHTStorage: safeIndex: packet already exist: ", packetPath);
-    return STORE_FILE_EXIST;
+    int status = update_index(key, data);
+    if (status == STORE_FILE_EXIST) {
+      LogPrint(eLogDebug, "DHTStorage: safeIndex: packet already exist: ", packetPath);
+      return STORE_FILE_EXIST;
+    }
+    if (status == STORE_FILE_OPEN_ERROR) {
+      LogPrint(eLogWarning, "DHTStorage: safeIndex: packet can't open file ", packetPath);
+      return STORE_FILE_OPEN_ERROR;
+    }
+    LogPrint(eLogDebug, "DHTStorage: safeIndex: saved: ", packetPath);
+    return STORE_SUCCESS;
   }
 
   LogPrint(eLogDebug, "DHTStorage: safeIndex: save packet to ", packetPath);
@@ -275,6 +284,37 @@ int DHTStorage::safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& 
   update_storage_usage();
 
   return STORE_SUCCESS;
+}
+
+int DHTStorage::update_index(i2p::data::Tag<32> key, const std::vector<uint8_t>& data) {
+  IndexPacket new_packet, old_packet;
+  new_packet.fromBuffer(data, true);
+
+  auto old_data = getIndex(key);
+  if (old_data.empty()) {
+    LogPrint(eLogError, "DHTStorage: update_index: can't open old index ", key.ToBase64());
+    return -1;
+  }
+
+  old_packet.fromBuffer(old_data, true);
+  size_t duplicated = 0, added = 0;
+
+  for (auto entry : new_packet.data) {
+    if (std::find(old_packet.data.begin(), old_packet.data.end(), entry) != old_packet.data.end()) {
+      duplicated++;
+    } else {
+      old_packet.data.push_back(entry);
+      added++;
+    }
+  }
+
+  LogPrint(eLogDebug, "DHTStorage: update_index: new entries: ", new_packet.data.size(),
+           ", duplicated :", duplicated, ", added: ", added);
+
+  if (duplicated == new_packet.data.size())
+    return -2;
+
+  return 0;
 }
 
 void DHTStorage::loadLocalIndexPackets() {

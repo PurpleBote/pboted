@@ -321,6 +321,12 @@ struct IndexPacket : public DataPacket{
     uint8_t key[32];
     uint8_t dv[32];
     int32_t time;
+
+    bool operator==(const Entry& rhs) {
+      return memcmp(this->key, rhs.key, 32) != 0 &&
+             memcmp(this->dv, rhs.dv, 32) != 0 &&
+             (this->time == rhs.time);
+    }
   };
 
   uint8_t hash[32]{};

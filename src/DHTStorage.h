@@ -14,6 +14,7 @@ namespace kademlia {
 #define STORE_SUCCESS 0
 #define STORE_FILE_EXIST (-1)
 #define STORE_FILE_OPEN_ERROR (-2)
+#define STORE_FILE_NOT_STORED (-3)
 
 const int32_t store_duration = 8640000; /// 100 * 24 * 3600 (100 days)
 
@@ -57,6 +58,8 @@ class DHTStorage {
   int safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
   int safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
   int safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+
+  int update_index(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
 
   void loadLocalIndexPackets();
   void loadLocalEmailPackets();
