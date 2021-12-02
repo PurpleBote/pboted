@@ -11,7 +11,7 @@ namespace network {
 
 NetworkWorker network_worker;
 
-std::string SAM_NICKNAME = "pBote";
+std::string SAM_NICKNAME = "pboted";
 
 /**
  * Receive handle class
@@ -266,6 +266,7 @@ void NetworkWorker::start() {
     bool success = false;
     std::shared_ptr<i2p::data::PrivateKeys> key;
     while (!success) {
+      std::this_thread::sleep_for(std::chrono::seconds(30));
       key = createSAMSession();
       if (key) {
         if (key->ToBase64().empty()) {

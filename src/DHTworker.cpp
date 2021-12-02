@@ -319,7 +319,7 @@ std::vector<std::string> DHTworker::store(i2p::data::Tag<32> hash, uint8_t type,
     ResponsePacket response_packet = {};
     if (response_packet.fromBuffer(response->payload.data(),
                                    response->payload.size(), true)) {
-      if (response_packet.status == StatusCode::OK)
+      if (response_packet.status == StatusCode::OK || response_packet.status == StatusCode::DUPLICATED_DATA)
         res.push_back(response->from);
     }
   }
@@ -523,8 +523,8 @@ std::vector<Node> DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key) {
     }
 
     size_t offset = 0;
-    uint8_t status;
-    uint16_t dataLen;
+    uint8_t status = 0;
+    uint16_t dataLen = 0;
 
     std::memcpy(&status, response->payload.data(), 1);
     offset += 1;
@@ -542,16 +542,16 @@ std::vector<Node> DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key) {
       continue;
     }
 
-    uint8_t data[dataLen];
-    std::memcpy(&data, response->payload.data() + offset, dataLen);
+    std::vector<uint8_t> data = {response->payload.data() + offset,
+                                 response->payload.data() + offset + dataLen};
 
     LogPrint(eLogDebug, "DHT: closestNodesLookupTask: type: ", response->type, ", ver: ", unsigned(response->ver));
     std::vector<Node> peers_list;
     if (unsigned(data[1]) == 4 && (data[0] == (uint8_t) 'L' || data[0] == (uint8_t) 'P')) {
-      peers_list = receivePeerListV4(data, dataLen);
+      peers_list = receivePeerListV4(data.data(), dataLen);
     }
     if (unsigned(data[1]) == 5 && (data[0] == (uint8_t) 'L' || data[0] == (uint8_t) 'P')) {
-      peers_list = receivePeerListV5(data, dataLen);
+      peers_list = receivePeerListV5(data.data(), dataLen);
     }
 
     if (!peers_list.empty()) {
@@ -687,7 +687,7 @@ std::vector<Node> DHTworker::receivePeerListV5(const uint8_t *buf, size_t len) {
 }
 
 void DHTworker::receiveRetrieveRequest(const std::shared_ptr<pbote::CommunicationPacket> &packet) {
-  LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: request from: ", packet->from);
+  LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: request from: ", packet->from.substr(0, 15));
 
   if (addNode(packet->from)) {
     LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: add requester to nodes list");
@@ -742,7 +742,7 @@ void DHTworker::receiveRetrieveRequest(const std::shared_ptr<pbote::Communicatio
 }
 
 void DHTworker::receiveDeletionQuery(const std::shared_ptr<pbote::CommunicationPacket> &packet) {
-  LogPrint(eLogDebug, "DHT: receiveDeletionQuery: request from: ", packet->from);
+  LogPrint(eLogDebug, "DHT: receiveDeletionQuery: request from: ", packet->from.substr(0, 15));
 
   if (addNode(packet->from)) {
     LogPrint(eLogDebug, "DHT: receiveDeletionQuery: add requester to nodes list");
@@ -784,7 +784,7 @@ void DHTworker::receiveDeletionQuery(const std::shared_ptr<pbote::CommunicationP
 }
 
 void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPacket> &packet) {
-  LogPrint(eLogDebug, "DHT: receiveStoreRequest: request from: ", packet->from);
+  LogPrint(eLogDebug, "DHT: receiveStoreRequest: request from: ", packet->from.substr(0, 15));
 
   if (addNode(packet->from)) {
     LogPrint(eLogDebug, "DHT: receiveStoreRequest: add requester to nodes list");
@@ -800,8 +800,8 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
   offset += 2;
   LogPrint(eLogDebug, "DHT: receiveStoreRequest: hc_length: ", new_packet.hc_length);
 
-  uint8_t hashCash[new_packet.hc_length];
-  std::memcpy(&hashCash, packet->payload.data() + offset, new_packet.hc_length);
+  std::vector<uint8_t> hashCash = {packet->payload.data() + offset,
+                                   packet->payload.data() + offset + new_packet.hc_length};
   offset += new_packet.hc_length;
 
   std::memcpy(&new_packet.length, packet->payload.data() + offset, 2);
@@ -838,13 +838,21 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
     //response.status = pbote::StatusCode::INVALID_HASHCASH;
     //response.length = 0;
 
-    if (prev_status && dht_storage_.safe(new_packet.data)) {
+    int save_status = 0;
+
+    if (prev_status)
+      save_status = dht_storage_.safe(new_packet.data);
+
+    if (prev_status && save_status == STORE_SUCCESS) {
       LogPrint(eLogDebug, "DHT: receiveStoreRequest: packet saved");
       response.status = pbote::StatusCode::OK;
       response.length = 0;
     } else if (prev_status) {
       LogPrint(eLogWarning, "DHT: receiveStoreRequest: got error while try to save packet");
-      response.status = pbote::StatusCode::GENERAL_ERROR;
+      if (save_status == STORE_FILE_EXIST)
+        response.status = pbote::StatusCode::DUPLICATED_DATA;
+      else
+        response.status = pbote::StatusCode::GENERAL_ERROR;
       response.length = 0;
     }
   } else {
@@ -859,7 +867,7 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
 }
 
 void DHTworker::receiveEmailPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket> &packet) {
-  LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: request from: ", packet->from);
+  LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: request from: ", packet->from.substr(0, 15));
 
   if (addNode(packet->from)) {
     LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: add requester to nodes list");
@@ -927,7 +935,7 @@ void DHTworker::receiveEmailPacketDeleteRequest(const std::shared_ptr<pbote::Com
 }
 
 void DHTworker::receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket> &packet) {
-  LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: request from: ", packet->from);
+  LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: request from: ", packet->from.substr(0, 15));
 
   if (addNode(packet->from)) {
     LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: add requester to nodes list");
@@ -984,33 +992,34 @@ void DHTworker::receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::Com
         }
 
         // Check result of compare
-        if (equals) {
-          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: delete auth hashes match");
-        } else {
+        if (!equals) {
           LogPrint(eLogWarning, "DHT: receiveIndexPacketDeleteRequest: delete auth hashes mismatch");
           response.status = pbote::StatusCode::INVALID_PACKET;
         }
       }
       if (equals) {
+        LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: delete auth hashes match");
         // Delete "old" and write "new" packet, if not empty
         bool deleted = dht_storage_.deleteIndex(t_key);
-        bool saved = false;
-
+        int saved = STORE_FILE_NOT_STORED;
         if (!index_packet.data.empty())
           saved = dht_storage_.safe(index_packet.toByte());
 
-        if (deleted && saved) {
-          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: packet replaced");
+        if (deleted && saved == STORE_SUCCESS) {
+          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: Packet replaced");
           response.status = pbote::StatusCode::OK;
-        } else if (saved) {
-          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: new packet saved");
+        } else if (!deleted && saved == STORE_SUCCESS) {
+          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: New packet saved");
           response.status = pbote::StatusCode::OK;
-        } else if (index_packet.data.empty() && deleted) {
-          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: delete empty packet");
+        } else if (deleted && index_packet.data.empty()) {
+          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: Delete empty packet");
           response.status = pbote::StatusCode::OK;
         } else {
           LogPrint(eLogError, "DHT: receiveIndexPacketDeleteRequest: Can't save new packet");
-          response.status = pbote::StatusCode::GENERAL_ERROR;
+          if (saved == STORE_FILE_EXIST)
+            response.status = pbote::StatusCode::DUPLICATED_DATA;
+          else
+            response.status = pbote::StatusCode::GENERAL_ERROR;
         }
       }
     } else {
@@ -1024,7 +1033,7 @@ void DHTworker::receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::Com
 }
 
 void DHTworker::receiveFindClosePeers(const std::shared_ptr<pbote::CommunicationPacket> &packet) {
-  LogPrint(eLogDebug, "DHT: receiveFindClosePeers: request from: ", packet->from);
+  LogPrint(eLogDebug, "DHT: receiveFindClosePeers: request from: ", packet->from.substr(0, 15));
 
   if (addNode(packet->from)) {
     LogPrint(eLogDebug, "DHT: receiveFindClosePeers: add requester to nodes list");
@@ -1035,10 +1044,6 @@ void DHTworker::receiveFindClosePeers(const std::shared_ptr<pbote::Communication
   i2p::data::Tag<32> t_key(key);
 
   LogPrint(eLogDebug, "DHT: receiveFindClosePeers: got request for key: ", t_key.ToBase64());
-
-
-  // ToDo: just for tests
-  //auto closest_nodes = getAllNodes();
 
   auto closest_nodes = getClosestNodes(t_key, KADEMLIA_CONSTANT_K, false);
   for (const auto& test : closest_nodes) {

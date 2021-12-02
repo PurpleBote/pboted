@@ -27,12 +27,12 @@
 
 namespace pbote {
 
+/// because prefix[4] + type[1] + ver[1] +  cid[32] = 38
+#define COMM_DATA_LEN 38
+
 const std::array<std::uint8_t, 12> PACKET_TYPE{0x52, 0x4b, 0x46, 0x4e, 0x41, 0x51, 0x4c, 0x53, 0x44, 0x58, 0x43};
 const std::array<std::uint8_t, 4> COMM_PREFIX{0x6D, 0x30, 0x52, 0xE9};
 const std::array<std::uint8_t, 5> BOTE_VERSION{0x1, 0x2, 0x3, 0x4, 0x5};
-
-/// because prefix[4] + type[1] + ver[1] +  cid[32] = 38
-const size_t COMM_DATA_LEN = 38;
 
 enum StatusCode {
   OK,
@@ -41,7 +41,8 @@ enum StatusCode {
   INVALID_PACKET,
   INVALID_HASHCASH,
   INSUFFICIENT_HASHCASH,
-  NO_DISK_SPACE
+  NO_DISK_SPACE,
+  DUPLICATED_DATA
 };
 
 enum version {
@@ -76,21 +77,26 @@ enum type : uint8_t {
 };
 
 inline std::string statusToString(uint8_t status_code) {
-    if (status_code == StatusCode::OK)
-        return {"OK"};
-    if (status_code == StatusCode::GENERAL_ERROR)
-        return {"GENERAL ERROR"};
-    if (status_code == StatusCode::NO_DATA_FOUND)
-        return {"NO DATA FOUND"};
-    if (status_code == StatusCode::INVALID_PACKET)
-        return {"INVALID PACKET"};
-    if (status_code == StatusCode::INVALID_HASHCASH)
-        return {"INVALID HASHCASH"};
-    if (status_code == StatusCode::INSUFFICIENT_HASHCASH)
-        return {"INSUFFICIENT HASHCASH"};
-    if (status_code == StatusCode::NO_DISK_SPACE)
-        return {"NO DISK SPACE"};
-    return {"UNKNOWN STATUS"};
+  switch (status_code) {
+    case StatusCode::OK:
+      return {"OK"};
+    case StatusCode::GENERAL_ERROR:
+      return {"GENERAL ERROR"};
+    case StatusCode::NO_DATA_FOUND:
+      return {"NO DATA FOUND"};
+    case StatusCode::INVALID_PACKET:
+      return {"INVALID PACKET"};
+    case StatusCode::INVALID_HASHCASH:
+      return {"INVALID HASHCASH"};
+    case StatusCode::INSUFFICIENT_HASHCASH:
+      return {"INSUFFICIENT HASHCASH"};
+    case StatusCode::NO_DISK_SPACE:
+      return {"NO DISK SPACE"};
+    case StatusCode::DUPLICATED_DATA:
+      return {"DUPLICATED DATA"};
+    default:
+      return {"UNKNOWN STATUS"};
+  }
 }
 
 struct PacketForQueue {
@@ -315,6 +321,12 @@ struct IndexPacket : public DataPacket{
     uint8_t key[32];
     uint8_t dv[32];
     int32_t time;
+
+    bool operator==(const Entry& rhs) {
+      return memcmp(this->key, rhs.key, 32) != 0 &&
+             memcmp(this->dv, rhs.dv, 32) != 0 &&
+             (this->time == rhs.time);
+    }
   };
 
   uint8_t hash[32]{};
@@ -537,10 +549,11 @@ struct CleanCommunicationPacket {
   uint8_t cid[32]{};
 };
 
-struct RelayRequestPacket : public CleanCommunicationPacket{
+/// not implemented
+/*struct RelayRequestPacket : public CleanCommunicationPacket{
  public:
   RelayRequestPacket() : CleanCommunicationPacket(CommR) {}
-};
+};*/
 
 /// not implemented
 /*struct RelayReturnRequestPacket : public CleanCommunicationPacket{
@@ -821,7 +834,7 @@ inline std::shared_ptr<CommunicationPacket> parseCommPacket(const std::shared_pt
     }
 
     /// 38 cause prefix[4] + type[1] + ver[1] +  cid[32]
-    long clean_payload_size = packet->payload.size() - 38;
+    long clean_payload_size = (long)packet->payload.size() - 38;
     if (clean_payload_size < 0) {
       LogPrint(eLogWarning, "Packet: payload too short");
       return nullptr;
@@ -832,7 +845,7 @@ inline std::shared_ptr<CommunicationPacket> parseCommPacket(const std::shared_pt
     memcpy(res.cid, data.cid, 32);
 
     res.from = std::move(packet->destination);
-    std::vector<uint8_t> v_payload(packet->payload.begin() + packet->payload.size() - clean_payload_size, packet->payload.end());
+    std::vector<uint8_t> v_payload(packet->payload.begin() + (long)packet->payload.size() - clean_payload_size, packet->payload.end());
     res.payload = v_payload;
 
     return std::make_shared<CommunicationPacket>(res);

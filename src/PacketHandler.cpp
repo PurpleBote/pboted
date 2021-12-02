@@ -2,7 +2,6 @@
  * Copyright (c) 2019-2021 polistern
  */
 
-#include <utility>
 #include <random>
 
 #include "DHTworker.h"
@@ -15,7 +14,7 @@ namespace packet {
 RequestHandler packet_handler;
 
 IncomingRequest::IncomingRequest(RequestHandler &parent)
-    : m_Parent(parent) {
+    : m_Parent(parent), incomingPacketHandlers_{nullptr} {
   // ToDo: re-make with std::function
   incomingPacketHandlers_[type::CommR] = &IncomingRequest::receiveRelayRequest;
   incomingPacketHandlers_[type::CommK] = &IncomingRequest::receiveRelayReturnRequest;
@@ -35,26 +34,24 @@ IncomingRequest::~IncomingRequest() {}
 
 bool IncomingRequest::handleNewPacket(const std::shared_ptr<PacketForQueue>& queuePacket) {
   std::shared_ptr<pbote::CommunicationPacket> packet = pbote::parseCommPacket(queuePacket);
-  if (packet != nullptr) {
-    /// First we need to check CID in batches
-    // ToDo: check if we got Response packet?
-    if (context.receive(packet)) {
-      LogPrint(eLogDebug, "Packet: pass to batch packet with type ", packet->type);
-      return true;
-    }
-
-    LogPrint(eLogDebug, "Packet: got non-batch packet with type ", packet->type);
-
-    auto it = incomingPacketHandlers_.find(packet->type);
-    if (it != incomingPacketHandlers_.end())
-      return (this->*(it->second))(packet);
-    else {
-      LogPrint(eLogWarning, "Packet: got unknown packet type");
-      return false;
-    }
-
-  } else {
+  if (!packet) {
     LogPrint(eLogWarning, "Packet: can't parse packet");
+    return false;
+  }
+
+  /// First we need to check CID in batches
+  // ToDo: check if we got Response Packet?
+  if (context.receive(packet)) {
+    LogPrint(eLogDebug, "Packet: pass to batch packet with type ", packet->type);
+    return true;
+  }
+
+  LogPrint(eLogDebug, "Packet: got non-batch packet with type ", packet->type);
+
+  if (incomingPacketHandlers_[packet->type])
+    return (this->*(incomingPacketHandlers_[packet->type]))(packet);
+  else {
+    LogPrint(eLogWarning, "Packet: got unknown packet type");
     return false;
   }
 }
@@ -94,18 +91,17 @@ bool IncomingRequest::receiveResponsePkt(const std::shared_ptr<pbote::Communicat
   if ((packet->payload.size() - offset) != dataLen)
     LogPrint(eLogWarning, "Packet: receiveResponsePkt: size mismatch: size=", (packet->payload.size() - offset), ", dataLen=", dataLen);
 
-  uint8_t data[dataLen];
-  std::memcpy(&data, packet->payload.data() + offset, dataLen);
+  std::vector<byte> data = {packet->payload.data() + offset, packet->payload.data() + offset + dataLen};
 
   /// Peer List
   /// L for mhatta, P for str4d
   if (data[0] == (uint8_t)'L' || data[0] == (uint8_t)'P') {
     if (packet->ver == (uint8_t) 4) {
       LogPrint(eLogWarning,"Packet: receiveResponsePkt: Peer List, type: ", data[0], ", ver: ", unsigned(data[1]));
-      return pbote::relay::relay_peers_worker.receivePeerListV4(data, dataLen);
+      return pbote::relay::relay_peers_worker.receivePeerListV4(data.data(), dataLen);
     } else if (packet->ver == (uint8_t) 5) {
       LogPrint(eLogWarning,"Packet: receiveResponsePkt: Peer List, type: ", data[0], ", ver: ", unsigned(data[1]));
-      return pbote::relay::relay_peers_worker.receivePeerListV5(data, dataLen);
+      return pbote::relay::relay_peers_worker.receivePeerListV5(data.data(), dataLen);
     } else {
       LogPrint(eLogWarning,"Packet: receiveResponsePkt: Unsupported type: ", data[0], ", ver: ", unsigned(data[1]));
     }
@@ -113,19 +109,19 @@ bool IncomingRequest::receiveResponsePkt(const std::shared_ptr<pbote::Communicat
 
   /// Index Packet
   if (data[0] == (uint8_t)'I') {
-    LogPrint(eLogWarning, "Packet: receiveResponsePkt: Index Packet");
+    LogPrint(eLogWarning, "Packet: receiveResponsePkt: Unexpected Index Packet received");
     return true;
   }
 
   /// Email Packet
   if (data[0] == (uint8_t)'E') {
-    LogPrint(eLogWarning, "Packet: receiveResponsePkt: Email Packet");
+    LogPrint(eLogWarning, "Packet: receiveResponsePkt: Unexpected Email Packet received");
     return true;
   }
 
   /// Directory Entry Packet
   if (data[0] == (uint8_t)'C') {
-    LogPrint(eLogWarning, "Packet: receiveResponsePkt: Directory Entry Packet");
+    LogPrint(eLogWarning, "Packet: receiveResponsePkt: Unexpected Directory Entry Packet received");
     return true;
   }
 

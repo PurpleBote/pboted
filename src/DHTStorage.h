@@ -11,6 +11,11 @@
 namespace pbote {
 namespace kademlia {
 
+#define STORE_SUCCESS 0
+#define STORE_FILE_EXIST (-1)
+#define STORE_FILE_OPEN_ERROR (-2)
+#define STORE_FILE_NOT_STORED (-3)
+
 const int32_t store_duration = 8640000; /// 100 * 24 * 3600 (100 days)
 
 template<class T>
@@ -30,7 +35,7 @@ class DHTStorage {
   //~DHTStorage();
 
   void update();
-  bool safe(const std::vector<uint8_t>& data);
+  int safe(const std::vector<uint8_t>& data);
   bool deleteIndex(i2p::data::Tag<32> key);
   bool deleteEmail(i2p::data::Tag<32> key);
 
@@ -50,9 +55,11 @@ class DHTStorage {
   static bool find(const std::vector<std::string>& list, i2p::data::Tag<32> key);
 
 
-  bool safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
-  bool safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
-  bool safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+  int safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+  int safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+  int safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+
+  int update_index(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
 
   void loadLocalIndexPackets();
   void loadLocalEmailPackets();

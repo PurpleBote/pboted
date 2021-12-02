@@ -5,7 +5,6 @@
 #ifndef BOTE_SRC_POP3_H_
 #define BOTE_SRC_POP3_H_
 
-#include <cstdarg>
 #include <netinet/in.h>
 #include <poll.h>
 #include <string>
@@ -168,15 +167,14 @@ private:
   std::vector<std::shared_ptr<pbote::Email>> emails;
 };
 
-inline std::string format_response(const char *format, ...) {
-  std::va_list args;
-  va_start(args, format);
+template<typename... t_args>
+std::string format_response(const char *msg) {
+  return {msg};
+}
 
-  std::va_list argsCopy;
-  va_copy(argsCopy, args);
-  const char * const formatCopy = format;
-  const int bufferStatus = std::vsnprintf(nullptr, 0, formatCopy, argsCopy);
-  va_end(argsCopy);
+template<typename... t_args>
+std::string format_response(const char *format, t_args &&... args) {
+  const int bufferStatus = std::snprintf(nullptr, 0, format, args...);
 
   if (bufferStatus < 0) {
     LogPrint(eLogError, "POP3: format_response: Failed to allocate buffer");
@@ -184,8 +182,7 @@ inline std::string format_response(const char *format, ...) {
   }
 
   std::vector<char> buffer(bufferStatus + 1);
-  const int status = std::vsnprintf(buffer.data(), buffer.size(), formatCopy, args);
-  va_end(args);
+  const int status = std::snprintf(buffer.data(), buffer.size(), format, args...);
 
   if (status < 0) {
     LogPrint(eLogError, "POP3: format_response: Failed to format message");

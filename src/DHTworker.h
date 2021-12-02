@@ -16,15 +16,37 @@
 #include "ConfigParser.h"
 #include "DHTStorage.h"
 #include "FileSystem.h"
-#include "../lib/i2pd/libi2pd/Identity.h"
 #include "Logging.h"
 #include "NetworkWorker.h"
 #include "PacketHandler.h"
 
+#include "Identity.h"
+
 namespace pbote {
 namespace kademlia {
 
-const size_t BIT_SIZE = 256;
+#define BIT_SIZE  256
+/// Number of redundant storage nodes
+#define KADEMLIA_CONSTANT_K 20
+/// The size of the sibling list for S/Kademlia
+#define KADEMLIA_CONSTANT_S 100
+/// const int KADEMLIA_CONSTANT_B = = 5;   // This is the value from the original Kademlia paper.
+#define KADEMLIA_CONSTANT_B 1
+/// According to the literature, 3 is the optimum choice,
+/// but until the network becomes significantly larger than S, we'll use a higher value for speed.
+#define KADEMLIA_CONSTANT_ALPHA 10
+/// The amount of time after which a bucket is refreshed if a lookup hasn't been done in its ID range
+#define BUCKET_REFRESH_INTERVAL 3600
+/// Time interval for Kademlia replication (plus or minus <code>REPLICATE_VARIANCE</code>)
+#define REPLICATE_INTERVAL 3600
+/// the maximum amount of time the replication interval can deviate from REPLICATE_INTERVAL
+#define REPLICATE_VARIANCE (5 * 60)
+/// Max. number of seconds to wait for replies to retrieve requests
+#define RESPONSE_TIMEOUT 60
+/// the maximum amount of time a FIND_CLOSEST_NODES can take
+#define CLOSEST_NODES_LOOKUP_TIMEOUT (5 * 60)
+/// the minimum nodes for find request
+#define MIN_CLOSEST_NODES 1
 
 /**
  * Terms:
@@ -80,28 +102,6 @@ struct Node : i2p::data::IdentityEx {
     return time_now < locked_until;
   }
 };
-
-/// Number of redundant storage nodes
-const int KADEMLIA_CONSTANT_K = 20;
-/// The size of the sibling list for S/Kademlia
-const int KADEMLIA_CONSTANT_S = 100;
-/// const int KADEMLIA_CONSTANT_B = = 5;   // This is the value from the original Kademlia paper.
-const int KADEMLIA_CONSTANT_B = 1;
-/// According to the literature, 3 is the optimum choice,
-/// but until the network becomes significantly larger than S, we'll use a higher value for speed.
-const int KADEMLIA_CONSTANT_ALPHA = 10;
-/// The amount of time after which a bucket is refreshed if a lookup hasn't been done in its ID range
-const int BUCKET_REFRESH_INTERVAL = 3600;
-/// Time interval for Kademlia replication (plus or minus <code>REPLICATE_VARIANCE</code>)
-const int REPLICATE_INTERVAL = 3600;
-/// the maximum amount of time the replication interval can deviate from REPLICATE_INTERVAL
-const long REPLICATE_VARIANCE = 5 * 60;
-/// Max. number of seconds to wait for replies to retrieve requests
-const int RESPONSE_TIMEOUT = 30; // ToDO: return to 60 sec
-/// the maximum amount of time a FIND_CLOSEST_NODES can take
-const unsigned int CLOSEST_NODES_LOOKUP_TIMEOUT = 2 * 60; // ToDO: return to 5*60 sec
-/// the minimum nodes for find request
-const unsigned int MIN_CLOSEST_NODES = 1;
 
 class DHTworker {
  public:

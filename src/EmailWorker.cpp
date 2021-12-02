@@ -140,14 +140,17 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::check_inbox() {
 }
 
 std::vector<uint8_t> EmailWorker::decryptData(const std::shared_ptr<pbote::EmailIdentityFull>& identity,
-                                              uint8_t *enc, size_t elen) {
-    std::vector<uint8_t> data = identity->identity.Decrypt(enc, elen);
+                                              std::vector<uint8_t> edata) {
+    std::vector<uint8_t> data = identity->identity.Decrypt(edata.data(), edata.size());
     return data;
 }
 
 std::vector<uint8_t> EmailWorker::encryptData(const std::shared_ptr<pbote::EmailIdentityFull>& identity,
-                                              uint8_t *data, size_t dlen, const pbote::EmailIdentityPublic &recipient) {
-    std::vector<uint8_t> enc_data = identity->identity.Encrypt(data, dlen, recipient.GetEncryptionPublicKey());
+                                              std::vector<uint8_t> data,
+                                              const pbote::EmailIdentityPublic &recipient) {
+    std::vector<uint8_t> enc_data = identity->identity.Encrypt(data.data(),
+                                                               data.size(),
+                                                               recipient.GetEncryptionPublicKey());
     return enc_data;
 }
 
@@ -319,7 +322,7 @@ void EmailWorker::sendEmailTask() {
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Encrypt data");
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: packet.data.size: ", packet.data.size());
         auto packet_bytes = packet.toByte();
-        enc_packet.edata = encryptData(identity, packet_bytes.data(), packet_bytes.size(), recipient_identity);
+        enc_packet.edata = encryptData(identity, packet_bytes, recipient_identity);
         enc_packet.length = enc_packet.edata.size();
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: enc_packet.edata.size(): ", enc_packet.edata.size());
         // ToDo: for now only supported ECDH-256 / ECDSA-256
@@ -328,26 +331,18 @@ void EmailWorker::sendEmailTask() {
 
         // Get hash of data + length for DHT key
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Get hash of data + length for DHT key");
-        uint8_t data_for_hash[2 + enc_packet.edata.size()];
-        uint8_t v_length[2] = {static_cast<uint8_t>(enc_packet.length >> 8),
-                               static_cast<uint8_t>(enc_packet.length & 0xff)};
-        memcpy(data_for_hash, &v_length, 2);
-        memcpy(data_for_hash + 2, enc_packet.edata.data(), enc_packet.edata.size());
-        SHA256(data_for_hash, 2 + enc_packet.edata.size(), enc_packet.key);
+        const size_t data_for_hash_len = 2 + enc_packet.edata.size();
+
+        std::vector<uint8_t> data_for_hash = {static_cast<uint8_t>(enc_packet.length >> 8),
+                                              static_cast<uint8_t>(enc_packet.length & 0xff)};
+        data_for_hash.insert(data_for_hash.end(), enc_packet.edata.begin(), enc_packet.edata.end());
+
+        SHA256(data_for_hash.data(), data_for_hash_len, enc_packet.key);
+
         i2p::data::Tag<32> dht_key(enc_packet.key);
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: dht_key : ", dht_key.ToBase64());
         email->setField("X-I2PBote-DHT-Key", dht_key.ToBase64());
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: enc_packet.length : ", enc_packet.length);
-
-        // hton for hash because recipient will check hash before ntoh
-        uint32_t test_time;
-        uint8_t v_time[4] =
-            {static_cast<uint8_t>(enc_packet.stored_time >> 24), static_cast<uint8_t>(enc_packet.stored_time >> 16),
-             static_cast<uint8_t>(enc_packet.stored_time >> 8), static_cast<uint8_t>(enc_packet.stored_time & 0xffff)};
-        std::memcpy(&test_time, v_time, 4);
-
-        uint16_t test_len;
-        memcpy(&test_len, &v_length, 2);
 
         email->setEncrypted(enc_packet);
       }
@@ -606,15 +601,15 @@ std::vector<pbote::EmailEncryptedPacket> EmailWorker::retrieveEmailPacket(const 
     }
     LogPrint(eLogDebug, "EmailWorker: retrieveEmailPacket: got email packet, payload size: ", dataLen);
 
-    uint8_t data[dataLen];
-    std::memcpy(&data, response->payload.data() + offset, dataLen);
+    std::vector<uint8_t> data = {response->payload.data() + offset,
+                                 response->payload.data() + offset + dataLen};
 
     std::vector<uint8_t> v_data(response->payload.begin() + offset, response->payload.begin() + offset + dataLen);
     if (DHT_worker.safe(v_data))
       LogPrint(eLogDebug, "EmailWorker: retrieveEmailPacket: save encrypted email packet locally");
 
     pbote::EmailEncryptedPacket parsed_packet;
-    bool parsed = parsed_packet.fromBuffer(data, dataLen, true);
+    bool parsed = parsed_packet.fromBuffer(data.data(), dataLen, true);
 
     if (parsed && !parsed_packet.edata.empty()) {
       i2p::data::Tag<32> hash(parsed_packet.key);
@@ -818,7 +813,7 @@ std::vector<pbote::Email> EmailWorker::processEmail(const std::shared_ptr<pbote:
   for (auto enc_mail: mail_packets) {
     std::vector<uint8_t> unencrypted_email_data;
     if (!enc_mail.edata.empty())
-      unencrypted_email_data = decryptData(identity, enc_mail.edata.data(), enc_mail.edata.size());
+      unencrypted_email_data = decryptData(identity, enc_mail.edata);
 
     if (!unencrypted_email_data.empty()) {
       pbote::Email temp_mail(unencrypted_email_data, true);

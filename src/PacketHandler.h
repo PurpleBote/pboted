@@ -56,7 +56,7 @@ class IncomingRequest {
 
  private:
   RequestHandler &m_Parent;
-  std::map<uint8_t, incomingPacketHandler> incomingPacketHandlers_;
+  incomingPacketHandler incomingPacketHandlers_[256];
 };
 
 class RequestHandler {
