@@ -98,7 +98,7 @@ bool Daemon_Singleton::init(int argc, char *argv[],
     // use stdout -- default
   }
 
-  LogPrint(eLogInfo, "pBoteD v", VERSION, " starting");
+  LogPrint(eLogInfo, CODENAME, " v", VERSION, " starting");
   LogPrint(eLogDebug, "FS: data directory: ", datadir);
   LogPrint(eLogDebug, "FS: main config file: ", config);
 
