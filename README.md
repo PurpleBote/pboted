@@ -7,7 +7,7 @@
 pboted (Plus Bote Daemon) - is a standalone C++ implementation of I2P-Bote protocol.
 
 I2P-Bote is a server-less encrypted KademliaDHT-based email protocol.   
-You can find more details in the [documentation](https://pboted.readthedocs.io/en/latest/devs/bote/v5/version5/).
+You can find more details in the [documentation](https://pboted.readthedocs.io/en/latest/bote/v5/version5/).
 
 Interaction with the I2P network occurs through the [SAMv3](https://geti2p.net/ru/docs/api/samv3) interface.    
 Tested with [i2pd](https://github.com/PurpleI2P/i2pd) and [Java I2P](https://github.com/i2p/i2p.i2p).
@@ -39,14 +39,14 @@ Tested with [i2pd](https://github.com/PurpleI2P/i2pd) and [Java I2P](https://git
 You can fetch precompiled packages and binaries on [release](https://github.com/polistern/pboted/releases/latest) page.  
 Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/) for more info.
 
+### Supported systems**
+
+- GNU/Linux
+  - Debian / Ubuntu - [![Build on Ubuntu](https://github.com/polistern/pboted/actions/workflows/build.yml/badge.svg)](https://github.com/polistern/pboted/actions/workflows/build.yml)
+
 ## Building
 
-See [documentation](https://pboted.readthedocs.io/en/latest/devs/building/requirements/) for how to build **pboted** from source.
-
-**Supported systems:**
-
-* GNU/Linux
-  - Debian / Ubuntu - [![Build on Ubuntu](https://github.com/polistern/pboted/actions/workflows/build.yml/badge.svg)](https://github.com/polistern/pboted/actions/workflows/build.yml)
+See [documentation](https://pboted.readthedocs.io/en/latest/building/requirements/) for how to build **pboted** from source.
 
 ## Usage
 
