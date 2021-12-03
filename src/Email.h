@@ -6,10 +6,9 @@
 #define PBOTE_EMAIL_H_
 
 #include <map>
+#include <mimetic/mimetic.h>
 #include <string>
 #include <vector>
-
-#include <mimetic/mimetic.h>
 
 #include "LzmaDec.h"
 #include "LzmaEnc.h"
@@ -20,21 +19,22 @@
 
 namespace pbote {
 
+#define MAX_HEADER_LENGTH 998
+
 const std::string SIGNATURE_HEADER = "X-I2PBote-Signature"; // contains the sender's base64-encoded signature
 const std::string SIGNATURE_VALID_HEADER = "X-I2PBote-Sig-Valid"; // contains the string "true" or "false"
 const std::vector<std::string> HEADER_WHITELIST = {
-    "From", "Sender", "Reply-To", "In-Reply-To", "To", "CC", "BCC", "Date", "Subject", "Content-Type", "Content-Transfer-Encoding",
-    "MIME-Version", "Message-ID", "X-HashCash", "X-Priority", SIGNATURE_HEADER};
-const uint16_t MAX_HEADER_LENGTH = 998;
+    "From", "Sender", "Reply-To", "In-Reply-To", "To", "CC", "BCC", "Date", "Subject", "Content-Type",
+    "Content-Transfer-Encoding", "MIME-Version", "Message-ID", "X-HashCash", "X-Priority", SIGNATURE_HEADER};
 
 class Email {
  public:
   enum CompressionAlgorithm {
     UNCOMPRESSED,
     LZMA,
-    ZIP,
-    GZIP
+    ZLIB
   };
+
   enum Header {
     FROM,
     SENDER,
@@ -91,7 +91,7 @@ class Email {
 
   size_t length() { return mail.size(); }
 
-  void fillPacket();
+  void compose();
 
   pbote::EmailEncryptedPacket getEncrypted() { return encrypted; };
   void setEncrypted(const pbote::EmailEncryptedPacket &data) { encrypted = data; };
@@ -99,12 +99,14 @@ class Email {
   pbote::EmailUnencryptedPacket getDecrypted() { return packet;};
   void setDecrypted(const pbote::EmailUnencryptedPacket &data) { packet = data; };
 
-  void compress(CompressionAlgorithm type);
+  bool compress(CompressionAlgorithm type);
   void decompress(std::vector<uint8_t> data);
 
  private:
-  static void lzmaCompress(std::vector<unsigned char> &outBuf, const std::vector<unsigned char> &inBuf);
-  static void lzmaDecompress(std::vector<unsigned char> &outBuf, const std::vector<unsigned char> &inBuf);
+  static void lzmaDecompress(std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf);
+
+  static void zlibCompress(std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf);
+  static void zlibDecompress(std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf);
 
   bool incomplete_;
   bool empty_;

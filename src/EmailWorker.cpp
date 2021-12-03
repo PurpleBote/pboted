@@ -125,7 +125,7 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::check_inbox() {
 
       // ToDo: check signature and set header field
 
-      mailPacket.fillPacket();
+      mailPacket.compose();
       mailPacket.filename(mail_path);
 
       if (!mailPacket.empty()) {
@@ -491,7 +491,7 @@ std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr
       continue;
     }
 
-    LogPrint(eLogDebug, "EmailWorker: retrieveIndex: got response from: ", response->from);
+    LogPrint(eLogDebug, "EmailWorker: retrieveIndex: got response from: ", response->from.substr(0, 15));
     size_t offset = 0;
     uint8_t status;
     uint16_t dataLen;
@@ -512,13 +512,14 @@ std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr
       continue;
     }
 
-    std::vector<uint8_t> v_data(response->payload.begin() + offset, response->payload.begin() + offset + dataLen);
+    std::vector<uint8_t> data(response->payload.begin() + offset,
+                              response->payload.begin() + offset + dataLen);
 
-    if (DHT_worker.safe(v_data))
+    if (DHT_worker.safe(data))
       LogPrint(eLogDebug, "EmailWorker: retrieveIndex: save index packet locally");
 
     pbote::IndexPacket index_packet;
-    bool parsed = index_packet.fromBuffer(v_data, true);
+    bool parsed = index_packet.fromBuffer(data, true);
 
     if (parsed && !index_packet.data.empty()) {
       i2p::data::Tag<32> hash(index_packet.hash);
@@ -574,7 +575,7 @@ std::vector<pbote::EmailEncryptedPacket> EmailWorker::retrieveEmailPacket(const 
   std::map<i2p::data::Tag<32>, pbote::EmailEncryptedPacket> mail_packets;
   for (const auto &response: responses) {
     if (response->type != type::CommN) {
-      // ToDo: looks like in case if we got request to ourself, for now we just skip it
+      // ToDo: looks like we got request to ourself, for now just skip it
       LogPrint(eLogWarning, "EmailWorker: retrieveIndex: got non-response packet in batch, type: ",
                response->type, ", ver: ", unsigned(response->ver));
       continue;
@@ -599,13 +600,12 @@ std::vector<pbote::EmailEncryptedPacket> EmailWorker::retrieveEmailPacket(const 
       LogPrint(eLogWarning, "EmailWorker: retrieveEmailPacket: packet without payload, skip parsing");
       continue;
     }
-    LogPrint(eLogDebug, "EmailWorker: retrieveEmailPacket: got email packet, payload size: ", dataLen);
 
+    LogPrint(eLogDebug, "EmailWorker: retrieveEmailPacket: got email packet, payload size: ", dataLen);
     std::vector<uint8_t> data = {response->payload.data() + offset,
                                  response->payload.data() + offset + dataLen};
 
-    std::vector<uint8_t> v_data(response->payload.begin() + offset, response->payload.begin() + offset + dataLen);
-    if (DHT_worker.safe(v_data))
+    if (DHT_worker.safe(data))
       LogPrint(eLogDebug, "EmailWorker: retrieveEmailPacket: save encrypted email packet locally");
 
     pbote::EmailEncryptedPacket parsed_packet;
@@ -638,7 +638,7 @@ std::vector<pbote::EmailEncryptedPacket> EmailWorker::retrieveEmailPacket(const 
 }
 
 std::vector<pbote::EmailUnencryptedPacket> EmailWorker::loadLocalIncompletePacket() {
-  // ToDo: just for tests, need to implement
+  // ToDo: TBD
   // ToDo: move to ?
   /*std::string indexPacketPath = pbote::fs::DataDirPath("incomplete");
   std::vector<std::string> packets_path;
@@ -770,7 +770,7 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::checkOutbox() {
 
         std::string new_to;
         if (!pub_to_address.empty()) {
-          new_to.append(pub_name + " <" +pub_to_address + ">");
+          new_to.append(pub_name + " <" + pub_to_address + ">");
         } else if (!alias_to_address.empty()) {
           new_to.append(alias_name + " <" + pub_to_address + ">");
         } else {
@@ -787,10 +787,9 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::checkOutbox() {
       if (changed)
         mailPacket.save("");
 
+      mailPacket.compose();
 
-      mailPacket.fillPacket();
-
-      // ToDo: compress
+      // ToDo: compress to gzip for 25519 address (pboted)
       mailPacket.compress(pbote::Email::CompressionAlgorithm::UNCOMPRESSED);
 
       if (!mailPacket.empty()) {
