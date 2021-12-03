@@ -4,9 +4,10 @@
 
 #include <cassert>
 #include <iostream>
-#include <sstream>
 #include <fstream>
 #include <cstdio>
+
+#include "Gzip.h"
 
 #include "BoteContext.h"
 #include "Email.h"
@@ -24,16 +25,15 @@ void _lzmaFree(ISzAllocPtr, void *addr) {
   delete[] reinterpret_cast<uint8_t *>(addr);
 }
 
-
 ISzAlloc _allocFuncs = {
     _lzmaAlloc, _lzmaFree
 };
 
 Email::Email()
-  : incomplete_(false),
-    empty_(true),
-    skip_(false){
-  fillPacket();
+    : incomplete_(false),
+      empty_(true),
+      skip_(false) {
+  compose();
 }
 
 Email::Email(const std::vector<uint8_t> &data, bool from_net) {
@@ -104,7 +104,7 @@ void Email::fromMIME(const std::vector<uint8_t> &email_data) {
   std::string message(email_data.begin(), email_data.end());
   mail.load(message.begin(), message.end());
 
-  for (const auto& entity : mail.header())
+  for (const auto &entity : mail.header())
     LogPrint(eLogDebug, "Email: fromMIME: ", entity.name(), ": ", entity.value());
 
   // ToDo: check all required fields
@@ -191,7 +191,7 @@ std::vector<uint8_t> Email::bytes() {
   return result;
 }
 
-bool Email::save(const std::string& dir) {
+bool Email::save(const std::string &dir) {
   // ToDo: remove all not allowed header fields
   std::string emailPacketPath;
   // If email not loaded from file system, and we need to save it first time
@@ -220,7 +220,7 @@ bool Email::save(const std::string& dir) {
   return true;
 }
 
-bool Email::move(const std::string& dir) {
+bool Email::move(const std::string &dir) {
   if (skip()) {
     return false;
   }
@@ -228,7 +228,6 @@ bool Email::move(const std::string& dir) {
   std::string new_path = pbote::fs::DataDirPath(dir, field("X-I2PBote-DHT-Key") + ".mail");
   LogPrint(eLogDebug, "Email: move: old path: ", filename());
   LogPrint(eLogDebug, "Email: move: new path: ", new_path);
-
 
   std::ifstream ifs(filename(), std::ios::in | std::ios::binary);
   std::ofstream ofs(new_path, std::ios::out | std::ios::binary);
@@ -245,31 +244,32 @@ bool Email::move(const std::string& dir) {
   }
 }
 
-void Email::compress(CompressionAlgorithm type) {
+bool Email::compress(CompressionAlgorithm type) {
   LogPrint(eLogDebug, "Email: compress: alg: ", unsigned(type));
-  if (type == (uint8_t) 1) {
-    LogPrint(eLogDebug, "Email: compress: LZMA, start compress");
-
-    std::vector<uint8_t> output;
-    lzmaCompress(output, std::vector<uint8_t>(packet.data.data(), packet.data.data() + packet.data.size()));
-
-    packet.data = std::vector<uint8_t>();
-    packet.data.push_back(uint8_t(1));
-    packet.data.insert(packet.data.end(), output.begin(), output.end());
-  } else if ((unsigned) type == (uint8_t) 2) {
-    LogPrint(eLogDebug, "Email: compress: ZLIB, reserved");
-    packet.data.push_back(uint8_t(2));
-  } else if ((unsigned) type == (uint8_t) 0) {
-    LogPrint(eLogDebug, "Email: compress: data uncompressed, save as is");
-
-    std::vector<uint8_t> output;
-    output.push_back(uint8_t(0));
-    output.insert(output.end(), packet.data.begin(), packet.data.end());
-
-    packet.data = output;
-  } else {
-    LogPrint(eLogDebug, "Email: compress: Unknown compress algorithm");
+  if (type == CompressionAlgorithm::LZMA) {
+    LogPrint(eLogDebug, "Email: compress: we not support compression LZMA, will be uncompressed");
+    type = CompressionAlgorithm::UNCOMPRESSED;
   }
+
+  if (type == CompressionAlgorithm::ZLIB) {
+    LogPrint(eLogDebug, "Email: compress: ZLIB, start compress");
+
+    std::vector<uint8_t> output;
+    zlibCompress(output, packet.data);
+
+    packet.data.push_back(uint8_t(CompressionAlgorithm::ZLIB));
+    packet.data.insert(packet.data.end(), output.begin(), output.end());
+    return true;
+  }
+
+  if (type == CompressionAlgorithm::UNCOMPRESSED) {
+    LogPrint(eLogDebug, "Email: compress: data uncompressed, save as is");
+    packet.data.insert(packet.data.begin(), (uint8_t) CompressionAlgorithm::UNCOMPRESSED);
+    return true;
+  }
+
+  LogPrint(eLogDebug, "Email: compress: Unknown compress algorithm");
+  return false;
 }
 
 void Email::decompress(std::vector<uint8_t> v_mail) {
@@ -278,31 +278,32 @@ void Email::decompress(std::vector<uint8_t> v_mail) {
   memcpy(&compress_alg, v_mail.data() + offset, 1);
   offset += 1;
 
-  std::vector<uint8_t> data;
-
   LogPrint(eLogDebug, "Email: decompress: compress alg: ", unsigned(compress_alg));
-  if (compress_alg == (uint8_t) 1) {
-    LogPrint(eLogDebug, "Email: decompress: LZMA compressed, start decompress");
 
+  if (compress_alg == CompressionAlgorithm::LZMA) {
+    LogPrint(eLogDebug, "Email: decompress: LZMA compressed, start decompress");
     std::vector<uint8_t> output;
     lzmaDecompress(output, std::vector<uint8_t>(v_mail.data() + offset, v_mail.data() + v_mail.size()));
-    data = output;
-  } else if (compress_alg == (uint8_t) 2) {
-    LogPrint(eLogDebug, "Email: decompress: ZLIB compressed, reserved");
-  } else if (compress_alg == (uint8_t) 0) {
-    LogPrint(eLogDebug, "Email: decompress: data uncompressed, save as is");
-    data = std::vector<uint8_t>(v_mail.begin() + 1, v_mail.end());
-  } else {
-    LogPrint(eLogWarning, "Email: compress: Unknown compress algorithm, try to save as is");
-    data = std::vector<uint8_t>(v_mail.begin() + 1, v_mail.end());
+    mail.load(output.begin(), output.end());
   }
 
-  // ToDo: TBD temp
-  //body = data;
-  mail.load(data.begin(), data.end());
+  if (compress_alg == CompressionAlgorithm::ZLIB) {
+    LogPrint(eLogDebug, "Email: decompress: ZLIB compressed, start decompress");
+    std::vector<uint8_t> output;
+    zlibDecompress(output, std::vector<uint8_t>(v_mail.data() + offset, v_mail.data() + v_mail.size()));
+    mail.load(output.begin(), output.end());
+  }
+
+  if (compress_alg == CompressionAlgorithm::UNCOMPRESSED) {
+    LogPrint(eLogDebug, "Email: decompress: data uncompressed, save as is");
+    mail.load(v_mail.begin() + 1, v_mail.end());
+  }
+
+  LogPrint(eLogWarning, "Email: compress: Unknown compress algorithm, try to save as is");
+  mail.load(v_mail.begin() + 1, v_mail.end());
 }
 
-void Email::fillPacket() {
+void Email::compose() {
   context.random_cid(packet.mes_id, 32);
   context.random_cid(packet.mes_id, 32);
   context.random_cid(packet.DA, 32);
@@ -317,7 +318,7 @@ void Email::fillPacket() {
   incomplete_ = false;
 }
 
-void Email::lzmaDecompress(std::vector<unsigned char> &outBuf, const std::vector<unsigned char> &inBuf) {
+void Email::lzmaDecompress(std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf) {
   CLzmaDec dec;
 
   LzmaDec_Construct(&dec);
@@ -353,8 +354,14 @@ void Email::lzmaDecompress(std::vector<unsigned char> &outBuf, const std::vector
   outBuf.resize(outPos);
 }
 
-void Email::lzmaCompress(std::vector<unsigned char> &outBuf, const std::vector<unsigned char> &inBuf) {
+void Email::zlibCompress(std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf) {
+  i2p::data::GzipInflator inflator;
+  inflator.Inflate(inBuf.data(), inBuf.size(), outBuf.data(), outBuf.size());
+}
 
+void Email::zlibDecompress(std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf) {
+  i2p::data::GzipDeflator deflator;
+  deflator.Deflate(inBuf.data(), inBuf.size(), outBuf.data(), outBuf.size());
 }
 
 } // pbote
