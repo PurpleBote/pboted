@@ -147,6 +147,8 @@ i2p::crypto::Verifier *EmailIdentityPublic::CreateVerifier(SigningKeyType keyTyp
     case SIGNING_KEY_TYPE_ECDSA_P256_SHA256:
       return new i2p::crypto::ECDSAP256Verifier();
       break;
+    case SIGNING_KEY_TYPE_ECIES_X25519_AES256:
+      return nullptr; // ToDo: TBD
     default:
       LogPrint (eLogError, "EmailIdentityPublic: Unknown signing key type ", (int)keyType);
   }
@@ -293,7 +295,10 @@ void EmailIdentityPrivate::CreateSigner(SigningKeyType keyType) const {
 
 i2p::crypto::Signer *EmailIdentityPrivate::CreateSigner(SigningKeyType keyType, const uint8_t *priv) {
   switch (keyType) {
-    case SIGNING_KEY_TYPE_ECDSA_P256_SHA256:return new i2p::crypto::ECDSAP256Signer(priv);
+    case SIGNING_KEY_TYPE_ECDSA_P256_SHA256:
+      return new i2p::crypto::ECDSAP256Signer(priv);
+    case SIGNING_KEY_TYPE_ECIES_X25519_AES256:
+      return nullptr; // ToDo: TBD
     default:LogPrint(eLogError, "Identity: Signing key type ", (int) keyType, " is not supported");
   }
   return nullptr;
@@ -304,7 +309,7 @@ size_t EmailIdentityPrivate::GetSignatureLen() const {
 }
 
 size_t EmailIdentityPrivate::GetPrivateKeyLen() const {
-  return (m_Public->GetCryptoKeyType () == CRYPTO_KEY_TYPE_ECIES_X25519_AEAD256) ? 32 : 256;
+  return (m_Public->GetCryptoKeyType () == CRYPTO_KEY_TYPE_ECIES_X25519_AES256) ? 32 : 256;
 }
 
 std::vector<uint8_t> EmailIdentityPrivate::Decrypt(const uint8_t * encrypted, size_t elen) {
@@ -354,6 +359,9 @@ std::shared_ptr<pbote::ECDHP256Encryptor> EmailIdentityPrivate::CreateEncryptor(
     case CRYPTO_KEY_TYPE_ECDH_P256_SHA256_AES256CBC:
       return std::make_shared<pbote::ECDHP256Encryptor>(key);
       break;
+    case CRYPTO_KEY_TYPE_ECIES_X25519_AES256:
+      return nullptr; // ToDo: TBD
+      break;
     default:
       LogPrint (eLogError, "Identity: Unknown crypto key type ", (int)keyType);
   }
@@ -377,10 +385,13 @@ std::shared_ptr<pbote::ECDHP256Encryptor> EmailIdentityPrivate::CreateEncryptor(
 
 void EmailIdentityPrivate::GenerateSigningKeyPair(SigningKeyType type, uint8_t *priv, uint8_t *pub) {
   switch (type) {
-    case SIGNING_KEY_TYPE_ECDSA_P256_SHA256:i2p::crypto::CreateECDSAP256RandomKeys(priv, pub);
+    case SIGNING_KEY_TYPE_ECDSA_P256_SHA256:
+      i2p::crypto::CreateECDSAP256RandomKeys(priv, pub);
 #if (__cplusplus >= 201703L) // C++ 17 or higher
       [[fallthrough]];
 #endif
+    case SIGNING_KEY_TYPE_ECIES_X25519_AES256:
+      // ToDo: TBD
     default:LogPrint(eLogWarning, "Identity: Signing key type ", (int) type, " is not supported.");
   }
 }
@@ -513,7 +524,7 @@ size_t identitiesStorage::loadIdentities(const std::string &path) {
                                                                         pubKeyPair_buf,
                                                                         pubKeyPair_slen);
       if (cryptoPubKey_buf_len >= 33)
-        memcpy(temp_ident.identity.GetPublicIdentity()->GetStandardIdentity()->cryptoPubKey, pubKeyPair_buf, 33);
+        temp_ident.identity.GetPublicIdentity()->GetStandardIdentity()->setCryptoPublicKey(pubKeyPair_buf, 33);
       //LogPrint(eLogDebug, "EmailIdentity: loadIdentities: cryptoPubKey_buf_len=", cryptoPubKey_buf_len);
 
       const size_t signingPubKey_slen = signingPubKey.length();
@@ -523,7 +534,7 @@ size_t identitiesStorage::loadIdentities(const std::string &path) {
                                                                          signingPubKey_buf,
                                                                          signingPubKey_slen);
       if (signingPubKey_buf_len >= 33)
-        memcpy(temp_ident.identity.GetPublicIdentity()->GetStandardIdentity()->signingPubKey, signingPubKey_buf, 33);
+        temp_ident.identity.GetPublicIdentity()->GetStandardIdentity()->setSigningPublicKey(signingPubKey_buf, 33);
       //LogPrint(eLogDebug, "EmailIdentity: loadIdentities: signingPubKey_buf_len=", signingPubKey_buf_len);
 
       const size_t cryptoPrivKey_slen = cryptoPrivKey.length();
@@ -533,7 +544,7 @@ size_t identitiesStorage::loadIdentities(const std::string &path) {
                                                                          cryptoPrivKey_buf,
                                                                          cryptoPrivKey_slen);
       if (cryptoPrivKey_buf_len >= 33)
-        memcpy(temp_ident.identity.GetPublicIdentity()->GetStandardIdentity()->cryptoPrivKey, cryptoPrivKey_buf, 33);
+        temp_ident.identity.GetPublicIdentity()->GetStandardIdentity()->setCryptoPrivateKey(cryptoPrivKey_buf, 33);
       //LogPrint(eLogDebug, "EmailIdentity: loadIdentities: cryptoPrivKey_buf_len=", cryptoPrivKey_buf_len);
 
       const size_t signingPrivKey_slen = signingPrivKey.length();
@@ -543,7 +554,7 @@ size_t identitiesStorage::loadIdentities(const std::string &path) {
                                                                       signingPrivKey_buf,
                                                                       signingPrivKey_slen);
       if (signingPrivKey_len >= 33)
-        memcpy(temp_ident.identity.GetPublicIdentity()->GetStandardIdentity()->signingPrivKey, signingPrivKey_buf, 33);
+        temp_ident.identity.GetPublicIdentity()->GetStandardIdentity()->setSigningPrivateKey(signingPrivKey_buf, 33);
       //LogPrint(eLogDebug, "EmailIdentity: loadIdentities: signingPrivKey_len=", signingPrivKey_len);
 
       //temp_ident.identity = temp_ident.keys;

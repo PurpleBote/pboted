@@ -32,22 +32,15 @@ namespace pbote {
 #define SIGNING_KEY_TYPE_ECDSA_P256_SHA256 2
 
 /// ECIES-256 / ED25519 / AES-256 / SHA-256 params
-#define CRYPTO_KEY_TYPE_ECIES_X25519_AEAD256 5
-#define SIGNING_KEY_TYPE_ECIES_X25519_AEAD256 5
+#define CRYPTO_KEY_TYPE_ECIES_X25519_AES256 5
+#define SIGNING_KEY_TYPE_ECIES_X25519_AES256 5
 
 typedef i2p::data::Tag<32> IdentHash;
 typedef uint16_t SigningKeyType;
 typedef uint16_t CryptoKeyType;
 
 struct IBoteIdentity {
-  uint8_t *cryptoPrivKey;
-  uint8_t *signingPrivKey;
-  uint8_t *cryptoPubKey;
-  uint8_t *signingPubKey;
-
   virtual ~IBoteIdentity() {};
-
-  //virtual IBoteIdentity &operator=(const IBoteIdentity &other) = 0;
 
   virtual size_t from_buffer(const uint8_t *buf, size_t len) = 0;
   virtual size_t to_buffer(uint8_t *buf, size_t len) = 0;
@@ -76,29 +69,18 @@ struct ECDHP256Identity : IBoteIdentity {
 
   ECDHP256Identity() = default;
 
-  /*ECDHP256Identity &operator=(const ECDHP256Identity &other) {
-    memcpy(cryptoPrivKey, other.cryptoPrivKey, ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH);
-    memcpy(signingPrivKey, other.signingPrivKey, ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH);
-    memcpy(cryptoPubKey, other.cryptoPubKey, ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH);
-    memcpy(signingPubKey, other.signingPubKey, ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH);
-
-    return *this;
-  }*/
-
   size_t from_buffer(const uint8_t *buf, size_t len) override {
-    if (len < get_identity_size()) {
-      // buffer too small, don't overflow
+    if (len < get_identity_size())
       return 0;
-    }
+
     memcpy(cryptoPubKey, buf, get_identity_size());
     return get_identity_size();
   }
 
   size_t to_buffer(uint8_t *buf, size_t len) override {
-    if (len < get_identity_size()) {
-      // buffer too small, don't overflow
+    if (len < get_identity_size())
       return 0;
-    }
+
     memcpy(buf, cryptoPubKey, get_identity_size());
     return get_identity_size();
   }
