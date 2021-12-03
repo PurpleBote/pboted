@@ -21,77 +21,142 @@
 
 namespace pbote {
 
+/// ECDH-256 / ECDSA-256 / AES-256 / SHA-256 params
+#define ECDH256_ECDSA256_NAME "ECDH-256 / ECDSA-256"
+#define ECDH256_ECDSA256_COMPLETE_BASE64_LENGTH 172
+#define ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH 86
+#define ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH 33
+#define ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH 32
+
+#define CRYPTO_KEY_TYPE_ECDH_P256_SHA256_AES256CBC 2
+#define SIGNING_KEY_TYPE_ECDSA_P256_SHA256 2
+
+/// ECIES-256 / ED25519 / AES-256 / SHA-256 params
+#define CRYPTO_KEY_TYPE_ECIES_X25519_AEAD256 5
+#define SIGNING_KEY_TYPE_ECIES_X25519_AEAD256 5
+
 typedef i2p::data::Tag<32> IdentHash;
-
-const uint8_t CERTIFICATE_TYPE_NULL = 0;
-const uint8_t CERTIFICATE_TYPE_HASHCASH = 1;
-const uint8_t CERTIFICATE_TYPE_HIDDEN = 2;
-const uint8_t CERTIFICATE_TYPE_SIGNED = 3;
-const uint8_t CERTIFICATE_TYPE_MULTIPLE = 4;
-const uint8_t CERTIFICATE_TYPE_KEY = 5;
-
-const uint8_t PRIVATE_KEY_LEN = 33;
-
-struct Keys {
-  uint8_t cryptoPrivKey[33];
-  uint8_t signingPrivKey[33];
-  uint8_t cryptoPubKey[33];
-  uint8_t signingPubKey[33];
-};
-
-struct EmailIdentity {
-  uint8_t cryptoPubKey[33];
-  uint8_t signingPubKey[33];
-  //uint8_t certificate[3];    // byte 1 - type, bytes 2-3 - length
-
-  EmailIdentity() = default;
-  EmailIdentity(const Keys &keys) { *this = keys; };
-  EmailIdentity &operator=(const Keys &keys);
-  size_t FromBuffer(const uint8_t *buf, size_t len);
-  IdentHash Hash() const;
-};
-
-Keys CreateRandomKeys();
-
-const size_t IDENTITY_SIZE_DEFAULT = sizeof(EmailIdentity);
-const uint16_t CRYPTO_KEY_TYPE_ECDH_P256_SHA256_AES256CBC = 2;
-const uint16_t SIGNING_KEY_TYPE_ECDSA_SHA256_P256 = 2;
 typedef uint16_t SigningKeyType;
 typedef uint16_t CryptoKeyType;
+
+struct IBoteIdentity {
+  uint8_t *cryptoPrivKey;
+  uint8_t *signingPrivKey;
+  uint8_t *cryptoPubKey;
+  uint8_t *signingPubKey;
+
+  virtual ~IBoteIdentity() {};
+
+  //virtual IBoteIdentity &operator=(const IBoteIdentity &other) = 0;
+
+  virtual size_t from_buffer(const uint8_t *buf, size_t len) = 0;
+  virtual size_t to_buffer(uint8_t *buf, size_t len) = 0;
+
+  virtual uint8_t *getCryptoPrivateKey() = 0;
+  virtual uint8_t *getSigningPrivateKey() = 0;
+  virtual uint8_t *getCryptoPublicKey() = 0;
+  virtual uint8_t *getSigningPublicKey() = 0;
+
+  virtual void setCryptoPrivateKey(const uint8_t *buf, size_t len) = 0;
+  virtual void setSigningPrivateKey(const uint8_t *buf, size_t len) = 0;
+  virtual void setCryptoPublicKey(const uint8_t *buf, size_t len) = 0;
+  virtual void setSigningPublicKey(const uint8_t *buf, size_t len) = 0;
+
+  virtual size_t get_identity_size() const = 0;
+  virtual size_t get_identity_type() const = 0;
+
+  virtual IdentHash hash() const = 0;
+};
+
+struct ECDHP256Identity : IBoteIdentity {
+  uint8_t cryptoPrivKey[ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH];
+  uint8_t signingPrivKey[ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH];
+  uint8_t cryptoPubKey[ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH];
+  uint8_t signingPubKey[ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH];
+
+  ECDHP256Identity() = default;
+
+  /*ECDHP256Identity &operator=(const ECDHP256Identity &other) {
+    memcpy(cryptoPrivKey, other.cryptoPrivKey, ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH);
+    memcpy(signingPrivKey, other.signingPrivKey, ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH);
+    memcpy(cryptoPubKey, other.cryptoPubKey, ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH);
+    memcpy(signingPubKey, other.signingPubKey, ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH);
+
+    return *this;
+  }*/
+
+  size_t from_buffer(const uint8_t *buf, size_t len) override {
+    if (len < get_identity_size()) {
+      // buffer too small, don't overflow
+      return 0;
+    }
+    memcpy(cryptoPubKey, buf, get_identity_size());
+    return get_identity_size();
+  }
+
+  size_t to_buffer(uint8_t *buf, size_t len) override {
+    if (len < get_identity_size()) {
+      // buffer too small, don't overflow
+      return 0;
+    }
+    memcpy(buf, cryptoPubKey, get_identity_size());
+    return get_identity_size();
+  }
+
+  uint8_t *getCryptoPrivateKey() override { return cryptoPrivKey; };
+  uint8_t *getSigningPrivateKey() override { return signingPrivKey; };
+  uint8_t *getCryptoPublicKey() override { return cryptoPubKey; };
+  uint8_t *getSigningPublicKey() override { return signingPubKey; };
+
+  void setCryptoPrivateKey(const uint8_t *buf, size_t len) override { memcpy(cryptoPrivKey, buf, len); };
+  void setSigningPrivateKey(const uint8_t *buf, size_t len) override { memcpy(signingPrivKey, buf, len); };
+  void setCryptoPublicKey(const uint8_t *buf, size_t len) override { memcpy(cryptoPubKey, buf, len); };
+  void setSigningPublicKey(const uint8_t *buf, size_t len) override { memcpy(signingPubKey, buf, len); };
+
+  size_t get_identity_size() const override { return (ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH * 2); };
+  size_t get_identity_type() const override { return CRYPTO_KEY_TYPE_ECDH_P256_SHA256_AES256CBC; };
+
+  IdentHash hash() const override {
+    IdentHash hash;
+    SHA256(cryptoPubKey, get_identity_size(), hash);
+    return hash;
+  }
+};
 
 class EmailIdentityPublic {
  public:
   EmailIdentityPublic();
   EmailIdentityPublic(const uint8_t *publicKey,
-                  const uint8_t *signingKey,
-                  SigningKeyType type = SIGNING_KEY_TYPE_ECDSA_SHA256_P256,
-                  CryptoKeyType cryptoType = CRYPTO_KEY_TYPE_ECDH_P256_SHA256_AES256CBC);
+                      const uint8_t *signingKey,
+                      SigningKeyType type = SIGNING_KEY_TYPE_ECDSA_P256_SHA256,
+                      CryptoKeyType cryptoType = CRYPTO_KEY_TYPE_ECDH_P256_SHA256_AES256CBC);
   EmailIdentityPublic(const uint8_t *buf, size_t len);
   EmailIdentityPublic(const EmailIdentityPublic &other);
-  EmailIdentityPublic(const EmailIdentity &standard);
   ~EmailIdentityPublic();
 
   EmailIdentityPublic &operator=(const EmailIdentityPublic &other);
-  EmailIdentityPublic &operator=(const EmailIdentity &standard);
   bool operator==(const EmailIdentityPublic &other) const { return GetIdentHash() == other.GetIdentHash(); }
 
   size_t FromBuffer(const uint8_t *buf, size_t len);
   size_t ToBuffer(uint8_t *buf, size_t len) const;
+
   size_t FromBase64(const std::string &s);
   std::string ToBase64() const;
 
-  const EmailIdentity &GetStandardIdentity() const { return m_StandardIdentity; };
+  const std::shared_ptr<IBoteIdentity> GetStandardIdentity() const { return m_StandardIdentity; };
   const IdentHash &GetIdentHash() const { return m_IdentHash; };
-  const uint8_t *GetEncryptionPublicKey() const { return m_StandardIdentity.cryptoPubKey; };
-  uint8_t *GetEncryptionPublicKeyBuffer() { return m_StandardIdentity.cryptoPubKey; };
+  void RecalculateIdentHash(uint8_t *buff = nullptr);
   size_t GetFullLen() const;
+
+  CryptoKeyType GetCryptoKeyType() const;
+  const uint8_t *GetEncryptionPublicKey() const { return m_StandardIdentity->getCryptoPublicKey(); };
+
+  uint8_t *GetEncryptionPublicKeyBuffer() { return m_StandardIdentity->getCryptoPublicKey(); };
+  SigningKeyType GetSigningKeyType() const;
   size_t GetSigningPublicKeyLen() const;
-  const uint8_t *GetSigningPublicKeyBuffer() const; // returns NULL for P521
+  const uint8_t *GetSigningPublicKeyBuffer() const;
   size_t GetSigningPrivateKeyLen() const;
   size_t GetSignatureLen() const;
-  SigningKeyType GetSigningKeyType() const;
-  CryptoKeyType GetCryptoKeyType() const;
-  void RecalculateIdentHash(uint8_t *buff = nullptr);
 
   void DropVerifier() const; // to save memory
   static i2p::crypto::Verifier *CreateVerifier(SigningKeyType keyType);
@@ -102,9 +167,7 @@ class EmailIdentityPublic {
   void UpdateVerifier(i2p::crypto::Verifier *verifier) const;
 
  private:
-  EmailIdentity m_StandardIdentity;
-  SigningKeyType m_signing_type;
-  CryptoKeyType m_crypto_type;
+  std::shared_ptr<IBoteIdentity> m_StandardIdentity;
   IdentHash m_IdentHash;
   mutable i2p::crypto::Verifier *m_Verifier = nullptr;
   mutable std::mutex m_VerifierMutex;
@@ -113,43 +176,35 @@ class EmailIdentityPublic {
 class EmailIdentityPrivate {
  public:
   EmailIdentityPrivate() = default;
-  EmailIdentityPrivate(const EmailIdentityPrivate& other) { *this = other; };
-  EmailIdentityPrivate(const Keys& keys) { *this = keys; };
-  EmailIdentityPrivate& operator=(const Keys& keys);
-  EmailIdentityPrivate& operator=(const EmailIdentityPrivate& other);
+  EmailIdentityPrivate(const EmailIdentityPrivate &other) { *this = other; };
+  EmailIdentityPrivate &operator=(const EmailIdentityPrivate &other);
   ~EmailIdentityPrivate() = default;
 
-  size_t FromBuffer(const uint8_t * buf, size_t len);
-  size_t ToBuffer(uint8_t * buf, size_t len) const;
-  size_t FromBase64(const std::string& s);
+  size_t FromBuffer(const uint8_t *buf, size_t len);
+  size_t ToBuffer(uint8_t *buf, size_t len) const;
+  size_t FromBase64(const std::string &s);
   std::string ToBase64() const;
 
-  std::shared_ptr<const EmailIdentityPublic> GetPublic() const { return m_Public; };
-  const uint8_t * GetPrivateKey() const { return m_CryptoPrivateKey; };
-  const uint8_t * GetSigningPrivateKey() const { return m_SigningPrivateKey; };
+  std::shared_ptr<const EmailIdentityPublic> GetPublicIdentity() const { return m_Public; };
+
+  const uint8_t *GetCryptoPrivateKey() const { return m_Public->GetStandardIdentity()->getCryptoPrivateKey(); };
+  const uint8_t *GetSigningPrivateKey() const { return m_Public->GetStandardIdentity()->getSigningPrivateKey(); };
   size_t GetSignatureLen() const; // might not match identity
-  bool IsOfflineSignature() const { return m_TransientSignatureLen > 0; };
-  void RecalculateIdentHash(uint8_t * buf=nullptr) { m_Public->RecalculateIdentHash(buf); }
+  void RecalculateIdentHash(uint8_t *buf = nullptr) { m_Public->RecalculateIdentHash(buf); }
   size_t GetFullLen() const;
 
-  void Sign(const uint8_t * buf, int len, uint8_t * signature) const;
+  std::vector<uint8_t> Decrypt(const uint8_t *encrypted, size_t elen);
+  std::shared_ptr<pbote::ECDHP256Decryptor> CreateDecryptor(const uint8_t *key) const;
+  static std::shared_ptr<pbote::ECDHP256Decryptor> CreateDecryptor(CryptoKeyType cryptoType, const uint8_t *key);
 
-  std::vector<uint8_t> Decrypt(const uint8_t * encrypted, size_t elen);
-  std::shared_ptr<pbote::ECDHP256Decryptor> CreateDecryptor(const uint8_t * key) const;
-  static std::shared_ptr<pbote::ECDHP256Decryptor> CreateDecryptor(CryptoKeyType cryptoType, const uint8_t * key);
-
-  std::vector<uint8_t> Encrypt (const uint8_t * data, int dlen, const uint8_t *pubKey) const;
+  std::vector<uint8_t> Encrypt(const uint8_t *data, int dlen, const uint8_t *pubKey) const;
   std::shared_ptr<pbote::CryptoKeyEncryptor> CreateEncryptor(const uint8_t *key) const;
-  static std::shared_ptr<pbote::ECDHP256Encryptor> CreateEncryptor(const uint8_t *priv, const uint8_t *key);
+  static std::shared_ptr<pbote::ECDHP256Encryptor> CreateEncryptor(const CryptoKeyType keyType, const uint8_t *key);
 
-  static EmailIdentityPrivate CreateRandomKeys(SigningKeyType type = SIGNING_KEY_TYPE_ECDSA_SHA256_P256, CryptoKeyType cryptoType = CRYPTO_KEY_TYPE_ECDH_P256_SHA256_AES256CBC);
-  static void GenerateSigningKeyPair(SigningKeyType type, uint8_t * priv, uint8_t * pub);
-  static void GenerateCryptoKeyPair(CryptoKeyType type, uint8_t * priv, uint8_t * pub);
-  static i2p::crypto::Signer * CreateSigner(SigningKeyType keyType, const uint8_t * priv);
-
-  // offline keys
-  EmailIdentityPrivate CreateOfflineKeys(SigningKeyType type, uint32_t expires) const;
-  const std::vector<uint8_t>& GetOfflineSignature() const { return m_OfflineSignature; };
+  void Sign(const uint8_t *buf, int len, uint8_t *signature) const;
+  static void GenerateSigningKeyPair(SigningKeyType type, uint8_t *priv, uint8_t *pub);
+  static void GenerateCryptoKeyPair(CryptoKeyType type, uint8_t *priv, uint8_t *pub);
+  static i2p::crypto::Signer *CreateSigner(SigningKeyType keyType, const uint8_t *priv);
 
  private:
   void CreateSigner() const;
@@ -163,63 +218,24 @@ class EmailIdentityPrivate {
 
   mutable std::unique_ptr<i2p::crypto::Signer> m_Signer;
   std::shared_ptr<i2p::crypto::CryptoKeyDecryptor> m_Decryptor;
-  std::vector<uint8_t> m_OfflineSignature; // non zero length, if applicable
-  size_t m_TransientSignatureLen = 0;
-  size_t m_TransientSigningPrivateKeyLen = 0;
 };
 
-/// ECDH-256 / ECDSA-256 / AES-256 / SHA-256 params
-const std::string ECDH256_ECDSA256_NAME = "ECDH-256 / ECDSA-256";
-const size_t ECDH256_ECDSA256_COMPLETE_BASE64_LENGTH = 172;
-const size_t ECDH256_ECDSA256_COMPLETE_BASE64_PUBLIC_LENGTH = 86;
-const size_t ECDH256_ECDSA256_COMPLETE_BYTE_ARRAY_KEY_LENGTH = 33;
-
-const std::string IDENTITY_PREFIX = "identity";
-const std::string IDENTITY_PREFIX_KEY = "key";
-const std::string IDENTITY_PREFIX_PUBLIC_NAME = "publicName";
-const std::string IDENTITY_PREFIX_DESCRIPTION = "description";
-const std::string IDENTITY_PREFIX_SALT = "salt";
-const std::string IDENTITY_PREFIX_PICTURE = "picture";
-const std::string IDENTITY_PREFIX_TEXT = "text";
-const std::string IDENTITY_PREFIX_PUBLISHED = "published";
-const std::string IDENTITY_PREFIX_DEFAULT = "default";
-const std::string CONFIGURATION_PREFIX = "configuration.";
-
-/**
- * Identities file
- *
- * Stores all email identities the local user has created. The file uses the
- * Java Properties format, and can be read into / written out from a Java
- * Properties object.
- *
- * The following property keys are currently stored and recognized:
- *    identity#.publicName  - The public name of the identity, included in
- *        emails.
- *    identity#.key         - Base64 of the identity keys.
- *    identity#.salt        - Salt used to generate a fingerprint.
- *    identity#.description - Description of the identity, only displayed
- *        locally.
- *    identity#.picture     - Base64 of byte[] containing picture data
- *    identity#.text        - Text associated with the identity.
- *    identity#.published   - Has the identity been published to the public
- *        addressbook?
- *    (# is an integer index)
- *
- * The base64 key contains two public keys (encryption+signing) and two private
- * keys.
- *
- * The identities file can optionally contain the property key "default", with
- * its value set to an Email Destination (i.e. two public keys). If the
- * Email Destination matches one of the identities, that identity is used as
- * the default.
- */
+#define IDENTITY_PREFIX "identity"
+#define IDENTITY_PREFIX_KEY "key"
+#define IDENTITY_PREFIX_PUBLIC_NAME "publicName"
+#define IDENTITY_PREFIX_DESCRIPTION "description"
+#define IDENTITY_PREFIX_SALT "salt"
+#define IDENTITY_PREFIX_PICTURE "picture"
+#define IDENTITY_PREFIX_TEXT "text"
+#define IDENTITY_PREFIX_PUBLISHED "published"
+#define IDENTITY_PREFIX_DEFAULT "default"
+#define CONFIGURATION_PREFIX "configuration."
 
 struct EmailIdentityFull {
   uint16_t id;
   std::string salt;
   std::string publicName;
   std::string full_key;
-  Keys keys;
   std::string description;
   std::string picture;
   std::string text;
@@ -248,7 +264,7 @@ class identitiesStorage {
   EmailIdentityFull getIdentitieByKey(std::string key);
   EmailIdentityFull getDefaultIdentitie();
 
-  static std::string getParam(std::string line, const std::string& prefix0, std::string prefix1);
+  static std::string getParam(std::string line, const std::string &prefix0, std::string prefix1);
 
  private:
   std::vector<std::shared_ptr<EmailIdentityFull>> identities_;

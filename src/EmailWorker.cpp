@@ -183,7 +183,7 @@ void EmailWorker::checkEmailTask(const std::shared_ptr<pbote::EmailIdentityFull>
   while (started_) {
     auto index_packets = retrieveIndex(email_identity);
 
-    auto local_index_packet = DHT_worker.getIndex(email_identity->identity.GetPublic()->GetIdentHash());
+    auto local_index_packet = DHT_worker.getIndex(email_identity->identity.GetPublicIdentity()->GetIdentHash());
     if (!local_index_packet.empty()) {
       LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
                email_identity->publicName,
@@ -238,7 +238,7 @@ void EmailWorker::checkEmailTask(const std::shared_ptr<pbote::EmailIdentityFull>
 
         // Delete index packets
         // ToDo: add multipart email support
-        DHT_worker.deleteIndexEntry(email_identity->identity.GetPublic()->GetIdentHash(),
+        DHT_worker.deleteIndexEntry(email_identity->identity.GetPublicIdentity()->GetIdentHash(),
                                     email_dht_key, email_del_auth);
       }
     } else {
@@ -470,7 +470,7 @@ void EmailWorker::sendEmailTask() {
 }
 
 std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr<pbote::EmailIdentityFull> &identity) {
-  auto identity_hash = identity->identity.GetPublic()->GetIdentHash();
+  auto identity_hash = identity->identity.GetPublicIdentity()->GetIdentHash();
   LogPrint(eLogDebug, "EmailWorker: retrieveIndex: Try to find index for: ", identity_hash.ToBase64());
   // Use findAll rather than findOne because some peers might have an incomplete set of
   // Email Packet keys, and because we want to send IndexPacketDeleteRequests to all of them.
