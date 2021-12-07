@@ -37,24 +37,16 @@ public:
 
   std::vector<std::shared_ptr<pbote::Email>> check_inbox();
 
-  std::vector<uint8_t>
-  decryptData(const std::shared_ptr<pbote::EmailIdentityFull> &identity,
-              std::vector<uint8_t> data);
-  std::vector<uint8_t>
-  encryptData(const std::shared_ptr<pbote::EmailIdentityFull> &identity,
-              std::vector<uint8_t> data,
-              const pbote::EmailIdentityPublic &recipient);
-
 private:
   void run();
 
   void
-  checkEmailTask(const std::shared_ptr<pbote::EmailIdentityFull> &identity);
+  checkEmailTask(const std::shared_ptr<pbote::BoteIdentityFull> &identity);
   void incompleteEmailTask();
   void sendEmailTask();
 
   std::vector<pbote::IndexPacket>
-  retrieveIndex(const std::shared_ptr<pbote::EmailIdentityFull> &identity);
+  retrieveIndex(const std::shared_ptr<pbote::BoteIdentityFull> &identity);
   std::vector<pbote::EmailEncryptedPacket>
   retrieveEmailPacket(const std::vector<pbote::IndexPacket> &index_packets);
 
@@ -63,7 +55,7 @@ private:
   static std::vector<std::shared_ptr<pbote::Email>> checkOutbox();
 
   std::vector<pbote::Email>
-  processEmail(const std::shared_ptr<pbote::EmailIdentityFull> &identity,
+  processEmail(const std::shared_ptr<pbote::BoteIdentityFull> &identity,
                const std::vector<pbote::EmailEncryptedPacket> &mail_packets);
 
   bool started_;
@@ -71,7 +63,7 @@ private:
   std::thread *m_send_email_thread_;
   std::thread *m_worker_thread_;
 
-  std::vector<std::shared_ptr<pbote::EmailIdentityFull>> email_identities;
+  std::vector<std::shared_ptr<pbote::BoteIdentityFull>> email_identities;
 };
 
 extern EmailWorker email_worker;

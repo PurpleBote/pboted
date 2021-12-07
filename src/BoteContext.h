@@ -9,8 +9,8 @@
 #include <random>
 
 #include "AddressBook.h"
+#include "BoteIdentity.h"
 #include "ConfigParser.h"
-#include "EmailIdentity.h"
 #include "FileSystem.h"
 #include "Logging.h"
 #include "Packet.h"
@@ -47,8 +47,8 @@ class BoteContext {
   std::shared_ptr<i2p::data::IdentityEx> getLocalDestination() { return localDestination; }
   std::shared_ptr<i2p::data::PrivateKeys> getlocalKeys() { return local_keys_; }
 
-  std::shared_ptr<pbote::EmailIdentityFull> identityByName(const std::string &name);
-  std::vector<std::shared_ptr<pbote::EmailIdentityFull>> getEmailIdentities() { return identities_storage_->getIdentities(); };
+  std::shared_ptr<pbote::BoteIdentityFull> identityByName(const std::string &name);
+  std::vector<std::shared_ptr<pbote::BoteIdentityFull>> getEmailIdentities() { return identities_storage_->getIdentities(); };
 
   bool name_exist(const std::string &name) { return address_book_.name_exist(name); }
   bool alias_exist(const std::string &alias) { return address_book_.alias_exist(alias); }

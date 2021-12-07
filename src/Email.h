@@ -14,7 +14,7 @@
 #include "LzmaEnc.h"
 #include "7zTypes.h"
 
-#include "EmailIdentity.h"
+#include "BoteIdentity.h"
 #include "Packet.h"
 
 namespace pbote {
