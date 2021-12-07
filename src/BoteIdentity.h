@@ -24,7 +24,7 @@ namespace pbote {
 const uint8_t KEY_TYPE_ELG2048_DSA1024_SHA256_AES256CBC = 1; /// UNSUPPORTED
 const uint8_t KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC = 2;
 const uint8_t KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC = 3;
-const uint8_t KEY_TYPE_NTRUE1087_GMSS512_AES256_SHA512 = 4; /// UNSUPPORTED
+const uint8_t KEY_TYPE_NTRUE1087_GMSS512_AES256_SHA512 = 4;  /// UNSUPPORTED
 const uint8_t KEY_TYPE_X25519_ED25519_SHA512_AES256CBC = 5;
 
 /// Format: <crypt> / <sign> / <symmetric> / <hash>
@@ -194,7 +194,7 @@ class BoteIdentityPublic {
 
   static i2p::crypto::Verifier *CreateVerifier(KeyType keyType);
   bool Verify(const uint8_t *buf, size_t len, const uint8_t *signature) const;
-  void DropVerifier() const; // to save memory
+  void DropVerifier() const;
 
  private:
   void CreateVerifier() const;
@@ -235,7 +235,7 @@ class BoteIdentityPrivate {
   void setSigningPrivateKey(const uint8_t *buf, size_t len) {
     m_Public->GetIdentity()->setSigningPrivateKey(buf, len);
   };
-  size_t GetSignatureLen() const { return m_Public->GetSignatureLen(); }; // might not match identity
+  size_t GetSignatureLen() const { return m_Public->GetSignatureLen(); };
 
   std::vector<uint8_t> Decrypt(const uint8_t *encrypted, size_t elen);
   std::shared_ptr<pbote::CryptoKeyDecryptor> CreateDecryptor() const;

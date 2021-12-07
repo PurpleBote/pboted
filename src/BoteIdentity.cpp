@@ -100,7 +100,7 @@ size_t BoteIdentityPublic::ToBuffer(uint8_t *buf, size_t len) const {
   const size_t fullLen = GetFullLen();
 
   if (fullLen > len)
-    return 0; // buffer is too small and may overflow somewhere else
+    return 0; // buffer overflow
 
   return m_Identity->to_buffer(buf, len);
 }
@@ -145,7 +145,7 @@ std::vector<uint8_t> BoteIdentityPublic::Encrypt(const uint8_t *data, int len, c
 
 std::shared_ptr<pbote::CryptoKeyEncryptor> BoteIdentityPublic::CreateEncryptor(const uint8_t *key) const {
   if (!key)
-    key = GetCryptoPublicKey(); // use publicKey
+    key = GetCryptoPublicKey();
   return CreateEncryptor(GetKeyType(), key);
 }
 
@@ -177,8 +177,7 @@ bool BoteIdentityPublic::Verify(const uint8_t *buf, size_t len, const uint8_t *s
 i2p::crypto::Verifier *BoteIdentityPublic::CreateVerifier(KeyType keyType) {
   switch (keyType) {
     case KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC:
-      //return new i2p::crypto::ECDSAP256Verifier();
-      return nullptr; // ToDo
+      return nullptr; // ToDo: return new i2p::crypto::ECDSAP256Verifier();
     case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
       return nullptr; // ToDo
     case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
@@ -256,7 +255,7 @@ size_t BoteIdentityPrivate::FromBuffer(const uint8_t *buf, size_t len) {
   ret += cryptoKeyLen;
 
   size_t signingPrivateKeySize = getSigningPrivateKeyLen();
-  if (signingPrivateKeySize + ret > len || signingPrivateKeySize > 33)
+  if (signingPrivateKeySize + ret > len)
     return 0; // overflow
 
   setSigningPrivateKey(buf + ret, signingPrivateKeySize);
@@ -344,8 +343,7 @@ void BoteIdentityPrivate::Sign(const uint8_t *buf, int len, uint8_t *signature) 
 i2p::crypto::Signer *BoteIdentityPrivate::CreateSigner(KeyType keyType, const uint8_t *priv) {
   switch (keyType) {
     case KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC:
-      //return new i2p::crypto::ECDSAP256Signer(priv);
-      return nullptr; // ToDo
+      return nullptr; // ToDo: return new i2p::crypto::ECDSAP256Signer(priv);
     case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
       return nullptr; // ToDo
     case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
@@ -381,7 +379,6 @@ void BoteIdentityPrivate::CreateSigner(KeyType keyType) const {
   if (m_Signer)
     return;
 
-  // public key is not required
   auto signer = CreateSigner(keyType, GetSigningPrivateKey());
   if (signer)
     m_Signer.reset(signer);

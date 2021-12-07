@@ -168,7 +168,7 @@ void EmailWorker::checkEmailTask(const std::shared_ptr<pbote::BoteIdentityFull> 
   while (started_) {
     auto index_packets = retrieveIndex(email_identity);
 
-    auto local_index_packet = DHT_worker.getIndex(email_identity->identity.GetPublicIdentity()->GetIdentHash());
+    auto local_index_packet = DHT_worker.getIndex(email_identity->identity.GetIdentHash());
     if (!local_index_packet.empty()) {
       LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
                email_identity->publicName,
@@ -223,12 +223,10 @@ void EmailWorker::checkEmailTask(const std::shared_ptr<pbote::BoteIdentityFull> 
 
         // Delete index packets
         // ToDo: add multipart email support
-        DHT_worker.deleteIndexEntry(email_identity->identity.GetPublicIdentity()->GetIdentHash(),
-                                    email_dht_key, email_del_auth);
+        DHT_worker.deleteIndexEntry(email_identity->identity.GetIdentHash(), email_dht_key, email_del_auth);
       }
     } else {
-      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
-               email_identity->publicName, ": have no emails for process");
+      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ", email_identity->publicName, ": have no emails for process");
     }
 
     // ToDo: check sent emails status
@@ -247,7 +245,7 @@ void EmailWorker::incompleteEmailTask() {
 
 void EmailWorker::sendEmailTask() {
   while (started_) {
-    // compress packet with LZMA/ZLIB
+    // compress packet with ZLIB
     // ToDo: don't forget, for tests sent uncompressed
     //for (auto packet : emailPackets)
     //  lzmaCompress(packet.data, packet.data);
@@ -274,6 +272,7 @@ void EmailWorker::sendEmailTask() {
         std::string to_address = email->getToAddresses();
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: to_address: ", to_address);
         // Add zeros to beginning
+        // ToDo: check recipient identity
         std::string cryptoPubKey = "A" + to_address.substr(0, 43);
         std::string signingPubKey = "A" + to_address.substr(43, 43);
         to_address = cryptoPubKey + signingPubKey;
@@ -284,8 +283,7 @@ void EmailWorker::sendEmailTask() {
           continue;
         }
 
-        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: email: recipient hash: ",
-                 recipient_identity.GetIdentHash().ToBase64());
+        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: email: recipient hash: ", recipient_identity.GetIdentHash().ToBase64());
 
         // Get FROM identity
         auto from_name = email->field("From");
@@ -455,7 +453,7 @@ void EmailWorker::sendEmailTask() {
 }
 
 std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr<pbote::BoteIdentityFull> &identity) {
-  auto identity_hash = identity->identity.GetPublicIdentity()->GetIdentHash();
+  auto identity_hash = identity->identity.GetIdentHash();
   LogPrint(eLogDebug, "EmailWorker: retrieveIndex: Try to find index for: ", identity_hash.ToBase64());
   // Use findAll rather than findOne because some peers might have an incomplete set of
   // Email Packet keys, and because we want to send IndexPacketDeleteRequests to all of them.
