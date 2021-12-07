@@ -106,7 +106,7 @@ void BoteContext::removeBatch(const std::shared_ptr<PacketBatch<pbote::Communica
   }
 }
 
-std::shared_ptr<pbote::EmailIdentityFull> BoteContext::identityByName(const std::string &name) {
+std::shared_ptr<pbote::BoteIdentityFull> BoteContext::identityByName(const std::string &name) {
   // ToDo: well is it really better?
   //return std::find_if(email_identities.begin(), email_identities.end(), [&name](std::shared_ptr<pbote::EmailIdentityFull> i){ return i->publicName == name; }).operator*();
 

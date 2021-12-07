@@ -139,21 +139,6 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::check_inbox() {
   return emails;
 }
 
-std::vector<uint8_t> EmailWorker::decryptData(const std::shared_ptr<pbote::EmailIdentityFull>& identity,
-                                              std::vector<uint8_t> edata) {
-    std::vector<uint8_t> data = identity->identity.Decrypt(edata.data(), edata.size());
-    return data;
-}
-
-std::vector<uint8_t> EmailWorker::encryptData(const std::shared_ptr<pbote::EmailIdentityFull>& identity,
-                                              std::vector<uint8_t> data,
-                                              const pbote::EmailIdentityPublic &recipient) {
-    std::vector<uint8_t> enc_data = identity->identity.Encrypt(data.data(),
-                                                               data.size(),
-                                                               recipient.GetEncryptionPublicKey());
-    return enc_data;
-}
-
 void EmailWorker::run() {
   while (started_) {
     // ToDo: run checkEmailTask for new loaded identities
@@ -179,11 +164,11 @@ void EmailWorker::run() {
   }
 }
 
-void EmailWorker::checkEmailTask(const std::shared_ptr<pbote::EmailIdentityFull> &email_identity) {
+void EmailWorker::checkEmailTask(const std::shared_ptr<pbote::BoteIdentityFull> &email_identity) {
   while (started_) {
     auto index_packets = retrieveIndex(email_identity);
 
-    auto local_index_packet = DHT_worker.getIndex(email_identity->identity.GetPublic()->GetIdentHash());
+    auto local_index_packet = DHT_worker.getIndex(email_identity->identity.GetIdentHash());
     if (!local_index_packet.empty()) {
       LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
                email_identity->publicName,
@@ -238,12 +223,10 @@ void EmailWorker::checkEmailTask(const std::shared_ptr<pbote::EmailIdentityFull>
 
         // Delete index packets
         // ToDo: add multipart email support
-        DHT_worker.deleteIndexEntry(email_identity->identity.GetPublic()->GetIdentHash(),
-                                    email_dht_key, email_del_auth);
+        DHT_worker.deleteIndexEntry(email_identity->identity.GetIdentHash(), email_dht_key, email_del_auth);
       }
     } else {
-      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
-               email_identity->publicName, ": have no emails for process");
+      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ", email_identity->publicName, ": have no emails for process");
     }
 
     // ToDo: check sent emails status
@@ -262,7 +245,7 @@ void EmailWorker::incompleteEmailTask() {
 
 void EmailWorker::sendEmailTask() {
   while (started_) {
-    // compress packet with LZMA/ZLIB
+    // compress packet with ZLIB
     // ToDo: don't forget, for tests sent uncompressed
     //for (auto packet : emailPackets)
     //  lzmaCompress(packet.data, packet.data);
@@ -285,10 +268,11 @@ void EmailWorker::sendEmailTask() {
         email->setField("X-I2PBote-Delete-Auth-Hash", del_hash.ToBase64());
 
         // Create recipient
-        pbote::EmailIdentityPublic recipient_identity;
+        pbote::BoteIdentityPublic recipient_identity;
         std::string to_address = email->getToAddresses();
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: to_address: ", to_address);
         // Add zeros to beginning
+        // ToDo: check recipient identity
         std::string cryptoPubKey = "A" + to_address.substr(0, 43);
         std::string signingPubKey = "A" + to_address.substr(43, 43);
         to_address = cryptoPubKey + signingPubKey;
@@ -299,8 +283,7 @@ void EmailWorker::sendEmailTask() {
           continue;
         }
 
-        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: email: recipient hash: ",
-                 recipient_identity.GetIdentHash().ToBase64());
+        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: email: recipient hash: ", recipient_identity.GetIdentHash().ToBase64());
 
         // Get FROM identity
         auto from_name = email->field("From");
@@ -322,12 +305,12 @@ void EmailWorker::sendEmailTask() {
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Encrypt data");
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: packet.data.size: ", packet.data.size());
         auto packet_bytes = packet.toByte();
-        enc_packet.edata = encryptData(identity, packet_bytes, recipient_identity);
+        enc_packet.edata = identity->identity.GetPublicIdentity()->Encrypt(packet_bytes.data(), packet_bytes.size(),
+                                                                           recipient_identity.GetCryptoPublicKey());
         enc_packet.length = enc_packet.edata.size();
-        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: enc_packet.edata.size(): ", enc_packet.edata.size());
-        // ToDo: for now only supported ECDH-256 / ECDSA-256
-        enc_packet.alg = 2;
+        enc_packet.alg = identity->identity.GetKeyType();
         enc_packet.stored_time = 0;
+        LogPrint(eLogDebug, "EmailWorker: sendEmailTask: enc_packet.edata.size(): ", enc_packet.edata.size());
 
         // Get hash of data + length for DHT key
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: Get hash of data + length for DHT key");
@@ -393,7 +376,7 @@ void EmailWorker::sendEmailTask() {
 
         // Create recipient
         // ToDo: re-use from previous step
-        pbote::EmailIdentityPublic recipient_identity;
+        pbote::BoteIdentityPublic recipient_identity;
         std::string to_address = email->getToAddresses();
         LogPrint(eLogDebug, "EmailWorker: sendEmailTask: to_address: ", to_address);
         // Add zeros to beginning
@@ -469,8 +452,8 @@ void EmailWorker::sendEmailTask() {
   }
 }
 
-std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr<pbote::EmailIdentityFull> &identity) {
-  auto identity_hash = identity->identity.GetPublic()->GetIdentHash();
+std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr<pbote::BoteIdentityFull> &identity) {
+  auto identity_hash = identity->identity.GetIdentHash();
   LogPrint(eLogDebug, "EmailWorker: retrieveIndex: Try to find index for: ", identity_hash.ToBase64());
   // Use findAll rather than findOne because some peers might have an incomplete set of
   // Email Packet keys, and because we want to send IndexPacketDeleteRequests to all of them.
@@ -803,7 +786,7 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::checkOutbox() {
   return emails;
 }
 
-std::vector<pbote::Email> EmailWorker::processEmail(const std::shared_ptr<pbote::EmailIdentityFull>& identity,
+std::vector<pbote::Email> EmailWorker::processEmail(const std::shared_ptr<pbote::BoteIdentityFull>& identity,
                                                     const std::vector<pbote::EmailEncryptedPacket> &mail_packets) {
   // ToDo: move to incompleteEmailTask?
   LogPrint(eLogDebug, "EmailWorker: processEmail: emails for process: ", mail_packets.size());
@@ -812,7 +795,7 @@ std::vector<pbote::Email> EmailWorker::processEmail(const std::shared_ptr<pbote:
   for (auto enc_mail: mail_packets) {
     std::vector<uint8_t> unencrypted_email_data;
     if (!enc_mail.edata.empty())
-      unencrypted_email_data = decryptData(identity, enc_mail.edata);
+      unencrypted_email_data = identity->identity.Decrypt(enc_mail.edata.data(), enc_mail.edata.size());
 
     if (!unencrypted_email_data.empty()) {
       pbote::Email temp_mail(unencrypted_email_data, true);

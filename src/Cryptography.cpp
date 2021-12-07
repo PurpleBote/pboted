@@ -80,7 +80,7 @@ std::vector<byte> ECDHP256Encryptor::Encrypt(const byte *data, int len) {
     }
 
     const int padding = len % 16;
-
+    LogPrint(eLogDebug, "Crypto: Encrypt: len: ", len, ", padding: ", padding);
     std::vector<byte> encrypted(len + padding);
     AES_cbc_encrypt(data, encrypted.data(), len, &encrypt_key, ivec, AES_ENCRYPT);
 

@@ -25,7 +25,7 @@ const char capa_list[][100] = {
     // ToDo: {"APOP\n"}, // added APOP
     // ToDo: {"TOP\n"}, // added TOP
     // ToDo: {"UIDL\n"}, // added UIDL
-    // ToDo: {"SASL\n"}, // added AUTH; reference: POP-AUTH, SASL
+    // ToDo: {"SASL\n"}, // added AUTH; reference: POP-AUTH, SASL. libsasl2?
     // ToDo: {"STARTTLS\n"},
     // ToDo: {"RESP-CODES\n"},
     // ToDo: {"LOGIN-DELAY 900\n"}, // affected USER PASS APOP AUTH
