@@ -26,7 +26,9 @@ BoteIdentityPublic::BoteIdentityPublic(KeyType keyType) {
   }
 
   RecalculateIdentHash();
+  /* ToDo
   CreateVerifier();
+  */
 }
 
 BoteIdentityPublic::BoteIdentityPublic(const uint8_t *cryptoPublicKey, const uint8_t *signingPublicKey, KeyType keyType) {
@@ -50,7 +52,9 @@ BoteIdentityPublic::BoteIdentityPublic(const uint8_t *cryptoPublicKey, const uin
   }
 
   RecalculateIdentHash();
+  /* ToDo
   CreateVerifier();
+  */
 }
 
 void BoteIdentityPublic::RecalculateIdentHash() {
@@ -67,8 +71,10 @@ BoteIdentityPublic &BoteIdentityPublic::operator=(const BoteIdentityPublic &othe
   m_Identity = other.m_Identity;
   m_IdentHash = other.m_IdentHash;
 
+  /* ToDo
   delete m_Verifier;
   m_Verifier = nullptr;
+  */
 
   return *this;
 }
@@ -82,8 +88,10 @@ size_t BoteIdentityPublic::FromBuffer(const uint8_t *buf, size_t len) {
   m_Identity->from_buffer(buf, len);
   RecalculateIdentHash();
 
+  /* ToDo
   delete m_Verifier;
   m_Verifier = nullptr;
+   */
 
   return GetFullLen();
 }
@@ -118,12 +126,14 @@ std::string BoteIdentityPublic::ToBase64() const {
 }
 
 size_t BoteIdentityPublic::GetSignatureLen() const {
+  /* ToDo
   if (!m_Verifier)
     CreateVerifier();
 
   if (m_Verifier)
     return m_Verifier->GetSignatureLen();
-  return 0; // ToDo
+  */
+  return 0;
 }
 
 std::vector<uint8_t> BoteIdentityPublic::Encrypt(const uint8_t *data, int len, const uint8_t *pubKey) const {
@@ -167,7 +177,8 @@ bool BoteIdentityPublic::Verify(const uint8_t *buf, size_t len, const uint8_t *s
 i2p::crypto::Verifier *BoteIdentityPublic::CreateVerifier(KeyType keyType) {
   switch (keyType) {
     case KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC:
-      return new i2p::crypto::ECDSAP256Verifier();
+      //return new i2p::crypto::ECDSAP256Verifier();
+      return nullptr; // ToDo
     case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
       return nullptr; // ToDo
     case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
@@ -224,8 +235,10 @@ BoteIdentityPrivate &BoteIdentityPrivate::operator=(const BoteIdentityPrivate &o
   setCryptoPrivateKey(other.GetCryptoPrivateKey(), other.getCryptoPrivateKeyLen());
   setSigningPrivateKey(other.GetSigningPrivateKey(), other.getSigningPrivateKeyLen());
 
+  /* ToDo
   m_Signer = nullptr;
   CreateSigner();
+  */
 
   return *this;
 }
@@ -249,6 +262,7 @@ size_t BoteIdentityPrivate::FromBuffer(const uint8_t *buf, size_t len) {
   setSigningPrivateKey(buf + ret, signingPrivateKeySize);
   ret += signingPrivateKeySize;
 
+  /* ToDo
   m_Signer = nullptr;
   // check if signing private key is all zeros
   bool allzeros = true;
@@ -277,6 +291,7 @@ size_t BoteIdentityPrivate::FromBuffer(const uint8_t *buf, size_t len) {
     CreateSigner(m_Public->GetKeyType());
   } else
     CreateSigner(m_Public->GetKeyType());
+  */
 
   return ret;
 }
@@ -329,7 +344,8 @@ void BoteIdentityPrivate::Sign(const uint8_t *buf, int len, uint8_t *signature) 
 i2p::crypto::Signer *BoteIdentityPrivate::CreateSigner(KeyType keyType, const uint8_t *priv) {
   switch (keyType) {
     case KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC:
-      return new i2p::crypto::ECDSAP256Signer(priv);
+      //return new i2p::crypto::ECDSAP256Signer(priv);
+      return nullptr; // ToDo
     case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
       return nullptr; // ToDo
     case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:

@@ -22,7 +22,7 @@ namespace smtp {
 const char reply_info[][100] = {
     {"250-pboted.i2p is pleased to meet you\n"},
     // ToDo: {"250-SIZE 10485760\n"}, // RFC 1870
-    {"250-AUTH LOGIN PLAIN\n"}, // RFC 4954
+    {"250-AUTH LOGIN PLAIN\n"}, // RFC 4954. libsasl2?
     // ToDo: {"250-ENHANCEDSTATUSCODES\n"}, // RFC 3463
     // ToDo: {"250-CHUNKING\n"}, // RFC 3030
     // ToDo: {"250-PIPELINING\n"}, // RFC 2920

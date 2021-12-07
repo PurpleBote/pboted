@@ -6,6 +6,7 @@
 #define BOTE_IDENTITY_H_
 
 #include <algorithm>
+#include <openssl/sha.h>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -32,7 +33,7 @@ const std::string ECDH256_ECDSA256_NAME = "ECDH-256 / ECDSA-256";
 const size_t ECDH256_ECDSA256_COMPLETE_BASE64_LENGTH = 172;
 const size_t ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH = 86;
 const size_t ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH = 33;
-const size_t ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH = 32;
+const size_t ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH = 33;
 
 /// ECDH-512 / ECDSA-521 / AES-256 / SHA-512
 const std::string ECDH521_ECDSA521_NAME = "ECDH-521 / ECDSA-521";
