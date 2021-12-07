@@ -15,8 +15,8 @@ Tested with [i2pd](https://github.com/PurpleI2P/i2pd) and [Java I2P](https://git
 ## Features
 
 - Sending and receiving emails
-- Basic support for short recipient names (alias)
-- Elliptic Curve encryption (ECDH-256/ECDSA-256/AES-256/SHA-256)
+- Support for short recipient names (alias)
+- End-to-End encryption, see details [here](https://pboted.readthedocs.io/en/latest/bote/v5/cryptography/)
 - Runnable as daemon or as user service
 - SMTP / POP3 support (tested with [Mozilla Thunderbird](https://www.thunderbird.net/en-US/))
 
@@ -39,7 +39,7 @@ Tested with [i2pd](https://github.com/PurpleI2P/i2pd) and [Java I2P](https://git
 You can fetch precompiled packages and binaries on [release](https://github.com/polistern/pboted/releases/latest) page.  
 Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/) for more info.
 
-### Supported systems**
+### Supported systems
 
 - GNU/Linux
   - Debian / Ubuntu - [![Build on Ubuntu](https://github.com/polistern/pboted/actions/workflows/build.yml/badge.svg)](https://github.com/polistern/pboted/actions/workflows/build.yml)
@@ -55,7 +55,6 @@ See [documentation](https://pboted.readthedocs.io/en/latest/user-guide/run/) and
 ## Donations
 
 - **BTC**: `bc1qans7ukm5t62mjcuhl3rpzxml05etyljhjt7w76`
-- **DASH**: `XfeBg9i7MwbW2X1y1HpgHZ4sB7jqxhSfta`
 - **GST**: `GatPEoV4uK2z1mgbph577Tv1WavrL5vmSE`
 - **XMR**: `85P3aEXrYMn1YxnQaZSBWy6Ur6j9PVRxmCd3Ey1UanKAdKnhd2iYNdrEhNJ2JeUdcC8otSHogRTnydn4aMh8DwbSMs4N13Z`
 
