@@ -56,21 +56,23 @@ class Email {
 
   Email();
   Email(const std::vector<uint8_t> &data, bool from_net);
-
-  ~Email();
+  ~Email() = default;
 
   //void fromUnencryptedPacket(const pbote::EmailUnencryptedPacket &email_packet);
   void fromMIME(const std::vector<uint8_t> &email);
 
-  i2p::data::Tag<32> getID();
+  void set_message_id();
+  std::string get_message_id();
+  void set_message_id_bytes();
+  i2p::data::Tag<32> get_message_id_bytes() { return i2p::data::Tag<32>(packet.mes_id); };
   std::vector<uint8_t> getHashCash();
 
-  std::map<std::string, std::string> getAllRecipients();
-  std::string getRecipients(const std::string &type);
-  std::string getToAddresses();
-  std::string getCCAddresses();
-  std::string getBCCAddresses();
-  std::string getReplyAddress();
+  //std::map<std::string, std::string> getAllRecipients();
+  //std::string getRecipients(const std::string &type);
+  std::string getToAddresses() { return mail.header().to().begin()->mailbox().mailbox(); }
+  //std::string getCCAddresses() { return mail.header().cc().begin()->mailbox().mailbox(); }
+  //std::string getBCCAddresses() { return mail.header().bcc().begin()->mailbox().mailbox(); }
+  //std::string getReplyAddress() { return mail.header().replyto().begin()->mailbox().mailbox(); }
 
   void setField(const std::string& type, const std::string& value) { mail.header().field(type).value(value); }
   std::string field(const std::string& type) { return mail.header().field(type).value(); }
@@ -78,9 +80,9 @@ class Email {
   bool empty() const { return empty_; };
   bool incomplete() const { return incomplete_; };
   void skip(bool s) { skip_ = s; };
-  bool skip() { return skip_; };
+  bool skip() const { return skip_; };
   void deleted(bool s) { deleted_ = s; };
-  bool deleted() { return deleted_; };
+  bool deleted() const { return deleted_; };
   bool verify(uint8_t *hash);
 
   std::string filename() { return filename_; }
@@ -103,6 +105,8 @@ class Email {
   void decompress(std::vector<uint8_t> data);
 
  private:
+  std::string generate_uuid_v4();
+
   static void lzmaDecompress(std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf);
 
   static void zlibCompress(std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf);
@@ -112,7 +116,7 @@ class Email {
   bool empty_;
   bool skip_;
   bool deleted_;
-  // i2p::data::Tag<32> messageId;
+  // unsigned char messageId[32];
   // metadata?
   // sendtime
   std::string filename_;

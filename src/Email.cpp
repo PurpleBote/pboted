@@ -32,15 +32,18 @@ ISzAlloc _allocFuncs = {
 Email::Email()
     : incomplete_(false),
       empty_(true),
-      skip_(false) {
+      skip_(false),
+      deleted_(false) {
   compose();
 }
 
-Email::Email(const std::vector<uint8_t> &data, bool from_net) {
+Email::Email(const std::vector<uint8_t> &data, bool from_net)
+    : skip_(false),
+      deleted_(false) {
   LogPrint(eLogDebug, "Email: Email: payload size: ", data.size());
-  /// 72 cause type[1] + ver[1] + mes_id[32] + DA[32] + fr_id[2] + fr_count[2] + length[2]
+  /// 72 because type[1] + ver[1] + mes_id[32] + DA[32] + fr_id[2] + fr_count[2] + length[2]
   if (data.size() < 72) {
-    LogPrint(eLogWarning, "Email: Email: payload is too short");
+    LogPrint(eLogWarning, "Email: payload is too short");
   }
 
   size_t offset = 0;
@@ -51,11 +54,11 @@ Email::Email(const std::vector<uint8_t> &data, bool from_net) {
   offset += 1;
 
   if (packet.type != (uint8_t) 'U') {
-    LogPrint(eLogWarning, "Email: Email: wrong packet type: ", packet.type);
+    LogPrint(eLogWarning, "Email: wrong packet type: ", packet.type);
   }
 
   if (packet.ver != (uint8_t) 4) {
-    LogPrint(eLogWarning, "Email: Email: wrong packet version: ", unsigned(packet.ver));
+    LogPrint(eLogWarning, "Email: wrong packet version: ", unsigned(packet.ver));
   }
 
   std::memcpy(&packet.mes_id, data.data() + offset, 32);
@@ -70,7 +73,7 @@ Email::Email(const std::vector<uint8_t> &data, bool from_net) {
   offset += 2;
 
   i2p::data::Tag<32> mes_id(packet.mes_id);
-  LogPrint(eLogDebug, "Email: Email: mes_id: ", mes_id.ToBase64());
+  LogPrint(eLogDebug, "Email: mes_id: ", mes_id.ToBase64());
 
   if (from_net) {
     packet.fr_id = ntohs(packet.fr_id);
@@ -78,43 +81,70 @@ Email::Email(const std::vector<uint8_t> &data, bool from_net) {
     packet.length = ntohs(packet.length);
   }
 
-  LogPrint(eLogDebug, "Email: Email: fr_id: ", packet.fr_id, ", fr_count: ", packet.fr_count,
+  LogPrint(eLogDebug, "Email: fr_id: ", packet.fr_id,
+           ", fr_count: ", packet.fr_count,
            ", length: ", packet.length);
 
   if (packet.fr_id >= packet.fr_count) {
-    LogPrint(eLogError, "Email: Email: Illegal values, fr_id: ", packet.fr_id, ", fr_count:",
-             packet.fr_count);
+    LogPrint(eLogError, "Email: Illegal values, fr_id: ", packet.fr_id,
+             ", fr_count:", packet.fr_count);
   }
 
   incomplete_ = packet.fr_id + 1 != packet.fr_count;
   empty_ = packet.length == 0;
-
   packet.data = std::vector<uint8_t>(data.data() + offset, data.data() + data.size());
-
   decompress(packet.data);
-  skip_ = false;
   fromMIME(packet.data);
-}
-
-Email::~Email() {
-
 }
 
 void Email::fromMIME(const std::vector<uint8_t> &email_data) {
   std::string message(email_data.begin(), email_data.end());
   mail.load(message.begin(), message.end());
 
-  for (const auto &entity : mail.header())
-    LogPrint(eLogDebug, "Email: fromMIME: ", entity.name(), ": ", entity.value());
+  for (const auto &entity : mail.header()) {
+    if (std::find(HEADER_WHITELIST.begin(), HEADER_WHITELIST.end(), entity.name()) != HEADER_WHITELIST.end())
+      LogPrint(eLogDebug, "Email: fromMIME: ", entity.name(), ": ", entity.value());
+    else {
+      mail.header().field(entity.name()).value("");
+      LogPrint(eLogDebug, "Email: fromMIME: Forbidden header ", entity.name(), " removed");
+    }
+  }
 
-  // ToDo: check all required fields
   empty_ = false;
-
   packet.data = email_data;
+  compose();
 }
 
-i2p::data::Tag<32> Email::getID() {
-  return packet.mes_id;
+void Email::set_message_id() {
+  std::string message_id = generate_uuid_v4();
+  message_id.append("@bote.i2p");
+  setField("Message-ID", message_id);
+}
+
+std::string Email::get_message_id() {
+  std::string message_id = field("Message-ID");
+  if (message_id.empty() || (message_id.size() == 36 && message_id.c_str()[14] != 4)) {
+    LogPrint(eLogDebug, "Email: get_message_id: message ID is not 4 version or empty");
+    set_message_id();
+    message_id = field("Message-ID");
+  }
+
+  return message_id;
+}
+
+void Email::set_message_id_bytes() {
+  std::string message_id = get_message_id();
+  std::vector<uint8_t> res;
+  const bool dash[] = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+  for (int i = 0; i < 36; i++) {
+    if (dash[i])
+      continue;
+
+    res.push_back(message_id.c_str()[i]);
+  }
+  memcpy(packet.mes_id, res.data(), 32);
+
 }
 
 std::vector<uint8_t> Email::getHashCash() {
@@ -143,30 +173,6 @@ std::vector<uint8_t> Email::getHashCash() {
   return result;
 }
 
-std::map<std::string, std::string> Email::getAllRecipients() {
-  return {};
-}
-
-std::string Email::getRecipients(const std::string &type) {
-  return {};
-}
-
-std::string Email::getToAddresses() {
-  return mail.header().to().begin()->mailbox().mailbox();
-}
-
-std::string Email::getCCAddresses() {
-  return mail.header().cc().begin()->mailbox().mailbox();
-}
-
-std::string Email::getBCCAddresses() {
-  return mail.header().bcc().begin()->mailbox().mailbox();
-}
-
-std::string Email::getReplyAddress() {
-  return mail.header().replyto().begin()->mailbox().mailbox();
-}
-
 bool Email::verify(uint8_t *hash) {
   /* For debug
   i2p::data::Tag<32> ver_hash(hash);
@@ -182,6 +188,9 @@ bool Email::verify(uint8_t *hash) {
 std::vector<uint8_t> Email::bytes() {
   std::stringstream buffer;
   buffer << mail;
+
+  LogPrint(eLogDebug, "Email: bytes: test buffer << operator:\n", buffer.str());
+
   std::string str_buf = buffer.str();
   std::vector<uint8_t> result(str_buf.begin(), str_buf.end());
 
@@ -192,11 +201,10 @@ std::vector<uint8_t> Email::bytes() {
 }
 
 bool Email::save(const std::string &dir) {
-  // ToDo: remove all not allowed header fields
   std::string emailPacketPath;
   // If email not loaded from file system, and we need to save it first time
-  if (filename().empty() && !dir.empty()) {
-    emailPacketPath = pbote::fs::DataDirPath(dir, getID().ToBase64() + ".mail");
+  if (!dir.empty() && filename().empty()) {
+    emailPacketPath = pbote::fs::DataDirPath(dir, get_message_id() + ".mail");
 
     if (pbote::fs::Exists(emailPacketPath)) {
       return false;
@@ -242,6 +250,26 @@ bool Email::move(const std::string &dir) {
     LogPrint(eLogError, "Email: move: Can't move file ", filename(), " to ", new_path);
     return false;
   }
+}
+
+void Email::compose() {
+  set_message_id();
+  set_message_id_bytes();
+
+  bytes();
+
+  LogPrint(eLogDebug, "Email: compose: Message-ID: ", get_message_id());
+  LogPrint(eLogDebug, "Email: compose: Message-ID bytes: ", get_message_id_bytes().ToBase64());
+  context.random_cid(packet.DA, 32);
+  context.random_cid(packet.DA, 32);
+
+  // ToDo
+  packet.fr_id = 0;
+  packet.fr_count = 1;
+  packet.length = packet.data.size();
+
+  empty_ = false;
+  incomplete_ = false;
 }
 
 bool Email::compress(CompressionAlgorithm type) {
@@ -303,19 +331,36 @@ void Email::decompress(std::vector<uint8_t> v_mail) {
   mail.load(v_mail.begin() + 1, v_mail.end());
 }
 
-void Email::compose() {
-  context.random_cid(packet.mes_id, 32);
-  context.random_cid(packet.mes_id, 32);
-  context.random_cid(packet.DA, 32);
-  context.random_cid(packet.DA, 32);
+std::string Email::generate_uuid_v4() {
+  static std::random_device              rd;
+  static std::mt19937                    gen(rd());
+  static std::uniform_int_distribution<> dis(0, 15);
+  static std::uniform_int_distribution<> dis2(8, 11);
 
-  // ToDo: just for tests, need to implement
-  packet.fr_id = 0;
-  packet.fr_count = 1;
-  packet.length = packet.data.size();
+  std::stringstream ss;
+  int i;
+  ss << std::hex;
+  for (i = 0; i < 8; i++)
+    ss << dis(gen);
 
-  empty_ = false;
-  incomplete_ = false;
+  ss << "-";
+  for (i = 0; i < 4; i++)
+    ss << dis(gen);
+
+  ss << "-4";
+  for (i = 0; i < 3; i++)
+    ss << dis(gen);
+
+  ss << "-";
+  ss << dis2(gen);
+  for (i = 0; i < 3; i++)
+    ss << dis(gen);
+
+  ss << "-";
+  for (i = 0; i < 12; i++)
+    ss << dis(gen);
+
+  return ss.str();
 }
 
 void Email::lzmaDecompress(std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf) {
