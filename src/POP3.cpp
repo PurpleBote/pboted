@@ -265,6 +265,9 @@ void POP3session::LIST(char *request) {
     size_t email_counter = 1;
 
     for (const auto& email : emails) {
+      if (email->deleted())
+        continue;
+
       size_t email_size = email->bytes().size();
       emails_size += email_size;
       mail_list += format_response(templates[TEMPLATE_LIST_ITEM],
@@ -289,7 +292,7 @@ void POP3session::RETR(char *request) {
     LogPrint(eLogDebug, "POP3session: RETR: req_str: ", req_str);
     req_str.erase(0, 5);
     if (req_str.size() - 1 < 1) {
-      LogPrint(eLogError,"POP3session: RETR: Message is too short");
+      LogPrint(eLogError,"POP3session: RETR: Request is too short");
       reply(reply_err[ERR_SIMP]);
     } else {
       std::replace(req_str.begin(), req_str.end(), '\n', ';');

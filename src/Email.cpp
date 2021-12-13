@@ -189,7 +189,7 @@ std::vector<uint8_t> Email::bytes() {
   std::stringstream buffer;
   buffer << mail;
 
-  LogPrint(eLogDebug, "Email: bytes: test buffer << operator:\n", buffer.str());
+  LogPrint(eLogDebug, "Email: bytes: buffer << operator:\n", buffer.str());
 
   std::string str_buf = buffer.str();
   std::vector<uint8_t> result(str_buf.begin(), str_buf.end());
@@ -312,23 +312,23 @@ void Email::decompress(std::vector<uint8_t> v_mail) {
     LogPrint(eLogDebug, "Email: decompress: LZMA compressed, start decompress");
     std::vector<uint8_t> output;
     lzmaDecompress(output, std::vector<uint8_t>(v_mail.data() + offset, v_mail.data() + v_mail.size()));
-    mail.load(output.begin(), output.end());
+    packet.data = output;
   }
 
   if (compress_alg == CompressionAlgorithm::ZLIB) {
     LogPrint(eLogDebug, "Email: decompress: ZLIB compressed, start decompress");
     std::vector<uint8_t> output;
     zlibDecompress(output, std::vector<uint8_t>(v_mail.data() + offset, v_mail.data() + v_mail.size()));
-    mail.load(output.begin(), output.end());
+    packet.data = output;
   }
 
   if (compress_alg == CompressionAlgorithm::UNCOMPRESSED) {
     LogPrint(eLogDebug, "Email: decompress: data uncompressed, save as is");
-    mail.load(v_mail.begin() + 1, v_mail.end());
+    packet.data = std::vector<uint8_t>(v_mail.begin() + 1, v_mail.end());
   }
 
-  LogPrint(eLogWarning, "Email: compress: Unknown compress algorithm, try to save as is");
-  mail.load(v_mail.begin() + 1, v_mail.end());
+  LogPrint(eLogWarning, "Email: decompress: Unknown compress algorithm, try to save as is");
+  packet.data = std::vector<uint8_t>(v_mail.begin() + 1, v_mail.end());
 }
 
 std::string Email::generate_uuid_v4() {
