@@ -524,7 +524,6 @@ std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr
 }
 
 std::vector<pbote::EmailEncryptedPacket> EmailWorker::retrieveEmailPacket(const std::vector<pbote::IndexPacket> &index_packets) {
-  // retrieve mail packets
   std::vector<std::shared_ptr<pbote::CommunicationPacket>> responses;
   std::vector<pbote::EmailEncryptedPacket> local_email_packets;
 
@@ -664,6 +663,7 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::checkOutbox() {
 
       pbote::Email mailPacket;
       mailPacket.fromMIME(bytes);
+      mailPacket.bytes();
 
       if (mailPacket.length() > 0) {
         LogPrint(eLogDebug, "EmailWorker: checkOutbox: file loaded: ", mail_path);

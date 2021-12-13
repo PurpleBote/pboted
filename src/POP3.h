@@ -76,7 +76,7 @@ const char reply_ok[][100] = {
 const char reply_err[][100] = {
     {"-ERR\r\n"},                                   // 0
     {"-ERR Command not implemented\r\n"},           // 1
-    {"-ERR never heard of mailbox %s\r\n"},       // 2
+    {"-ERR never heard of mailbox %s\r\n"},         // 2
     {"-ERR invalid password\r\n"},                  // 3
     {"-ERR unable to lock maildrop\r\n"},           // 4
     {"-ERR permission denied\r\n"},                 // 5
@@ -86,7 +86,7 @@ const char reply_err[][100] = {
 };
 
 #define TEMPLATE_LIST_ITEM 0
-#define TEMPLATE_UIDL_ITEM 0
+#define TEMPLATE_UIDL_ITEM 1
 
 const char templates[][100] = {
     {"%d %d"}, // 0
