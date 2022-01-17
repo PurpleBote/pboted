@@ -27,7 +27,7 @@ const size_t MAX_DATAGRAM_SIZE = 32768;
 
 namespace network {
 
-extern std::string SAM_NICKNAME;
+const std::string SAM_NICKNAME = "pboted";
 
 class udp_client_server_runtime_error : public std::runtime_error {
  public:
@@ -36,11 +36,10 @@ class udp_client_server_runtime_error : public std::runtime_error {
 
 /**
  * Receive handle class
- * ToDo: rewrite as function?
  */
 class UDPReceiver {
  public:
-  UDPReceiver(const std::string &addr, int port);
+  UDPReceiver(const std::string &address, int port);
   ~UDPReceiver();
 
   void start();
@@ -67,15 +66,14 @@ class UDPReceiver {
   int f_socket;
   int f_port;
   std::string f_addr;
-  struct addrinfo *f_addrinfo;
+  struct addrinfo *f_addrinfo{};
 
-  uint8_t m_DatagramRecvBuffer[MAX_DATAGRAM_SIZE + 1];
+  uint8_t m_DatagramRecvBuffer[MAX_DATAGRAM_SIZE + 1]{};
   queue_type m_recvQueue;
 };
 
 /**
  * Send handle class
- * ToDo: rewrite as function?
  */
 class UDPSender {
  public:
@@ -108,7 +106,7 @@ class UDPSender {
   int f_socket;
   int f_port;
   std::string f_addr;
-  struct addrinfo *f_addrinfo;
+  struct addrinfo *f_addrinfo{};
 
   queue_type m_sendQueue;
 };

@@ -11,39 +11,41 @@ namespace network {
 
 NetworkWorker network_worker;
 
-std::string SAM_NICKNAME = "pboted";
-
 /**
  * Receive handle class
  */
-UDPReceiver::UDPReceiver(const std::string &addr, int port)
-    : m_IsRunning(false), m_RecvThread(nullptr), f_port(port), f_addr(addr), m_recvQueue(nullptr) {
+UDPReceiver::UDPReceiver(const std::string &address, int port)
+    : m_IsRunning(false),
+    m_RecvThread(nullptr),
+    f_port(port),
+    f_addr(address),
+    m_recvQueue(nullptr) {
   // ToDo: restart on error
   int errcode;
   char decimal_port[16];
   snprintf(decimal_port, sizeof(decimal_port), "%d", f_port);
   decimal_port[sizeof(decimal_port) / sizeof(decimal_port[0]) - 1] = '\0';
 
-  struct addrinfo hints;
+  struct addrinfo hints{};
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_DGRAM;
   hints.ai_protocol = IPPROTO_UDP;
 
-  errcode = getaddrinfo(addr.c_str(), decimal_port, &hints, &f_addrinfo);
+  errcode = getaddrinfo(address.c_str(), decimal_port, &hints, &f_addrinfo);
   if (errcode != 0 || f_addrinfo == nullptr) {
     char test[16];
     snprintf(test, sizeof(test), "%d", errcode);
     throw udp_client_server_runtime_error(
         ("Network: UDPReceiver: invalid address or port for UDP socket: \"" +
-            addr + ":" + decimal_port + "\", errcode=" + gai_strerror(errcode))
+            address + ":" + decimal_port + "\", errcode=" + gai_strerror(errcode))
             .c_str());
   }
 
   if ((f_socket = socket(f_addrinfo->ai_family, SOCK_DGRAM | SOCK_CLOEXEC,IPPROTO_UDP)) == -1) {
     freeaddrinfo(f_addrinfo);
     throw udp_client_server_runtime_error(
-        ("Network: UDPReceiver: could not create UDP socket for: \"" + addr + ":" +
+        ("Network: UDPReceiver: could not create UDP socket for: \"" + address + ":" +
             decimal_port + "\"")
             .c_str());
   }
@@ -52,7 +54,7 @@ UDPReceiver::UDPReceiver(const std::string &addr, int port)
     freeaddrinfo(f_addrinfo);
     close(f_socket);
     throw udp_client_server_runtime_error(
-        ("Network: UDPReceiver: could not bind UDP socket with: \"" + addr + ":" +
+        ("Network: UDPReceiver: could not bind UDP socket with: \"" + address + ":" +
             decimal_port + "\", errcode=" + gai_strerror(errcode))
             .c_str());
   }
@@ -69,7 +71,7 @@ UDPReceiver::~UDPReceiver() {
 void UDPReceiver::start() {
   if (!m_IsRunning) {
     m_IsRunning = true;
-    m_RecvThread = new std::thread(std::bind(&UDPReceiver::run, this));
+    m_RecvThread = new std::thread([this] { run(); });
   }
 }
 
@@ -134,13 +136,16 @@ void UDPReceiver::handle_receive() {
  * Send handle class
  */
 UDPSender::UDPSender(const std::string &addr, int port)
-    : m_IsRunning(false), m_SendThread(nullptr),
-      f_port(port), f_addr(addr), m_sendQueue(nullptr) {
+    : m_IsRunning(false),
+      m_SendThread(nullptr),
+      f_port(port),
+      f_addr(addr),
+      m_sendQueue(nullptr) {
   // ToDo: restart on error
   char decimal_port[16];
   snprintf(decimal_port, sizeof(decimal_port), "%d", f_port);
   decimal_port[sizeof(decimal_port) / sizeof(decimal_port[0]) - 1] = '\0';
-  struct addrinfo hints;
+  struct addrinfo hints{};
   memset(&hints, 0, sizeof(hints));
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_DGRAM;
@@ -148,12 +153,12 @@ UDPSender::UDPSender(const std::string &addr, int port)
   int r(getaddrinfo(addr.c_str(), decimal_port, &hints, &f_addrinfo));
   if (r != 0 || f_addrinfo == nullptr) {
     throw udp_client_server_runtime_error(
-        ("Network: UDPSender: invalid address or port: \"" + addr + ":" + decimal_port + "\"").c_str());
+        ("Network: UDPSender: invalid address or port " + addr + ":" + decimal_port).c_str());
   }
   if ((f_socket = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
     close(f_socket);
     throw udp_client_server_runtime_error(
-        ("Network: UDPSender: could not create socket for: \"" + addr + ":" + decimal_port + "\"").c_str());
+        ("Network: UDPSender: can't create socket for " + addr + ":" + decimal_port).c_str());
   }
 }
 
@@ -168,7 +173,7 @@ UDPSender::~UDPSender() {
 void UDPSender::start() {
   if (!m_IsRunning) {
     m_IsRunning = true;
-    m_SendThread = new std::thread(std::bind(&UDPSender::run, this));
+    m_SendThread = new std::thread([this] { run(); });
   }
 }
 
