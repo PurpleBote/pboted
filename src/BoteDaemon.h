@@ -1,9 +1,9 @@
 /**
- * Copyright (c) 2019-2021 polistern
+ * Copyright (c) 2019-2022 polistern
  */
 
-#ifndef PBOTE_SRC_DAEMON_H__
-#define PBOTE_SRC_DAEMON_H__
+#ifndef PBOTED_SRC_BOTEDAEMON_H__
+#define PBOTED_SRC_BOTEDAEMON_H__
 
 #include <memory>
 #include <ostream>

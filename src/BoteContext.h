@@ -47,6 +47,7 @@ class BoteContext {
   std::shared_ptr<i2p::data::IdentityEx> getLocalDestination() { return localDestination; }
   std::shared_ptr<i2p::data::PrivateKeys> getlocalKeys() { return local_keys_; }
 
+  size_t get_identities_count() { return getEmailIdentities().size(); }
   std::shared_ptr<pbote::BoteIdentityFull> identityByName(const std::string &name);
   std::vector<std::shared_ptr<pbote::BoteIdentityFull>> getEmailIdentities() { return identities_storage_->getIdentities(); };
 
