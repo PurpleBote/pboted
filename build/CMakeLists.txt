@@ -129,7 +129,12 @@ include_directories(SYSTEM ${MIMETIC_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${OPENS
 
 include(CheckAtomic)
 
+include(Version)
+set_version("${PBOTE_SRC_DIR}/version.h" PROJECT_VERSION)
+
 # show summary
+message(STATUS "Project            : ${PROJECT_NAME}")
+message(STATUS "Version            : ${PROJECT_VERSION}")
 message(STATUS "----------------------------------------")
 message(STATUS "Build type         : ${CMAKE_BUILD_TYPE}")
 message(STATUS "Compiler vendor    : ${CMAKE_CXX_COMPILER_ID}")
