@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2021 polistern
+ * Copyright (c) 2019-2022 polistern
  */
 
 #ifndef PBOTE_SRC_DHTSTORAGE_H_
@@ -48,6 +48,7 @@ class DHTStorage {
   std::vector<std::string> getContactList() {return local_contact_packets;}
 
   bool limit_reached(size_t data_size);
+  double limit_used() {return (double)((100 / (double)limit) * (double)used);}
 
  private:
   std::vector<uint8_t> getPacket(pbote::type type, i2p::data::Tag<32> key);

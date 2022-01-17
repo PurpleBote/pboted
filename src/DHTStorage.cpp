@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2021 polistern
+ * Copyright (c) 2019-2022 polistern
  */
 
 #include <boost/filesystem.hpp>
@@ -23,7 +23,7 @@ void DHTStorage::update() {
   set_storage_limit();
   update_storage_usage();
 
-  double storage_usage = (double)((100 / (double)limit) * (double)used);
+  //double storage_usage = (double)((100 / (double)limit) * (double)used);
 
   /// There is no need to check this too often
   if (update_counter > 20) {
@@ -34,8 +34,7 @@ void DHTStorage::update() {
   LogPrint(eLogDebug, "DHTStorage:",
            " loaded index: ", local_index_packets.size(),
            ", emails: ", local_email_packets.size(),
-           ", contacts: ", local_contact_packets.size(),
-           ", storage usage: ", storage_usage, "%");
+           ", contacts: ", local_contact_packets.size());
 
   update_counter++;
 }
