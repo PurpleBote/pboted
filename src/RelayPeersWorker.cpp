@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2021 polistern
+ * Copyright (c) 2019-2022 polistern
  */
 
 #include <netinet/in.h>
@@ -18,11 +18,14 @@ RelayPeersWorker::RelayPeersWorker()
       m_worker_thread_(nullptr),
       task_start_time(0) {}
 
-RelayPeersWorker::~RelayPeersWorker() {
+RelayPeersWorker::~RelayPeersWorker()
+{
   stop();
 }
 
-void RelayPeersWorker::start() {
+void
+RelayPeersWorker::start()
+{
   started_ = true;
   if (!loadPeers())
     LogPrint(eLogError, "RelayPeers: have no peers for start");
@@ -30,69 +33,72 @@ void RelayPeersWorker::start() {
   std::string loglevel;
   pbote::config::GetOption("loglevel", loglevel);
 
-  if (loglevel == "debug" && !m_peers_.empty()) {
-    LogPrint(eLogDebug, "RelayPeers: Relay peer stats:");
-    for (const auto &peer: m_peers_)
-      LogPrint(eLogDebug, "RelayPeers: ", peer.first.ToBase32(), " === ", peer.second->getReachability());
-    LogPrint(eLogDebug, "RelayPeers: Relay peer stats end");
-  }
-
-  m_worker_thread_ = new std::thread(std::bind(&RelayPeersWorker::run, this));
+  m_worker_thread_ =
+    new std::thread(std::bind(&RelayPeersWorker::run, this));
 }
 
-void RelayPeersWorker::stop() {
+void
+RelayPeersWorker::stop()
+{
   started_ = false;
-  if (m_worker_thread_) {
-    m_worker_thread_->join();
-    delete m_worker_thread_;
-    m_worker_thread_ = nullptr;
-  }
+  if (m_worker_thread_)
+    {
+      m_worker_thread_->join();
+      delete m_worker_thread_;
+      m_worker_thread_ = nullptr;
+    }
 }
 
-void RelayPeersWorker::run() {
-  size_t counter = 0;
+void
+RelayPeersWorker::run()
+{
   std::string loglevel;
   pbote::config::GetOption("loglevel", loglevel);
-  while (started_) {
-    task_start_time = std::chrono::system_clock::now().time_since_epoch().count();
-    bool task_status = false;
-    if (!m_peers_.empty())
-      task_status = checkPeersTask();
-    else
-      LogPrint(eLogError, "RelayPeers: have no peers for start");
+  while (started_)
+    {
+      task_start_time =
+        std::chrono::system_clock::now().time_since_epoch().count();
+      bool task_status = false;
+      if (!m_peers_.empty())
+        task_status = checkPeersTask();
+      else
+        LogPrint(eLogError, "RelayPeers: have no peers for start");
 
-    unsigned long current_time = std::chrono::system_clock::now().time_since_epoch().count();
-    unsigned long exec_duration = (current_time - task_start_time) / 1000000000;
+      unsigned long current_time =
+        std::chrono::system_clock::now().time_since_epoch().count();
+      unsigned long exec_duration =
+        (current_time - task_start_time) / 1000000000;
 
-    unsigned long interval;
-    if (task_status) {
-      interval = UPDATE_INTERVAL_LONG;
-      LogPrint(eLogInfo, "RelayPeers: peers lookup success, wait for ", interval / 60, " min.");
-    } else {
-      interval = UPDATE_INTERVAL_SHORT;
-      LogPrint(eLogWarning, "RelayPeers: no responses, repeat request in ", interval / 60, " min.");
+      unsigned long interval;
+      if (task_status)
+        {
+          interval = UPDATE_INTERVAL_LONG;
+          LogPrint(eLogInfo, "RelayPeers: peers lookup success, wait for ",
+                   interval / 60, " min.");
+        }
+      else
+        {
+          interval = UPDATE_INTERVAL_SHORT;
+          LogPrint(eLogWarning, "RelayPeers: no responses, repeat request in ",
+                   interval / 60, " min.");
+        }
+
+      LogPrint(eLogDebug, "RelayPeers: round completed, peers count: ",
+               m_peers_.size(), ", duration: ", exec_duration);
+    
+      if (exec_duration < interval && interval > 0)
+        {
+          LogPrint(eLogDebug, "RelayPeers: wait for ", interval - exec_duration, " sec.");
+          std::this_thread::sleep_for(std::chrono::seconds(interval - exec_duration));
+        }
+      else
+        std::this_thread::sleep_for(std::chrono::seconds(1));
     }
-
-    LogPrint(eLogDebug, "RelayPeers: round completed, peers count: ", m_peers_.size(), ", duration: ", exec_duration);
-    if (exec_duration < interval && interval > 0) {
-      LogPrint(eLogDebug, "RelayPeers: wait for ", interval - exec_duration, " sec.");
-      std::this_thread::sleep_for(std::chrono::seconds(interval - exec_duration));
-    } else {
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-
-    counter++;
-    if (counter > 10 && loglevel == "debug" && !m_peers_.empty()) {
-      LogPrint(eLogDebug, "RelayPeers: Relay peer stats:");
-      for (const auto &peer: m_peers_)
-        LogPrint(eLogDebug, "RelayPeers: ", peer.first.ToBase32(), " === ", peer.second->getReachability());
-      LogPrint(eLogDebug, "RelayPeers: Relay peer stats end");
-      counter = 0;
-    }
-  }
 }
 
-bool RelayPeersWorker::checkPeersTask() {
+bool
+RelayPeersWorker::checkPeersTask()
+{
   LogPrint(eLogDebug, "RelayPeers: start new round");
   bool task_status = false;
 
@@ -187,8 +193,11 @@ bool RelayPeersWorker::checkPeersTask() {
   return task_status;
 }
 
-bool RelayPeersWorker::addPeer(const uint8_t *buf, int len) {
-  std::shared_ptr<i2p::data::IdentityEx> identity = std::make_shared<i2p::data::IdentityEx>();
+bool
+RelayPeersWorker::addPeer(const uint8_t *buf, int len)
+{
+  std::shared_ptr<i2p::data::IdentityEx> identity =
+    std::make_shared<i2p::data::IdentityEx>();
   if (identity->FromBuffer(buf, len))
     return addPeer(identity, 0);
   return false;
