@@ -37,7 +37,6 @@ typedef bool (IncomingRequest::*incomingPacketHandler)(const std::shared_ptr<pbo
 class IncomingRequest {
  public:
   IncomingRequest(RequestHandler &parent);
-  ~IncomingRequest();
 
   bool handleNewPacket(const std::shared_ptr<PacketForQueue>& packet);
 
