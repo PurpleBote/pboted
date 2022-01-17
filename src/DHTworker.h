@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2021 polistern
+ * Copyright (c) 2019-2022 polistern
  */
 
 #ifndef PBOTE_DHT_WORKER_H_
@@ -122,6 +122,7 @@ class DHTworker {
   std::vector<Node> getAllNodes();
   std::vector<Node> getUnlockedNodes();
   size_t getNodesCount() { return m_nodes_.size(); }
+  float get_storage_usage() { return dht_storage_.limit_used(); }
 
   std::vector<std::shared_ptr<pbote::CommunicationPacket>> findOne(i2p::data::Tag<32> hash, uint8_t type);
   std::vector<std::shared_ptr<pbote::CommunicationPacket>> findAll(i2p::data::Tag<32> hash, uint8_t type);
