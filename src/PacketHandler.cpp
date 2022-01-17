@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2021 polistern
+ * Copyright (c) 2019-2022 polistern
  */
 
 #include <random>
@@ -30,19 +30,24 @@ IncomingRequest::IncomingRequest(RequestHandler &parent)
   incomingPacketHandlers_[type::CommF] = &IncomingRequest::receiveFindClosePeersRequest;
 }
 
-IncomingRequest::~IncomingRequest() {}
+//IncomingRequest::~IncomingRequest() {}
 
-bool IncomingRequest::handleNewPacket(const std::shared_ptr<PacketForQueue>& queuePacket) {
-  std::shared_ptr<pbote::CommunicationPacket> packet = pbote::parseCommPacket(queuePacket);
-  if (!packet) {
-    LogPrint(eLogWarning, "Packet: can't parse packet");
-    return false;
-  }
+bool
+IncomingRequest::handleNewPacket(const std::shared_ptr<PacketForQueue>& queuePacket)
+{
+  std::shared_ptr<pbote::CommunicationPacket> packet =
+    pbote::parseCommPacket(queuePacket);
+  if (!packet)
+    {
+      LogPrint(eLogWarning, "Packet: can't parse packet");
+      return false;
+    }
 
   /// First we need to check CID in batches
   // ToDo: check if we got Response Packet?
   if (context.receive(packet)) {
-    LogPrint(eLogDebug, "Packet: pass to batch packet with type ", packet->type);
+    LogPrint(eLogDebug, "Packet: pass to batch packet with type ",
+             packet->type);
     return true;
   }
 
@@ -57,24 +62,32 @@ bool IncomingRequest::handleNewPacket(const std::shared_ptr<PacketForQueue>& que
 }
 
 /// not implemented
-bool IncomingRequest::receiveRelayRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+bool
+IncomingRequest::receiveRelayRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet)
+{
   LogPrint(eLogDebug, "Packet: receiveRelayRequest");
   return true;
 }
 
 /// not implemented
-bool IncomingRequest::receiveRelayReturnRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+bool
+IncomingRequest::receiveRelayReturnRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet)
+{
   LogPrint(eLogDebug, "Packet: receiveRelayReturnRequest");
   return true;
 }
 
 /// not implemented
-bool IncomingRequest::receiveFetchRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+bool
+IncomingRequest::receiveFetchRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet)
+{
   LogPrint(eLogDebug, "Packet: receiveFetchRequest");
   return true;
 }
 
-bool IncomingRequest::receiveResponsePkt(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+bool
+IncomingRequest::receiveResponsePkt(const std::shared_ptr<pbote::CommunicationPacket>& packet)
+{
   LogPrint(eLogWarning, "Packet: receiveResponsePkt: Unexpected Response received");
   LogPrint(eLogWarning, "Packet: receiveResponsePkt: Sender: ", packet->from);
 
@@ -82,28 +95,40 @@ bool IncomingRequest::receiveResponsePkt(const std::shared_ptr<pbote::Communicat
   uint8_t status;
   uint16_t dataLen;
 
-  std::memcpy(&status, packet->payload.data(), 1); offset += 1;
+  std::memcpy(&status, packet->payload.data(), 1);
+  offset += 1;
 
-  LogPrint(eLogWarning, "Packet: receiveResponsePkt: status: ", unsigned(status), ", message: ", pbote::statusToString(status));
+  LogPrint(eLogWarning, "Packet: receiveResponsePkt: status: ", unsigned(status),
+           ", message: ", pbote::statusToString(status));
 
-  std::memcpy(&dataLen, packet->payload.data() + offset, sizeof dataLen); dataLen = ntohs(dataLen); offset += 2;
+  std::memcpy(&dataLen, packet->payload.data() + offset, sizeof dataLen);
+  dataLen = ntohs(dataLen);
+  offset += 2;
+
+  LogPrint(eLogWarning, "Packet: receiveResponsePkt: size: ",
+           (packet->payload.size() - offset), ", dataLen: ", dataLen);
 
   if ((packet->payload.size() - offset) != dataLen)
-    LogPrint(eLogWarning, "Packet: receiveResponsePkt: size mismatch: size=", (packet->payload.size() - offset), ", dataLen=", dataLen);
+    LogPrint(eLogWarning, "Packet: receiveResponsePkt: size mismatch: size: ",
+             (packet->payload.size() - offset), ", dataLen: ", dataLen);
 
-  std::vector<byte> data = {packet->payload.data() + offset, packet->payload.data() + offset + dataLen};
+  std::vector<byte> data =
+    {packet->payload.data() + offset, packet->payload.data() + offset + dataLen};
 
   /// Peer List
   /// L for mhatta, P for str4d
   if (data[0] == (uint8_t)'L' || data[0] == (uint8_t)'P') {
     if (packet->ver == (uint8_t) 4) {
-      LogPrint(eLogWarning,"Packet: receiveResponsePkt: Peer List, type: ", data[0], ", ver: ", unsigned(data[1]));
+      LogPrint(eLogWarning,"Packet: receiveResponsePkt: Peer List, type: ", data[0],
+               ", ver: ", unsigned(data[1]));
       return pbote::relay::relay_peers_worker.receivePeerListV4(data.data(), dataLen);
     } else if (packet->ver == (uint8_t) 5) {
-      LogPrint(eLogWarning,"Packet: receiveResponsePkt: Peer List, type: ", data[0], ", ver: ", unsigned(data[1]));
+      LogPrint(eLogWarning,"Packet: receiveResponsePkt: Peer List, type: ", data[0],
+               ", ver: ", unsigned(data[1]));
       return pbote::relay::relay_peers_worker.receivePeerListV5(data.data(), dataLen);
     } else {
-      LogPrint(eLogWarning,"Packet: receiveResponsePkt: Unsupported type: ", data[0], ", ver: ", unsigned(data[1]));
+      LogPrint(eLogWarning,"Packet: receiveResponsePkt: Unsupported type: ", data[0],
+               ", ver: ", unsigned(data[1]));
     }
   }
 
@@ -125,12 +150,15 @@ bool IncomingRequest::receiveResponsePkt(const std::shared_ptr<pbote::Communicat
     return true;
   }
 
-  LogPrint(eLogWarning, "Packet: receiveResponsePkt: type: ", data[0], ", ver: ", unsigned(data[1]));
+  LogPrint(eLogWarning, "Packet: receiveResponsePkt: type: ", data[0],
+           ", ver: ", unsigned(data[1]));
   LogPrint(eLogWarning, "Packet: receiveResponsePkt: unsupported data packet type");
   return false;
 }
 
-bool IncomingRequest::receivePeerListRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+bool
+IncomingRequest::receivePeerListRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet)
+{
   LogPrint(eLogDebug, "Packet: receivePeerListRequest");
   if (packet->ver == 4) {
     pbote::relay::relay_peers_worker.peerListRequestV4(packet->from, packet->cid);
@@ -139,24 +167,31 @@ bool IncomingRequest::receivePeerListRequest(const std::shared_ptr<pbote::Commun
     pbote::relay::relay_peers_worker.peerListRequestV5(packet->from, packet->cid);
     return true;
   }else {
-    LogPrint(eLogWarning, "Packet: receivePeerListRequest: unknown packet ver: ", unsigned(packet->ver), ", type: ", packet->type);
+    LogPrint(eLogWarning, "Packet: receivePeerListRequest: unknown packet ver: ",
+             unsigned(packet->ver), ", type: ", packet->type);
     return false;
   }
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
-bool IncomingRequest::receiveRetrieveRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+bool
+IncomingRequest::receiveRetrieveRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet)
+{
   LogPrint(eLogDebug, "Packet: receiveRetrieveRequest");
-  if (packet->ver == 4 && packet->type == type::CommQ) {
-    pbote::kademlia::DHT_worker.receiveRetrieveRequest(packet);
-    return true;
-  }
-  LogPrint(eLogWarning, "Packet: receiveRetrieveRequest: unknown packet ver: ", unsigned(packet->ver), ", type: ", packet->type);
+  if (packet->ver == 4 && packet->type == type::CommQ)
+    {
+      pbote::kademlia::DHT_worker.receiveRetrieveRequest(packet);
+      return true;
+    }
+  LogPrint(eLogWarning, "Packet: receiveRetrieveRequest: unknown packet ver: ",
+           unsigned(packet->ver), ", type: ", packet->type);
   return false;
 }
 
-bool IncomingRequest::receiveDeletionQueryRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+bool
+IncomingRequest::receiveDeletionQueryRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet)
+{
   LogPrint(eLogDebug, "Packet: receiveDeletionQueryRequest");
   /// Y for mhatta
   if (packet->ver == 4 && packet->type == type::CommY) {
@@ -173,93 +208,120 @@ bool IncomingRequest::receiveDeletionQueryRequest(const std::shared_ptr<pbote::C
   return false;
 }
 
-bool IncomingRequest::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+bool
+IncomingRequest::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet)
+{
   LogPrint(eLogDebug, "Packet: receiveStoreRequest");
   if (packet->ver == 4 && packet->type == type::CommS) {
     pbote::kademlia::DHT_worker.receiveStoreRequest(packet);
     return true;
   }
-  LogPrint(eLogWarning, "Packet: receiveStoreRequest: unknown packet ver: ", unsigned(packet->ver), ", type: ", packet->type);
+  LogPrint(eLogWarning, "Packet: receiveStoreRequest: unknown packet ver: ",
+           unsigned(packet->ver), ", type: ", packet->type);
   return false;
 }
 
-bool IncomingRequest::receiveEmailPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+bool
+IncomingRequest::receiveEmailPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet)
+{
   LogPrint(eLogDebug, "Packet: receiveEmailPacketDeleteRequest");
-  if (packet->ver == 4 && packet->type == type::CommD) {
-    pbote::kademlia::DHT_worker.receiveEmailPacketDeleteRequest(packet);
-    return true;
-  }
-  LogPrint(eLogWarning, "Packet: receiveEmailPacketDeleteRequest: unknown packet ver: ", unsigned(packet->ver), ", type: ", packet->type);
+  if (packet->ver == 4 && packet->type == type::CommD)
+    {
+      pbote::kademlia::DHT_worker.receiveEmailPacketDeleteRequest(packet);
+      return true;
+    }
+  LogPrint(eLogWarning, "Packet: receiveEmailPacketDeleteRequest: unknown packet ver: ",
+           unsigned(packet->ver), ", type: ", packet->type);
   return false;
 }
 
-bool IncomingRequest::receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+bool
+IncomingRequest::receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet)
+{
   LogPrint(eLogDebug, "Packet: receiveIndexPacketDeleteRequest");
   if (packet->ver == 4 && packet->type == type::CommX) {
     pbote::kademlia::DHT_worker.receiveIndexPacketDeleteRequest(packet);
     return true;
   }
-  LogPrint(eLogWarning, "Packet: receiveIndexPacketDeleteRequest: unknown packet ver: ", unsigned(packet->ver), ", type: ", packet->type);
+  LogPrint(eLogWarning, "Packet: receiveIndexPacketDeleteRequest: unknown packet ver: ",
+           unsigned(packet->ver), ", type: ", packet->type);
   return false;
 }
 
-bool IncomingRequest::receiveFindClosePeersRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
+bool
+IncomingRequest::receiveFindClosePeersRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet)
+{
   LogPrint(eLogDebug, "PacketHandler: receiveFindClosePeersRequest");
-  if ((packet->ver == 4 || packet->ver == 5 ) && packet->type == type::CommF) {
+  if ((packet->ver == 4 || packet->ver == 5 ) &&
+      packet->type == type::CommF) {
     pbote::kademlia::DHT_worker.receiveFindClosePeers(packet);
     return true;
   }
 
-  LogPrint(eLogWarning, "Packet: receiveFindClosePeersRequest: unknown packet ver: ", unsigned(packet->ver), ", type: ", packet->type);
+  LogPrint(eLogWarning, "Packet: receiveFindClosePeersRequest: unknown packet ver: ",
+           unsigned(packet->ver), ", type: ", packet->type);
   return false;
 }
 
 RequestHandler::RequestHandler()
-    : started_(false), m_PHandlerThread(nullptr), m_recvQueue(nullptr)/*, m_sendQueue(nullptr)*/ {}
+    : started_(false),
+      m_PHandlerThread(nullptr),
+      m_recvQueue(nullptr) {}
 
-RequestHandler::~RequestHandler() {
+RequestHandler::~RequestHandler()
+{
   delete m_PHandlerThread;
   m_PHandlerThread = nullptr;
 }
 
-void RequestHandler::start() {
-  if (!started_) {
-    m_recvQueue = context.getRecvQueue();
-    m_sendQueue = context.getSendQueue();
-    started_ = true;
-    m_PHandlerThread = new std::thread(std::bind(&RequestHandler::run, this));
-  }
+void
+RequestHandler::start()
+{
+  if (!started_)
+    {
+      m_recvQueue = context.getRecvQueue();
+      m_sendQueue = context.getSendQueue();
+      started_ = true;
+      m_PHandlerThread = new std::thread(std::bind(&RequestHandler::run, this));
+    }
 }
 
-void RequestHandler::stop() {
+void
+RequestHandler::stop()
+{
   LogPrint(eLogWarning, "RequestHandler: stopping");
   started_ = false;
-  if (m_PHandlerThread) {
-    m_PHandlerThread->join();
-    delete m_PHandlerThread;
-    m_PHandlerThread = nullptr;
-  }
+  if (m_PHandlerThread)
+    {
+      m_PHandlerThread->join();
+      delete m_PHandlerThread;
+      m_PHandlerThread = nullptr;
+    }
   LogPrint(eLogWarning, "RequestHandler: stopped");
 }
 
-void RequestHandler::run() {
+void
+RequestHandler::run()
+{
   LogPrint(eLogInfo, "PacketHandler: run packet handler thread");
-  while (started_) {
-    auto queuePacket = m_recvQueue->GetNext();
-    IncomingRequest newSession(*this);
+  while (started_)
+    {
+      auto queuePacket = m_recvQueue->GetNext();
+      IncomingRequest newSession(*this);
 
-    if (!newSession.handleNewPacket(queuePacket)) {
-      LogPrint(eLogWarning, "PacketHandler: parsing failed");
+      if (!newSession.handleNewPacket(queuePacket))
+        {
+          LogPrint(eLogWarning, "PacketHandler: parsing failed");
 
-      pbote::ResponsePacket response;
-      response.status = pbote::StatusCode::INVALID_PACKET;
-      response.length = 0;
-      auto data = response.toByte();
+          pbote::ResponsePacket response;
+          response.status = pbote::StatusCode::INVALID_PACKET;
+          response.length = 0;
+          auto data = response.toByte();
 
-      m_sendQueue->Put(std::make_shared<PacketForQueue>(queuePacket->destination, data.data(), data.size()));
-
+          m_sendQueue->Put(std::make_shared<PacketForQueue>(queuePacket->destination,
+                                                          data.data(), data.size()));
+        }
     }
-  }
 }
 
 } // namespace packet
