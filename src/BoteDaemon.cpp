@@ -1,12 +1,13 @@
 /**
- * Copyright (c) 2019-2021 polistern
+ * Copyright (c) 2019-2022 polistern
  */
 
-#include "BoteContext.h"
-#include "ConfigParser.h"
-#include "BoteDaemon.h"
-
 #include <memory>
+
+#include "BoteContext.h"
+#include "BoteControl.h"
+#include "BoteDaemon.h"
+#include "ConfigParser.h"
 #include "DHTworker.h"
 #include "EmailWorker.h"
 #include "FileSystem.h"
@@ -26,6 +27,7 @@ class Daemon_Singleton::Daemon_Singleton_Private {
 
   std::unique_ptr<bote::smtp::SMTP> SMTPserver;
   std::unique_ptr<bote::pop3::POP3> POP3server;
+  std::unique_ptr<bote::BoteControl> control_server;
 };
 
 Daemon_Singleton::Daemon_Singleton()
@@ -84,52 +86,58 @@ bool Daemon_Singleton::init(int argc, char *argv[],
 
   pbote::log::Logger().SetLogLevel(loglevel);
   if (logstream) {
-    LogPrint(eLogInfo, "Log: will send messages to std::ostream");
+    LogPrint(eLogInfo, "Log: Will send messages to std::ostream");
     pbote::log::Logger().SendTo(logstream);
   } else if (logs == "file") {
     if (logfile.empty())
       logfile = pbote::fs::DataDirPath("pboted.log");
-    LogPrint(eLogInfo, "Log: will send messages to ", logfile);
+    LogPrint(eLogInfo, "Log: Will send messages to ", logfile);
     pbote::log::Logger().SendTo(logfile);
   } else if (logs == "syslog") {
-    LogPrint(eLogInfo, "Log: will send messages to syslog");
+    LogPrint(eLogInfo, "Log: Will send messages to syslog");
     pbote::log::Logger().SendTo("pboted", LOG_DAEMON);
   } else {
     // use stdout -- default
   }
 
   LogPrint(eLogInfo, CODENAME, " v", VERSION, " starting");
-  LogPrint(eLogDebug, "FS: data directory: ", datadir);
-  LogPrint(eLogDebug, "FS: main config file: ", config);
+  LogPrint(eLogDebug, "FS: Data directory: ", datadir);
+  LogPrint(eLogDebug, "FS: Main config file: ", config);
 
-  LogPrint(eLogInfo, "Daemon: init context");
+  LogPrint(eLogInfo, "Daemon: Init context");
   pbote::context.init();
 
-  LogPrint(eLogInfo, "Daemon: init network");
+  LogPrint(eLogInfo, "Daemon: Init network");
   pbote::network::network_worker.init();
 
-  LogPrint(eLogDebug, "Daemon: init done");
+  LogPrint(eLogDebug, "Daemon: Init done");
   return true;
 }
 
 int Daemon_Singleton::start() {
-  LogPrint(eLogDebug, "Daemon: start services");
+  LogPrint(eLogDebug, "Daemon: Start services");
   pbote::log::Logger().Start();
 
-  LogPrint(eLogInfo, "Daemon: starting network worker");
+  LogPrint(eLogInfo, "Daemon: Starting network worker");
   pbote::network::network_worker.start();
 
-  LogPrint(eLogInfo, "Daemon: starting packet handler");
+  LogPrint(eLogInfo, "Daemon: Starting packet handler");
   pbote::packet::packet_handler.start();
 
-  LogPrint(eLogInfo, "Daemon: starting relay peers");
+  LogPrint(eLogInfo, "Daemon: Starting relay peers");
   pbote::relay::relay_peers_worker.start();
 
-  LogPrint(eLogInfo, "Daemon: starting DHT");
+  LogPrint(eLogInfo, "Daemon: Starting DHT");
   pbote::kademlia::DHT_worker.start();
 
-  LogPrint(eLogInfo, "Daemon: starting Email");
+  LogPrint(eLogInfo, "Daemon: Starting Email");
   pbote::kademlia::email_worker.start();
+
+  if (isDaemon) {
+    LogPrint(eLogInfo, "Daemon: Starting control socket");
+    d.control_server = std::make_unique<bote::BoteControl>("/run/pboted/pboted.sock");
+    d.control_server->start();
+  }
 
   bool smtp;
   pbote::config::GetOption("smtp.enabled", smtp);
@@ -138,14 +146,14 @@ int Daemon_Singleton::start() {
     uint16_t SMTPport;
     pbote::config::GetOption("smtp.address", SMTPaddr);
     pbote::config::GetOption("smtp.port", SMTPport);
-    LogPrint(eLogInfo, "Daemon: starting SMTP server at ",
+    LogPrint(eLogInfo, "Daemon: Starting SMTP server at ",
              SMTPaddr, ":", SMTPport);
 
     try {
       d.SMTPserver = std::make_unique<bote::smtp::SMTP>(SMTPaddr, SMTPport);
       d.SMTPserver->start();
     } catch (std::exception &ex) {
-      LogPrint(eLogError, "Daemon: failed to start SMTP server: ",
+      LogPrint(eLogError, "Daemon: Failed to start SMTP server: ",
                ex.what());
       ThrowFatal("Unable to start SMTP server at ",
                  SMTPaddr, ":", SMTPport, ": ", ex.what());
@@ -159,54 +167,59 @@ int Daemon_Singleton::start() {
     uint16_t POP3port;
     pbote::config::GetOption("pop3.address", POP3addr);
     pbote::config::GetOption("pop3.port", POP3port);
-    LogPrint(eLogInfo, "Daemon: starting POP3 server at ",
+    LogPrint(eLogInfo, "Daemon: Starting POP3 server at ",
              POP3addr, ":", POP3port);
 
     try {
       d.POP3server = std::make_unique<bote::pop3::POP3>(POP3addr, POP3port);
       d.POP3server->start();
     } catch (std::exception &ex) {
-      LogPrint(eLogError, "Daemon: failed to start POP3 server: ",
+      LogPrint(eLogError, "Daemon: Failed to start POP3 server: ",
                ex.what());
       ThrowFatal("Unable to start POP3 server at ",
                  POP3addr, ":", POP3port, ": ", ex.what());
     }
   }
 
-  LogPrint(eLogInfo, "Daemon: started");
+  LogPrint(eLogInfo, "Daemon: Started");
 
   return EXIT_SUCCESS;
 }
 
 bool Daemon_Singleton::stop() {
-  LogPrint(eLogInfo, "Daemon: start shutting down");
+  LogPrint(eLogInfo, "Daemon: Start shutting down");
 
   if (d.SMTPserver) {
-    LogPrint(eLogInfo, "Daemon: stopping SMTP Server");
+    LogPrint(eLogInfo, "Daemon: Stopping SMTP Server");
     d.SMTPserver->stop();
     d.SMTPserver = nullptr;
   }
 
   if (d.POP3server) {
-    LogPrint(eLogInfo, "Daemon: stopping POP3 Server");
+    LogPrint(eLogInfo, "Daemon: Stopping POP3 Server");
     d.POP3server->stop();
     d.POP3server = nullptr;
   }
 
-  LogPrint(eLogInfo, "Daemon: stopping Email worker");
+  if (isDaemon) {
+    LogPrint(eLogInfo, "Daemon: Stopping control socket");
+    d.control_server->stop();
+  }
+
+  LogPrint(eLogInfo, "Daemon: Stopping Email worker");
   pbote::kademlia::email_worker.stop();
 
-  LogPrint(eLogInfo, "Daemon: stopping DHT worker");
+  LogPrint(eLogInfo, "Daemon: Stopping DHT worker");
   pbote::kademlia::DHT_worker.stop();
 
-  LogPrint(eLogInfo, "Daemon: stopping relay peers worker");
+  LogPrint(eLogInfo, "Daemon: Stopping relay peers worker");
   pbote::relay::relay_peers_worker.stop();
 
   // Looks like m_recvQueue->GetNext() hold stopping
   //LogPrint(eLogInfo, "Daemon: stopping packet handler");
   //pbote::packet::packet_handler.stop();
 
-  LogPrint(eLogInfo, "Daemon: stopping network worker");
+  LogPrint(eLogInfo, "Daemon: Stopping network worker");
   pbote::network::network_worker.stop();
 
   pbote::log::Logger().Stop();
