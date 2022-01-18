@@ -172,10 +172,12 @@ BoteControl::handle_request ()
 
   size_t pos = request.find (".");
   std::string cmd_prefix = request.substr (0, pos);
-  std::string cmd_id = request.substr (pos);
+  std::string cmd_id = request.substr (pos + 1);
 
   LogPrint (eLogDebug, "BoteControl: handle_request: cmd_prefix: ", cmd_prefix,
             ", cmd_id: ", cmd_id);
+
+  result << "{\"id\":null,";
 
   auto it = handlers.find (cmd_prefix);
   if (it != handlers.end ())
@@ -185,10 +187,13 @@ BoteControl::handle_request ()
       LogPrint (
           eLogWarning,
           "BoteControl: handle_request: Unknown command prefix: ", cmd_prefix);
+      unknown_cmd (request, result);
     }
 
-  LogPrint (eLogDebug,
-            "BoteControl: handle_request: Response: ", result.str ());
+  result << "},\"jsonrpc\":\"2.0\"}";
+
+  // LogPrint (eLogDebug,
+  //          "BoteControl: handle_request: Response: ", result.str ());
   write_data (result.str ());
 }
 
@@ -220,38 +225,52 @@ BoteControl::insert_param (std::ostringstream &ss, const std::string &name,
 void
 BoteControl::daemon (const std::string &cmd_id, std::ostringstream &results)
 {
-  insert_param (results, "daemon.uptime",
-                std::to_string (pbote::context.get_uptime ()));
+  results << "\"daemon\": {";
+  insert_param (results, "uptime", (int)pbote::context.get_uptime ());
+  results << "}";
 }
 
 void
 BoteControl::identity (const std::string &cmd_id, std::ostringstream &results)
 {
-  insert_param (results, "identity.count",
-                std::to_string (pbote::context.get_identities_count ()));
+  results << "\"identity\": {";
+  insert_param (results, "count", (int)pbote::context.get_identities_count ());
+  results << "}";
 }
 
 void
 BoteControl::storage (const std::string &cmd_id, std::ostringstream &results)
 {
-  insert_param (
-      results, "storage.used",
-      std::to_string (pbote::kademlia::DHT_worker.get_storage_usage ()));
+  results << "\"storage\": {";
+  insert_param (results, "used",
+                (double)pbote::kademlia::DHT_worker.get_storage_usage ());
+  results << "}";
 }
 
 void
 BoteControl::peer (const std::string &cmd_id, std::ostringstream &results)
 {
-  insert_param (
-      results, "peer.count",
-      std::to_string (pbote::relay::relay_peers_worker.getPeersCount ()));
+  results << "\"peer\": {";
+  insert_param (results, "count",
+                (int)pbote::relay::relay_peers_worker.getPeersCount ());
+  results << "}";
 }
 
 void
 BoteControl::node (const std::string &cmd_id, std::ostringstream &results)
 {
-  insert_param (results, "node.count",
-                std::to_string (pbote::kademlia::DHT_worker.getNodesCount ()));
+  results << "\"node\": {";
+  insert_param (results, "count",
+                (int)pbote::kademlia::DHT_worker.getNodesCount ());
+  results << "}";
+}
+
+void
+BoteControl::unknown_cmd (const std::string &cmd, std::ostringstream &results)
+{
+  results << "\"error\": ";
+  results << "{\"code\": 404,";
+  results << "\"message\": \"Command not found: " << cmd << "\"}";
 }
 
 } // bote
