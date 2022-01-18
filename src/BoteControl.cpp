@@ -177,11 +177,13 @@ BoteControl::handle_request ()
   LogPrint (eLogDebug, "BoteControl: handle_request: cmd_prefix: ", cmd_prefix,
             ", cmd_id: ", cmd_id);
 
-  result << "{\"id\":null,";
-
   auto it = handlers.find (cmd_prefix);
   if (it != handlers.end ())
-    (this->*(it->second)) (cmd_id, result);
+    {
+      result << "{\"id\": null,\"result\": {";
+      (this->*(it->second)) (cmd_id, result);
+      result << "}, \"jsonrpc\": 2.0}";
+    }
   else
     {
       LogPrint (
@@ -190,10 +192,6 @@ BoteControl::handle_request ()
       unknown_cmd (request, result);
     }
 
-  result << "},\"jsonrpc\":\"2.0\"}";
-
-  // LogPrint (eLogDebug,
-  //          "BoteControl: handle_request: Response: ", result.str ());
   write_data (result.str ());
 }
 
@@ -201,21 +199,21 @@ void
 BoteControl::insert_param (std::ostringstream &ss, const std::string &name,
                            int value) const
 {
-  ss << "\"" << name << "\":" << value;
+  ss << "\"" << name << "\": " << value;
 }
 
 void
 BoteControl::insert_param (std::ostringstream &ss, const std::string &name,
                            double value) const
 {
-  ss << "\"" << name << "\":" << std::fixed << std::setprecision (2) << value;
+  ss << "\"" << name << "\": " << std::fixed << std::setprecision (2) << value;
 }
 
 void
 BoteControl::insert_param (std::ostringstream &ss, const std::string &name,
                            const std::string &value) const
 {
-  ss << "\"" << name << "\":";
+  ss << "\"" << name << "\": ";
   if (value.length () > 0)
     ss << "\"" << value << "\"";
   else
@@ -268,9 +266,10 @@ BoteControl::node (const std::string &cmd_id, std::ostringstream &results)
 void
 BoteControl::unknown_cmd (const std::string &cmd, std::ostringstream &results)
 {
-  results << "\"error\": ";
+  results << "{\"id\": null, \"error\": ";
   results << "{\"code\": 404,";
-  results << "\"message\": \"Command not found: " << cmd << "\"}";
+  results << "\"message\": \"Command not found: " << cmd << "\"},";
+  results << "\"jsonrpc\": 2.0}";
 }
 
 } // bote
