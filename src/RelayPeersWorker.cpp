@@ -1,5 +1,9 @@
 /**
  * Copyright (c) 2019-2022 polistern
+ *
+ * This file is part of pboted and licensed under BSD3
+ *
+ * See full license text in LICENSE file at top of project tree
  */
 
 #include <netinet/in.h>
@@ -8,551 +12,695 @@
 #include "Packet.h"
 #include "RelayPeersWorker.h"
 
-namespace pbote {
-namespace relay {
+namespace pbote
+{
+namespace relay
+{
 
 RelayPeersWorker relay_peers_worker;
 
-RelayPeersWorker::RelayPeersWorker()
-    : started_(false),
-      m_worker_thread_(nullptr),
-      task_start_time(0) {}
-
-RelayPeersWorker::~RelayPeersWorker()
+RelayPeersWorker::RelayPeersWorker ()
+    : started_ (false), m_worker_thread_ (nullptr), task_start_time (0)
 {
-  stop();
 }
 
+RelayPeersWorker::~RelayPeersWorker () { stop (); }
+
 void
-RelayPeersWorker::start()
+RelayPeersWorker::start ()
 {
   started_ = true;
-  if (!loadPeers())
-    LogPrint(eLogError, "RelayPeers: have no peers for start");
+  if (!loadPeers ())
+    LogPrint (eLogError, "RelayPeers: have no peers for start");
 
   std::string loglevel;
-  pbote::config::GetOption("loglevel", loglevel);
+  pbote::config::GetOption ("loglevel", loglevel);
 
-  m_worker_thread_ =
-    new std::thread(std::bind(&RelayPeersWorker::run, this));
+  m_worker_thread_
+      = new std::thread (std::bind (&RelayPeersWorker::run, this));
 }
 
 void
-RelayPeersWorker::stop()
+RelayPeersWorker::stop ()
 {
   started_ = false;
   if (m_worker_thread_)
     {
-      m_worker_thread_->join();
+      m_worker_thread_->join ();
       delete m_worker_thread_;
       m_worker_thread_ = nullptr;
     }
 }
 
 void
-RelayPeersWorker::run()
+RelayPeersWorker::run ()
 {
   std::string loglevel;
-  pbote::config::GetOption("loglevel", loglevel);
+  pbote::config::GetOption ("loglevel", loglevel);
   while (started_)
     {
-      task_start_time =
-        std::chrono::system_clock::now().time_since_epoch().count();
+      task_start_time
+          = std::chrono::system_clock::now ().time_since_epoch ().count ();
       bool task_status = false;
-      if (!m_peers_.empty())
-        task_status = checkPeersTask();
+      if (!m_peers_.empty ())
+        task_status = checkPeersTask ();
       else
-        LogPrint(eLogError, "RelayPeers: have no peers for start");
+        LogPrint (eLogError, "RelayPeers: have no peers for start");
 
-      unsigned long current_time =
-        std::chrono::system_clock::now().time_since_epoch().count();
-      unsigned long exec_duration =
-        (current_time - task_start_time) / 1000000000;
+      unsigned long current_time
+          = std::chrono::system_clock::now ().time_since_epoch ().count ();
+      unsigned long exec_duration
+          = (current_time - task_start_time) / 1000000000;
 
       unsigned long interval;
       if (task_status)
         {
           interval = UPDATE_INTERVAL_LONG;
-          LogPrint(eLogInfo, "RelayPeers: peers lookup success, wait for ",
-                   interval / 60, " min.");
+          LogPrint (eLogInfo, "RelayPeers: peers lookup success, wait for ",
+                    interval / 60, " min.");
         }
       else
         {
           interval = UPDATE_INTERVAL_SHORT;
-          LogPrint(eLogWarning, "RelayPeers: no responses, repeat request in ",
-                   interval / 60, " min.");
+          LogPrint (eLogWarning,
+                    "RelayPeers: no responses, repeat request in ",
+                    interval / 60, " min.");
         }
 
-      LogPrint(eLogDebug, "RelayPeers: round completed, peers count: ",
-               m_peers_.size(), ", duration: ", exec_duration);
-    
+      LogPrint (eLogDebug,
+                "RelayPeers: round completed, peers count: ", m_peers_.size (),
+                ", duration: ", exec_duration);
+
       if (exec_duration < interval && interval > 0)
         {
-          LogPrint(eLogDebug, "RelayPeers: wait for ", interval - exec_duration, " sec.");
-          std::this_thread::sleep_for(std::chrono::seconds(interval - exec_duration));
+          LogPrint (eLogDebug, "RelayPeers: wait for ",
+                    interval - exec_duration, " sec.");
+          std::this_thread::sleep_for (
+              std::chrono::seconds (interval - exec_duration));
         }
       else
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for (std::chrono::seconds (1));
     }
 }
 
 bool
-RelayPeersWorker::checkPeersTask()
+RelayPeersWorker::checkPeersTask ()
 {
-  LogPrint(eLogDebug, "RelayPeers: start new round");
+  LogPrint (eLogDebug, "RelayPeers: start new round");
   bool task_status = false;
 
-  auto batch = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket>>();
+  auto batch
+      = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
   batch->owner = "RelayPeers::main";
 
-  auto peers = getAllPeers();
-  LogPrint(eLogDebug, "RelayPeers: peers.size: ", peers.size());
-  for (const auto &peer: peers) {
-    // If peer don't sent response we will mark further
-    peer->reachable(false);
+  auto peers = getAllPeers ();
+  LogPrint (eLogDebug, "RelayPeers: peers.size: ", peers.size ());
+  for (const auto &peer : peers)
+    {
+      // If peer don't sent response we will mark further
+      peer->reachable (false);
 
-    auto packet = peerListRequestPacket();
-    PacketForQueue q_packet(peer->ToBase64(), packet.toByte().data(), packet.toByte().size());
+      auto packet = peerListRequestPacket ();
+      PacketForQueue q_packet (peer->ToBase64 (), packet.toByte ().data (),
+                               packet.toByte ().size ());
 
-    std::vector<uint8_t> v_cid(std::begin(packet.cid), std::end(packet.cid));
-    batch->addPacket(v_cid, q_packet);
-  }
-
-  LogPrint(eLogDebug, "RelayPeers: batch.size: ", batch->packetCount());
-  context.send(batch);
-
-  if (batch->waitLast(UPDATE_INTERVAL_SHORT))
-    LogPrint(eLogDebug, "RelayPeers: batch timeout or got last");
-
-  std::vector<std::shared_ptr<pbote::CommunicationPacket>> responses = batch->getResponses();
-  if (!responses.empty()) {
-    task_status = true;
-    for (const auto &response: responses) {
-      if (response->type != type::CommN) {
-        // ToDo: looks like in case if we got request to ourself, for now we just skip it
-        LogPrint(eLogWarning, "RelayPeers: got non-response packet in batch, type: ", response->type,
-                 ", ver: ", unsigned(response->ver));
-        continue;
-      }
-
-      size_t offset = 0;
-      uint8_t status = 0;
-      uint16_t dataLen = 0;
-
-      std::memcpy(&status, response->payload.data(), 1);
-      offset += 1;
-      std::memcpy(&dataLen, response->payload.data() + offset, 2);
-      dataLen = ntohs(dataLen);
-      offset += 2;
-
-      if (status != StatusCode::OK) {
-        LogPrint(eLogWarning, "RelayPeers: response status: ", statusToString(status));
-        continue;
-      }
-
-      if (dataLen < 4) {
-        LogPrint(eLogWarning, "RelayPeers: packet without payload, skip parsing");
-        continue;
-      }
-
-      std::vector<uint8_t> data = {response->payload.data() + offset, response->payload.data() + offset + dataLen};
-
-      // ToDo: looks like it can be too slow, need to think how it can be optimized
-      LogPrint(eLogDebug, "RelayPeers: type: ", response->type, ", ver: ", unsigned(response->ver));
-      if (unsigned(data[1]) == 5 && (data[0] == (uint8_t) 'L' || data[0] == (uint8_t) 'P')) {
-        if (receivePeerListV5(data.data(), dataLen)) {
-          /// Increment peer metric back, if we have response
-          for (const auto &m_peer: m_peers_) {
-            if (m_peer.second->ToBase64() == response->from) {
-              LogPrint(eLogDebug, "RelayPeers: Got response from peer, mark reachable");
-              m_peer.second->reachable(true);
-            }
-          }
-        }
-      } else if (unsigned(data[1]) == 4 && (data[0] == (uint8_t) 'L' || data[0] == (uint8_t) 'P')) {
-        if (receivePeerListV4(data.data(), dataLen)) {
-          /// Increment peer metric back, if we have response
-          for (const auto &m_peer: m_peers_) {
-            if (m_peer.second->ToBase64() == response->from) {
-              LogPrint(eLogDebug, "RelayPeers: Got response from peer, mark reachable");
-              m_peer.second->reachable(true);
-            }
-          }
-        }
-      } else {
-        LogPrint(eLogWarning, "RelayPeers: unknown packet version: ", response->ver);
-      }
+      std::vector<uint8_t> v_cid (std::begin (packet.cid),
+                                  std::end (packet.cid));
+      batch->addPacket (v_cid, q_packet);
     }
-  } else {
-    LogPrint(eLogWarning, "RelayPeers: Have no responses");
-  }
 
-  context.removeBatch(batch);
-  writePeers();
+  LogPrint (eLogDebug, "RelayPeers: batch.size: ", batch->packetCount ());
+  context.send (batch);
+
+  if (batch->waitLast (UPDATE_INTERVAL_SHORT))
+    LogPrint (eLogDebug, "RelayPeers: batch timeout or got last");
+
+  std::vector<std::shared_ptr<pbote::CommunicationPacket> > responses
+      = batch->getResponses ();
+  if (!responses.empty ())
+    {
+      task_status = true;
+      for (const auto &response : responses)
+        {
+          if (response->type != type::CommN)
+            {
+              // ToDo: looks like in case if we got request to ourself, for now
+              // we just skip it
+              LogPrint (eLogWarning,
+                        "RelayPeers: got non-response packet in batch, type: ",
+                        response->type, ", ver: ", unsigned (response->ver));
+              continue;
+            }
+
+          size_t offset = 0;
+          uint8_t status = 0;
+          uint16_t dataLen = 0;
+
+          std::memcpy (&status, response->payload.data (), 1);
+          offset += 1;
+          std::memcpy (&dataLen, response->payload.data () + offset, 2);
+          dataLen = ntohs (dataLen);
+          offset += 2;
+
+          if (status != StatusCode::OK)
+            {
+              LogPrint (eLogWarning, "RelayPeers: response status: ",
+                        statusToString (status));
+              continue;
+            }
+
+          if (dataLen < 4)
+            {
+              LogPrint (eLogWarning,
+                        "RelayPeers: packet without payload, skip parsing");
+              continue;
+            }
+
+          std::vector<uint8_t> data
+              = { response->payload.data () + offset,
+                  response->payload.data () + offset + dataLen };
+
+          // ToDo: looks like it can be too slow, need to think how it can be
+          // optimized
+          LogPrint (eLogDebug, "RelayPeers: type: ", response->type,
+                    ", ver: ", unsigned (response->ver));
+          if (unsigned (data[1]) == 5
+              && (data[0] == (uint8_t)'L' || data[0] == (uint8_t)'P'))
+            {
+              if (receivePeerListV5 (data.data (), dataLen))
+                {
+                  /// Increment peer metric back, if we have response
+                  for (const auto &m_peer : m_peers_)
+                    {
+                      if (m_peer.second->ToBase64 () == response->from)
+                        {
+                          LogPrint (eLogDebug, "RelayPeers: Got response from "
+                                               "peer, mark reachable");
+                          m_peer.second->reachable (true);
+                        }
+                    }
+                }
+            }
+          else if (unsigned (data[1]) == 4
+                   && (data[0] == (uint8_t)'L' || data[0] == (uint8_t)'P'))
+            {
+              if (receivePeerListV4 (data.data (), dataLen))
+                {
+                  /// Increment peer metric back, if we have response
+                  for (const auto &m_peer : m_peers_)
+                    {
+                      if (m_peer.second->ToBase64 () == response->from)
+                        {
+                          LogPrint (eLogDebug, "RelayPeers: Got response from "
+                                               "peer, mark reachable");
+                          m_peer.second->reachable (true);
+                        }
+                    }
+                }
+            }
+          else
+            {
+              LogPrint (eLogWarning,
+                        "RelayPeers: unknown packet version: ", response->ver);
+            }
+        }
+    }
+  else
+    {
+      LogPrint (eLogWarning, "RelayPeers: Have no responses");
+    }
+
+  context.removeBatch (batch);
+  writePeers ();
 
   return task_status;
 }
 
 bool
-RelayPeersWorker::addPeer(const uint8_t *buf, int len)
+RelayPeersWorker::addPeer (const uint8_t *buf, int len)
 {
-  std::shared_ptr<i2p::data::IdentityEx> identity =
-    std::make_shared<i2p::data::IdentityEx>();
-  if (identity->FromBuffer(buf, len))
-    return addPeer(identity, 0);
+  std::shared_ptr<i2p::data::IdentityEx> identity
+      = std::make_shared<i2p::data::IdentityEx> ();
+  if (identity->FromBuffer (buf, len))
+    return addPeer (identity, 0);
   return false;
 }
 
-bool RelayPeersWorker::addPeer(const std::string &peer) {
-  std::shared_ptr<i2p::data::IdentityEx> identity = std::make_shared<i2p::data::IdentityEx>();
-  if (identity->FromBase64(peer))
-    return addPeer(identity, 0);
+bool
+RelayPeersWorker::addPeer (const std::string &peer)
+{
+  std::shared_ptr<i2p::data::IdentityEx> identity
+      = std::make_shared<i2p::data::IdentityEx> ();
+  if (identity->FromBase64 (peer))
+    return addPeer (identity, 0);
   return false;
 }
 
-bool RelayPeersWorker::addPeer(const std::shared_ptr<i2p::data::IdentityEx> &identity, int samples) {
-  if (findPeer(identity->GetIdentHash()))
+bool
+RelayPeersWorker::addPeer (
+    const std::shared_ptr<i2p::data::IdentityEx> &identity, int samples)
+{
+  if (findPeer (identity->GetIdentHash ()))
     return false;
 
-  auto local_destination = context.getLocalDestination();
-  if (local_destination->GetIdentHash() == identity->GetIdentHash()) {
-    LogPrint(eLogDebug, "RelayPeers: addPeer: skip local destination");
-    return false;
-  }
+  auto local_destination = context.getLocalDestination ();
+  if (local_destination->GetIdentHash () == identity->GetIdentHash ())
+    {
+      LogPrint (eLogDebug, "RelayPeers: addPeer: skip local destination");
+      return false;
+    }
 
-  std::shared_ptr<RelayPeer> peer = std::make_shared<RelayPeer>(identity->ToBase64(), samples);
+  std::shared_ptr<RelayPeer> peer
+      = std::make_shared<RelayPeer> (identity->ToBase64 (), samples);
 
-  std::unique_lock<std::mutex> l(m_peers_mutex_);
-  return m_peers_.insert(std::pair<i2p::data::IdentHash, std::shared_ptr<RelayPeer>>(peer->GetIdentHash(),
-                                                                                     peer)).second;
+  std::unique_lock<std::mutex> l (m_peers_mutex_);
+  return m_peers_
+      .insert (std::pair<i2p::data::IdentHash, std::shared_ptr<RelayPeer> > (
+          peer->GetIdentHash (), peer))
+      .second;
 }
 
-void RelayPeersWorker::addPeers(const std::vector<RelayPeer> &peers) {
-  for (const auto &peer: peers) {
-    std::shared_ptr<RelayPeer> s_peer = std::make_shared<RelayPeer>(peer.ToBase64());
-    addPeer(s_peer, peer.getReachability());
-  }
+void
+RelayPeersWorker::addPeers (const std::vector<RelayPeer> &peers)
+{
+  for (const auto &peer : peers)
+    {
+      std::shared_ptr<RelayPeer> s_peer
+          = std::make_shared<RelayPeer> (peer.ToBase64 ());
+      addPeer (s_peer, peer.getReachability ());
+    }
 }
 
-std::shared_ptr<RelayPeer> RelayPeersWorker::findPeer(const i2p::data::IdentHash &ident) const {
-  std::unique_lock<std::mutex> l(m_peers_mutex_);
-  auto it = m_peers_.find(ident);
-  if (it != m_peers_.end())
+std::shared_ptr<RelayPeer>
+RelayPeersWorker::findPeer (const i2p::data::IdentHash &ident) const
+{
+  std::unique_lock<std::mutex> l (m_peers_mutex_);
+  auto it = m_peers_.find (ident);
+  if (it != m_peers_.end ())
     return it->second;
   else
     return nullptr;
 }
 
-std::vector<std::string> RelayPeersWorker::readPeers() {
-  std::string peer_file_path = pbote::fs::DataDirPath("peers.txt");
-  LogPrint(eLogInfo, "RelayPeers: read peers from ", peer_file_path);
-  std::ifstream peer_file(peer_file_path);
+std::vector<std::string>
+RelayPeersWorker::readPeers ()
+{
+  std::string peer_file_path = pbote::fs::DataDirPath ("peers.txt");
+  LogPrint (eLogInfo, "RelayPeers: read peers from ", peer_file_path);
+  std::ifstream peer_file (peer_file_path);
 
-  if (!peer_file.is_open()) {
-    LogPrint(eLogError, "RelayPeers: can't open file ", peer_file_path);
-    return {};
-  }
+  if (!peer_file.is_open ())
+    {
+      LogPrint (eLogError, "RelayPeers: can't open file ", peer_file_path);
+      return {};
+    }
 
   std::vector<std::string> peers_list;
 
-  for (std::string line; getline(peer_file, line);) {
-    if (!line.empty() && line[0] != ('\n') && line[0] != '#') {
-      peers_list.push_back(line);
+  for (std::string line; getline (peer_file, line);)
+    {
+      if (!line.empty () && line[0] != ('\n') && line[0] != '#')
+        {
+          peers_list.push_back (line);
+        }
     }
-  }
   return peers_list;
 }
 
-bool RelayPeersWorker::loadPeers() {
-  LogPrint(eLogInfo, "RelayPeers: loadPeers: Load peers from FS");
+bool
+RelayPeersWorker::loadPeers ()
+{
+  LogPrint (eLogInfo, "RelayPeers: loadPeers: Load peers from FS");
   std::string value_delimiter = " ";
   std::vector<RelayPeer> peers;
-  std::vector<std::string> peers_list = readPeers();
+  std::vector<std::string> peers_list = readPeers ();
 
-  //std::unique_lock<std::mutex> l(m_peers_mutex_);
-  if (!peers_list.empty()) {
-    for (auto peer_str: peers_list) {
-      size_t pos;
-      std::string peer_s;
-      while ((pos = peer_str.find(value_delimiter)) != std::string::npos) {
-        peer_s = peer_str.substr(0, pos);
-        peer_str.erase(0, pos + value_delimiter.length());
-      }
-      std::string token = peer_str.substr(0, peer_str.find(value_delimiter));
-      RelayPeer peer;
-      if (!peer_s.empty()) {
-        if (peer.FromBase64(peer_s)) {
-          peer.setSamples(std::stoi(peer_str));
-          LogPrint(eLogDebug, "RelayPeers: loadPeers: peer: ", peer.GetIdentHash().ToBase64(),
-                   ", samples: ", peer.getReachability());
-          peers.push_back(peer);
+  // std::unique_lock<std::mutex> l(m_peers_mutex_);
+  if (!peers_list.empty ())
+    {
+      for (auto peer_str : peers_list)
+        {
+          size_t pos;
+          std::string peer_s;
+          while ((pos = peer_str.find (value_delimiter)) != std::string::npos)
+            {
+              peer_s = peer_str.substr (0, pos);
+              peer_str.erase (0, pos + value_delimiter.length ());
+            }
+          std::string token
+              = peer_str.substr (0, peer_str.find (value_delimiter));
+          RelayPeer peer;
+          if (!peer_s.empty ())
+            {
+              if (peer.FromBase64 (peer_s))
+                {
+                  peer.setSamples (std::stoi (peer_str));
+                  LogPrint (eLogDebug, "RelayPeers: loadPeers: peer: ",
+                            peer.GetIdentHash ().ToBase64 (),
+                            ", samples: ", peer.getReachability ());
+                  peers.push_back (peer);
+                }
+            }
         }
-      }
     }
-  }
 
-  if (!peers.empty()) {
-    addPeers(peers);
-    LogPrint(eLogInfo, "RelayPeers: peers loaded: ", peers.size());
-    return true;
-  }
+  if (!peers.empty ())
+    {
+      addPeers (peers);
+      LogPrint (eLogInfo, "RelayPeers: peers loaded: ", peers.size ());
+      return true;
+    }
 
   // Only if we have no peers in storage
   std::vector<std::string> bootstrap_addresses;
-  pbote::config::GetOption("bootstrap.address", bootstrap_addresses);
+  pbote::config::GetOption ("bootstrap.address", bootstrap_addresses);
 
-  if (!bootstrap_addresses.empty() && peers.empty()) {
-    size_t peers_added = 0;
-    for (const auto &bootstrap_address: bootstrap_addresses) {
-      std::shared_ptr<i2p::data::IdentityEx> new_peer = std::make_shared<i2p::data::IdentityEx>();
+  if (!bootstrap_addresses.empty () && peers.empty ())
+    {
+      size_t peers_added = 0;
+      for (const auto &bootstrap_address : bootstrap_addresses)
+        {
+          std::shared_ptr<i2p::data::IdentityEx> new_peer
+              = std::make_shared<i2p::data::IdentityEx> ();
 
-      if (!bootstrap_address.empty())
-        new_peer->FromBase64(bootstrap_address);
+          if (!bootstrap_address.empty ())
+            new_peer->FromBase64 (bootstrap_address);
 
-      if (addPeer(new_peer, 0))
-        peers_added++;
-      LogPrint(eLogDebug, "RelayPeers: successfully add node: ", new_peer->ToBase64());
+          if (addPeer (new_peer, 0))
+            peers_added++;
+          LogPrint (eLogDebug, "RelayPeers: successfully add node: ",
+                    new_peer->ToBase64 ());
+        }
+      LogPrint (eLogInfo, "RelayPeers: added peers: ", peers_added);
+      return true;
     }
-    LogPrint(eLogInfo, "RelayPeers: added peers: ", peers_added);
-    return true;
-  } else
+  else
     return false;
 }
 
-void RelayPeersWorker::writePeers() {
-  LogPrint(eLogInfo, "RelayPeers: save peers to FS");
-  std::string peer_file_path = pbote::fs::DataDirPath("peers.txt");
-  std::ofstream peer_file(peer_file_path);
+void
+RelayPeersWorker::writePeers ()
+{
+  LogPrint (eLogInfo, "RelayPeers: save peers to FS");
+  std::string peer_file_path = pbote::fs::DataDirPath ("peers.txt");
+  std::ofstream peer_file (peer_file_path);
 
-  if (!peer_file.is_open()) {
-    LogPrint(eLogError, "RelayPeers: can't open file ", peer_file_path);
-    return;
-  }
-  std::unique_lock<std::mutex> l(m_peers_mutex_);
+  if (!peer_file.is_open ())
+    {
+      LogPrint (eLogError, "RelayPeers: can't open file ", peer_file_path);
+      return;
+    }
+  std::unique_lock<std::mutex> l (m_peers_mutex_);
 
   peer_file << "# Each line is in the format: <dest> <samp>\n";
   peer_file << "#   dest  = the I2P destination\n";
-  peer_file << "#   samp = samples from 0 to 1000, depending on whether the peer responded\n";
+  peer_file << "#   samp = samples from 0 to 1000, depending on whether the "
+               "peer responded\n";
   peer_file << "# The fields are separated by a space character.\n";
   peer_file << "# Lines starting with a # are ignored.\n";
-  peer_file << "# Do not edit this file while pbote is running as it will be overwritten.\n\n";
+  peer_file << "# Do not edit this file while pbote is running as it will be "
+               "overwritten.\n\n";
 
-  for (const auto &peer: m_peers_) {
-    peer_file << peer.second->toString();
-    peer_file << "\n";
-  }
+  for (const auto &peer : m_peers_)
+    {
+      peer_file << peer.second->toString ();
+      peer_file << "\n";
+    }
 
-  peer_file.close();
-  LogPrint(eLogDebug, "RelayPeers: peers saved to FS");
+  peer_file.close ();
+  LogPrint (eLogDebug, "RelayPeers: peers saved to FS");
 }
 
-void RelayPeersWorker::getRandomPeers() {
-
+void
+RelayPeersWorker::getRandomPeers ()
+{
 }
 
-std::vector<RelayPeer> RelayPeersWorker::getGoodPeers() {
+std::vector<RelayPeer>
+RelayPeersWorker::getGoodPeers ()
+{
   std::vector<RelayPeer> result;
   int counter = 0;
 
-  for (const auto &m_peer: m_peers_) {
-    if (m_peer.second->getReachability() > MIN_REACHABILITY) {
-      result.push_back(*m_peer.second);
-      counter++;
-      if (counter >= MAX_PEERS_TO_SEND) {
-        break;
-      }
+  for (const auto &m_peer : m_peers_)
+    {
+      if (m_peer.second->getReachability () > MIN_REACHABILITY)
+        {
+          result.push_back (*m_peer.second);
+          counter++;
+          if (counter >= MAX_PEERS_TO_SEND)
+            {
+              break;
+            }
+        }
     }
-  }
 
   return result;
 }
 
-std::vector<RelayPeer> RelayPeersWorker::getGoodPeers(uint8_t num) {
-  auto result = getGoodPeers();
+std::vector<RelayPeer>
+RelayPeersWorker::getGoodPeers (uint8_t num)
+{
+  auto result = getGoodPeers ();
 
-  while (result.size() > num)
-    result.pop_back();
-
-  return result;
-}
-
-std::vector<std::shared_ptr<RelayPeer>> RelayPeersWorker::getAllPeers() {
-  std::vector<std::shared_ptr<RelayPeer>> result;
-
-  for (const auto &m_peer: m_peers_)
-    result.push_back(m_peer.second);
+  while (result.size () > num)
+    result.pop_back ();
 
   return result;
 }
 
-bool RelayPeersWorker::receivePeerListV4(const uint8_t *buf, size_t len) {
+std::vector<std::shared_ptr<RelayPeer> >
+RelayPeersWorker::getAllPeers ()
+{
+  std::vector<std::shared_ptr<RelayPeer> > result;
+
+  for (const auto &m_peer : m_peers_)
+    result.push_back (m_peer.second);
+
+  return result;
+}
+
+bool
+RelayPeersWorker::receivePeerListV4 (const uint8_t *buf, size_t len)
+{
   size_t offset = 0;
   uint8_t type, ver;
   uint16_t peers_count;
 
-  std::memcpy(&type, buf, 1);
+  std::memcpy (&type, buf, 1);
   offset += 1;
-  std::memcpy(&ver, buf + offset, 1);
+  std::memcpy (&ver, buf + offset, 1);
   offset += 1;
-  std::memcpy(&peers_count, buf + offset, 2);
+  std::memcpy (&peers_count, buf + offset, 2);
   offset += 2;
-  peers_count = ntohs(peers_count);
+  peers_count = ntohs (peers_count);
 
-  LogPrint(eLogDebug, "RelayPeers: receivePeerListV4: type: ", type, ", ver: ", unsigned(ver),
-           ", peers: ", peers_count);
+  LogPrint (eLogDebug, "RelayPeers: receivePeerListV4: type: ", type,
+            ", ver: ", unsigned (ver), ", peers: ", peers_count);
 
-  if ((type == (uint8_t) 'L' || type == (uint8_t) 'P') && ver == (uint8_t) 4) {
-    size_t peers_added = 0, peers_dup = 0;
-    for (size_t i = 0; i < peers_count; i++) {
-      if (offset == len) {
-        LogPrint(eLogWarning, "RelayPeers: receivePeerListV4: end of packet!");
-        break;
-      }
-      if (offset + 384 > len) {
-        LogPrint(eLogWarning, "RelayPeers: receivePeerListV4: incomplete packet!");
-        break;
-      }
+  if ((type == (uint8_t)'L' || type == (uint8_t)'P') && ver == (uint8_t)4)
+    {
+      size_t peers_added = 0, peers_dup = 0;
+      for (size_t i = 0; i < peers_count; i++)
+        {
+          if (offset == len)
+            {
+              LogPrint (eLogWarning,
+                        "RelayPeers: receivePeerListV4: end of packet!");
+              break;
+            }
+          if (offset + 384 > len)
+            {
+              LogPrint (eLogWarning,
+                        "RelayPeers: receivePeerListV4: incomplete packet!");
+              break;
+            }
 
-      uint8_t fullKey[387];
-      memcpy(fullKey, buf + offset, 384);
-      offset += 384;
+          uint8_t fullKey[387];
+          memcpy (fullKey, buf + offset, 384);
+          offset += 384;
 
-      i2p::data::IdentityEx peer;
+          i2p::data::IdentityEx peer;
 
-      /// This is an ugly workaround, but the 4th version of the protocol does not allow the correct key type to be determined
-      fullKey[384] = 0;
-      fullKey[385] = 0;
-      fullKey[386] = 0;
+          /// This is an ugly workaround, but the 4th version of the protocol
+          /// does not allow the correct key type to be determined
+          fullKey[384] = 0;
+          fullKey[385] = 0;
+          fullKey[386] = 0;
 
-      size_t res = peer.FromBuffer(fullKey, 387);
-      if (res > 0) {
-        if (addPeer(fullKey, 387)) {
-          peers_added++;
-        } else {
-          peers_dup++;
+          size_t res = peer.FromBuffer (fullKey, 387);
+          if (res > 0)
+            {
+              if (addPeer (fullKey, 387))
+                {
+                  peers_added++;
+                }
+              else
+                {
+                  peers_dup++;
+                }
+            }
+          else
+            LogPrint (eLogWarning,
+                      "RelayPeers: receivePeerListV4: fail to add peer");
         }
-      } else
-        LogPrint(eLogWarning, "RelayPeers: receivePeerListV4: fail to add peer");
+      LogPrint (eLogDebug,
+                "RelayPeers: receivePeerListV4: peers: ", peers_count,
+                ", added: ", peers_added, ", dup: ", peers_dup);
+      return true;
     }
-    LogPrint(eLogDebug, "RelayPeers: receivePeerListV4: peers: ", peers_count, ", added: ", peers_added,
-             ", dup: ", peers_dup);
-    return true;
-  } else
+  else
     return false;
 }
 
-bool RelayPeersWorker::receivePeerListV5(const uint8_t *buf, size_t len) {
+bool
+RelayPeersWorker::receivePeerListV5 (const uint8_t *buf, size_t len)
+{
   size_t offset = 0;
   uint8_t type, ver;
   uint16_t peers_count;
 
-  std::memcpy(&type, buf, 1);
+  std::memcpy (&type, buf, 1);
   offset += 1;
-  std::memcpy(&ver, buf + offset, 1);
+  std::memcpy (&ver, buf + offset, 1);
   offset += 1;
-  std::memcpy(&peers_count, buf + offset, 2);
+  std::memcpy (&peers_count, buf + offset, 2);
   offset += 2;
-  peers_count = ntohs(peers_count);
+  peers_count = ntohs (peers_count);
 
-  LogPrint(eLogDebug, "RelayPeers: receivePeerListV5: type: ", type, ", ver: ", unsigned(ver),
-           ", peers: ", peers_count);
+  LogPrint (eLogDebug, "RelayPeers: receivePeerListV5: type: ", type,
+            ", ver: ", unsigned (ver), ", peers: ", peers_count);
 
-  if ((type == (uint8_t) 'L' || type == (uint8_t) 'P') && ver == (uint8_t) 5) {
-    size_t peers_added = 0, peers_dup = 0;
-    for (size_t i = 0; i < peers_count; i++) {
-      if (offset == len) {
-        LogPrint(eLogError, "RelayPeers: receivePeerListV5: end of packet");
-        break;
-      }
-      if (offset + 384 > len) {
-        LogPrint(eLogError, "RelayPeers: receivePeerListV5: incomplete packet");
-        break;
-      }
+  if ((type == (uint8_t)'L' || type == (uint8_t)'P') && ver == (uint8_t)5)
+    {
+      size_t peers_added = 0, peers_dup = 0;
+      for (size_t i = 0; i < peers_count; i++)
+        {
+          if (offset == len)
+            {
+              LogPrint (eLogError,
+                        "RelayPeers: receivePeerListV5: end of packet");
+              break;
+            }
+          if (offset + 384 > len)
+            {
+              LogPrint (eLogError,
+                        "RelayPeers: receivePeerListV5: incomplete packet");
+              break;
+            }
 
-      std::shared_ptr<i2p::data::IdentityEx> peer = std::make_shared<i2p::data::IdentityEx>();
+          std::shared_ptr<i2p::data::IdentityEx> peer
+              = std::make_shared<i2p::data::IdentityEx> ();
 
-      size_t key_len = peer->FromBuffer(buf + offset, len - offset);
-      offset += key_len;
+          size_t key_len = peer->FromBuffer (buf + offset, len - offset);
+          offset += key_len;
 
-      if (key_len > 0) {
-        if (addPeer(peer, 0)) {
-          peers_added++;
-        } else {
-          peers_dup++;
+          if (key_len > 0)
+            {
+              if (addPeer (peer, 0))
+                {
+                  peers_added++;
+                }
+              else
+                {
+                  peers_dup++;
+                }
+            }
+          else
+            {
+              LogPrint (eLogWarning,
+                        "RelayPeers: receivePeerListV5: fail to add peer");
+            }
         }
-      } else {
-        LogPrint(eLogWarning, "RelayPeers: receivePeerListV5: fail to add peer");
-      }
+      LogPrint (eLogDebug,
+                "RelayPeers: receivePeerListV5: peers: ", peers_count,
+                ", added: ", peers_added, ", dup: ", peers_dup);
+      return true;
     }
-    LogPrint(eLogDebug, "RelayPeers: receivePeerListV5: peers: ", peers_count, ", added: ", peers_added,
-             ", dup: ", peers_dup);
-    return true;
-  } else
+  else
     return false;
 }
 
-void RelayPeersWorker::peerListRequestV4(const std::string &sender, const uint8_t *cid) {
-  if (addPeer(sender)) {
-    LogPrint(eLogDebug, "RelayPeers: peerListRequestV4: add requester to peers list");
-  }
+void
+RelayPeersWorker::peerListRequestV4 (const std::string &sender,
+                                     const uint8_t *cid)
+{
+  if (addPeer (sender))
+    {
+      LogPrint (eLogDebug,
+                "RelayPeers: peerListRequestV4: add requester to peers list");
+    }
 
-  auto good_peers = getGoodPeers();
+  auto good_peers = getGoodPeers ();
   pbote::PeerListPacketV4 peer_list;
-  peer_list.count = good_peers.size();
+  peer_list.count = good_peers.size ();
 
-  for (const auto &peer: good_peers) {
-    size_t ilen = peer.GetFullLen();
-    std::vector<uint8_t> buf(ilen);
-    peer.ToBuffer(buf.data(), ilen);
-    peer_list.data.insert(peer_list.data.end(), buf.begin(), buf.end());
-  }
+  for (const auto &peer : good_peers)
+    {
+      size_t ilen = peer.GetFullLen ();
+      std::vector<uint8_t> buf (ilen);
+      peer.ToBuffer (buf.data (), ilen);
+      peer_list.data.insert (peer_list.data.end (), buf.begin (), buf.end ());
+    }
 
   pbote::ResponsePacket response;
-  memcpy(response.cid, cid, 32);
+  memcpy (response.cid, cid, 32);
   response.status = StatusCode::OK;
-  response.data = peer_list.toByte();
-  response.length = response.data.size();
-  auto data = response.toByte();
+  response.data = peer_list.toByte ();
+  response.length = response.data.size ();
+  auto data = response.toByte ();
 
-  context.send(PacketForQueue(sender, data.data(), data.size()));
-  LogPrint(eLogInfo, "RelayPeers: peerListRequestV4: send response with ", peer_list.count, " peer(s)");
+  context.send (PacketForQueue (sender, data.data (), data.size ()));
+  LogPrint (eLogInfo, "RelayPeers: peerListRequestV4: send response with ",
+            peer_list.count, " peer(s)");
 }
 
-void RelayPeersWorker::peerListRequestV5(const std::string &sender, const uint8_t *cid) {
-  if (addPeer(sender)) {
-    LogPrint(eLogDebug, "RelayPeers: peerListRequestV5: add requester to peers list");
-  }
+void
+RelayPeersWorker::peerListRequestV5 (const std::string &sender,
+                                     const uint8_t *cid)
+{
+  if (addPeer (sender))
+    {
+      LogPrint (eLogDebug,
+                "RelayPeers: peerListRequestV5: add requester to peers list");
+    }
 
-  auto good_peers = getGoodPeers();
+  auto good_peers = getGoodPeers ();
   pbote::PeerListPacketV5 peer_list;
-  peer_list.count = good_peers.size();
+  peer_list.count = good_peers.size ();
 
-  for (const auto &peer: good_peers) {
-    size_t ilen = peer.GetFullLen();
-    std::vector<uint8_t> buf(ilen);
-    peer.ToBuffer(buf.data(), ilen);
-    peer_list.data.insert(peer_list.data.end(), buf.begin(), buf.end());
-  }
+  for (const auto &peer : good_peers)
+    {
+      size_t ilen = peer.GetFullLen ();
+      std::vector<uint8_t> buf (ilen);
+      peer.ToBuffer (buf.data (), ilen);
+      peer_list.data.insert (peer_list.data.end (), buf.begin (), buf.end ());
+    }
 
   pbote::ResponsePacket response;
-  memcpy(response.cid, cid, 32);
+  memcpy (response.cid, cid, 32);
   response.status = StatusCode::OK;
-  response.data = peer_list.toByte();
-  response.length = response.data.size();
-  auto data = response.toByte();
+  response.data = peer_list.toByte ();
+  response.length = response.data.size ();
+  auto data = response.toByte ();
 
-  context.send(PacketForQueue(sender, data.data(), data.size()));
-  LogPrint(eLogInfo, "RelayPeers: peerListRequestV5: send response with ", peer_list.count, " peer(s)");
+  context.send (PacketForQueue (sender, data.data (), data.size ()));
+  LogPrint (eLogInfo, "RelayPeers: peerListRequestV5: send response with ",
+            peer_list.count, " peer(s)");
 }
 
-pbote::PeerListRequestPacket RelayPeersWorker::peerListRequestPacket() {
-  /// don't reuse request packets because PacketBatch will not add the same one more than once
+pbote::PeerListRequestPacket
+RelayPeersWorker::peerListRequestPacket ()
+{
+  /// don't reuse request packets because PacketBatch will not add the same one
+  /// more than once
   pbote::PeerListRequestPacket packet;
-  /// Java will be answer with v4, pboted - with v5, so we can determine who is who
+  /// Java will be answer with v4, pboted - with v5, so we can determine who is
+  /// who
   packet.ver = 5;
-  context.random_cid(packet.cid, 32);
+  context.random_cid (packet.cid, 32);
   return packet;
 }
 
-}
-}
+} // relay
+} // pbote

@@ -139,13 +139,13 @@ bool DaemonLinux::stop() {
 
 void DaemonLinux::run() {
   while (running) {
-    auto uptime = context.get_uptime();
+    /*auto uptime = context.get_uptime();
 
     LogPrint(eLogDebug, "Daemon: uptime: ", uptime / 60, "m ", uptime % 60, "s",
              ", bytes received: ", context.get_bytes_recv(),
              ", bytes sent: ", context.get_bytes_sent(),
              ", DHT nodes: ", pbote::kademlia::DHT_worker.getNodesCount(),
-             ", Relay peers: ", pbote::relay::relay_peers_worker.getPeersCount());
+             ", Relay peers: ", pbote::relay::relay_peers_worker.getPeersCount());*/
 
     std::this_thread::sleep_for(std::chrono::seconds(60));
   }
