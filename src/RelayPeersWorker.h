@@ -1,9 +1,13 @@
 /**
- * Copyright (c) 2019-2021 polistern
+ * Copyright (c) 2019-2022 polistern
+ *
+ * This file is part of pboted and licensed under BSD3
+ *
+ * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTE_SRC_RELAYPEERSWORKER_H_
-#define PBOTE_SRC_RELAYPEERSWORKER_H_
+#ifndef PBOTED_SRC_RELAYPEERSWORKER_H_
+#define PBOTED_SRC_RELAYPEERSWORKER_H_
 
 #include <iostream>
 #include <random>
@@ -12,108 +16,138 @@
 
 #include "BoteContext.h"
 
-namespace pbote {
-namespace relay {
+namespace pbote
+{
+namespace relay
+{
 
 /// maximum number of peers to keep track of
 #define MAX_PEERS 50
-/// maximum number of peers to send in a peer list (the bigger a datagram, the less chance of it getting through)
+/// maximum number of peers to send in a peer list (the bigger a datagram, the
+/// less chance of it getting through)
 #define MAX_PEERS_TO_SEND 20
 /// percentage of requests sent to a peer / responses received back
-#define MIN_REACHABILITY  80
-/// time in minutes between updating peers if no high-reachability peers are known
+#define MIN_REACHABILITY 80
+/// time in minutes between updating peers if no high-reachability peers are
+/// known
 #define UPDATE_INTERVAL_SHORT (2 * 60)
-/// time in minutes between updating peers if at least one high-reachability peer is known
+/// time in minutes between updating peers if at least one high-reachability
+/// peer is known
 #define UPDATE_INTERVAL_LONG (60 * 60)
+/// maximum reachability value of peer
+#define PEER_MAX_REACHABILITY 100
 
-class RelayPeer : public i2p::data::IdentityEx {
- public:
-  RelayPeer()
-      : samples(0) {}
+class RelayPeer : public i2p::data::IdentityEx
+{
+public:
+  RelayPeer () : samples (0) {}
 
-  RelayPeer(const std::string &new_destination)
-    : samples(0) {
-    this->FromBase64(new_destination);
+  RelayPeer (const std::string &new_destination) : samples (0)
+  {
+    this->FromBase64 (new_destination);
   }
 
-  RelayPeer(const std::string &new_destination, int samples_)
-      : samples(samples_) {
-    this->FromBase64(new_destination);
+  RelayPeer (const std::string &new_destination, int samples_)
+      : samples (samples_)
+  {
+    this->FromBase64 (new_destination);
   }
 
-  RelayPeer(const uint8_t * buf, int len)
-      : samples(0) {
-    this->FromBuffer(buf, len);
+  RelayPeer (const uint8_t *buf, int len) : samples (0)
+  {
+    this->FromBuffer (buf, len);
   }
 
-  ~RelayPeer() = default;
+  ~RelayPeer () = default;
 
   /*size_t fromBase64(const std::string &new_destination) {
     return this->FromBase64(new_destination);
   };*/
 
-  void reachable(bool result) {
-    if (samples < 1000 && result)
+  void
+  reachable (bool result)
+  {
+    if (samples < PEER_MAX_REACHABILITY && result)
       samples += 2;
     else if (samples > 0 && !result)
       samples--;
   }
 
-  void setSamples(int s) { samples = s; }
+  void
+  setSamples (int s)
+  {
+    samples = s;
+  }
 
-  int getReachability() const { return samples; }
+  int
+  getReachability () const
+  {
+    return samples;
+  }
 
-  std::string toString() { return this->ToBase64() + " " + std::to_string(samples); }
+  std::string
+  toString ()
+  {
+    return this->ToBase64 () + " " + std::to_string (samples);
+  }
 
- private:
+private:
   int samples;
 };
 
-class RelayPeersWorker{
- public:
-  RelayPeersWorker();
-  ~RelayPeersWorker();
+class RelayPeersWorker
+{
+public:
+  RelayPeersWorker ();
+  ~RelayPeersWorker ();
 
-  void start();
-  void stop();
+  void start ();
+  void stop ();
 
-  bool addPeer(const uint8_t *buf, int len);
-  bool addPeer(const std::string& peer);
-  bool addPeer(const std::shared_ptr<i2p::data::IdentityEx> &identity, int samples);
-  void addPeers(const std::vector<RelayPeer>& peers);
+  bool addPeer (const uint8_t *buf, int len);
+  bool addPeer (const std::string &peer);
+  bool addPeer (const std::shared_ptr<i2p::data::IdentityEx> &identity,
+                int samples);
+  void addPeers (const std::vector<RelayPeer> &peers);
 
-  std::shared_ptr<RelayPeer> findPeer(const i2p::data::IdentHash &ident) const;
-  static std::vector<std::string> readPeers();
-  void writePeers();
-  bool loadPeers();
+  std::shared_ptr<RelayPeer>
+  findPeer (const i2p::data::IdentHash &ident) const;
+  static std::vector<std::string> readPeers ();
+  void writePeers ();
+  bool loadPeers ();
 
-  void getRandomPeers();
-  std::vector<RelayPeer> getGoodPeers();
-  std::vector<RelayPeer> getGoodPeers(uint8_t num);
-  std::vector<std::shared_ptr<RelayPeer>> getAllPeers();
-  size_t getPeersCount() { return m_peers_.size(); };
+  void getRandomPeers ();
+  std::vector<RelayPeer> getGoodPeers ();
+  std::vector<RelayPeer> getGoodPeers (uint8_t num);
+  std::vector<std::shared_ptr<RelayPeer> > getAllPeers ();
+  size_t
+  getPeersCount ()
+  {
+    return m_peers_.size ();
+  };
 
-  bool receivePeerListV4(const uint8_t* buf, size_t len);
-  bool receivePeerListV5(const uint8_t* buf, size_t len);
-  void peerListRequestV4(const std::string& sender, const uint8_t* cid);
-  void peerListRequestV5(const std::string& sender, const uint8_t* cid);
-  static pbote::PeerListRequestPacket peerListRequestPacket();
+  bool receivePeerListV4 (const uint8_t *buf, size_t len);
+  bool receivePeerListV5 (const uint8_t *buf, size_t len);
+  void peerListRequestV4 (const std::string &sender, const uint8_t *cid);
+  void peerListRequestV5 (const std::string &sender, const uint8_t *cid);
+  static pbote::PeerListRequestPacket peerListRequestPacket ();
 
- private:
-  void run();
-  bool checkPeersTask();
+private:
+  void run ();
+  bool checkPeersTask ();
 
   bool started_;
   std::thread *m_worker_thread_;
 
   mutable std::mutex m_peers_mutex_;
-  std::map<i2p::data::IdentHash, std::shared_ptr<RelayPeer>> m_peers_;
+  std::map<i2p::data::IdentHash, std::shared_ptr<RelayPeer> > m_peers_;
 
   unsigned long task_start_time;
 };
 
 extern RelayPeersWorker relay_peers_worker;
 
-}
-}
-#endif //PBOTE_SRC_RELAYPEERSWORKER_H_
+} // relay
+} // pbote
+
+#endif // PBOTED_SRC_RELAYPEERSWORKER_H_

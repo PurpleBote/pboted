@@ -156,9 +156,11 @@ DHTworker::getClosestNodes(i2p::data::IdentHash key, size_t num, bool to_us)
 
         // ToDo: print distance in human readable format
         //std::string minMetric_S(minMetric.metric, minMetric.metric + 32);
-        std::string metric_S(metric.metric, metric.metric + 32);
+        // std::string metric_S(metric.metric, metric.metric + 32);
+
         //LogPrint(eLogDebug, "DHT: getClosestNodes: Metric.metric_ll: ", ToHex(minMetric_S, false));
-        LogPrint(eLogDebug, "DHT: getClosestNodes: metric: ", ToHex(metric_S, false));
+        // LogPrint(eLogDebug, "DHT: getClosestNodes: metric: ", ToHex(metric_S, false));
+        
         //long long metric_ll = (long long)metric.metric;
         //LogPrint(eLogDebug, "DHT: getClosestNodes: metric: ", (uint64_t)metric.metric,
         //         (uint64_t)(metric.metric + 8), (uint64_t)(metric.metric + 16), (uint64_t)(metric.metric + 24));
