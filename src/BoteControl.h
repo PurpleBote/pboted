@@ -56,6 +56,8 @@ private:
   void storage (const std::string &cmd_id, std::ostringstream &results);
   void peer (const std::string &cmd_id, std::ostringstream &results);
   void node (const std::string &cmd_id, std::ostringstream &results);
+  // for unknown
+  void unknown_cmd (const std::string &cmd, std::ostringstream &results);
 
   bool m_is_running;
   std::thread *m_thread;
