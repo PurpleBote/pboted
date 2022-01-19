@@ -51,6 +51,7 @@ private:
                      const std::string &value) const;
 
   // handlers
+  void all (const std::string &cmd_id, std::ostringstream &results);
   void daemon (const std::string &cmd_id, std::ostringstream &results);
   void identity (const std::string &cmd_id, std::ostringstream &results);
   void storage (const std::string &cmd_id, std::ostringstream &results);
