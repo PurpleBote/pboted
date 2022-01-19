@@ -52,6 +52,7 @@ BoteControl::BoteControl (const std::string &sock_path)
     LogPrint (eLogError, "BoteControl: Listen error");
 
   // info handlers
+  handlers["all"] = &BoteControl::all;
   handlers["daemon"] = &BoteControl::daemon;
   handlers["identity"] = &BoteControl::identity;
   handlers["storage"] = &BoteControl::storage;
@@ -220,6 +221,21 @@ BoteControl::insert_param (std::ostringstream &ss, const std::string &name,
     ss << "null";
 }
 
+void
+BoteControl::all (const std::string &cmd_id, std::ostringstream &results)
+{
+  std::string empty;
+  daemon (empty, results);
+  results << ", ";
+  identity (empty, results);
+  results << ", ";
+  storage (empty, results);
+  results << ", ";
+  peer (empty, results);
+  results << ", ";
+  node (empty, results);
+}
+  
 void
 BoteControl::daemon (const std::string &cmd_id, std::ostringstream &results)
 {
