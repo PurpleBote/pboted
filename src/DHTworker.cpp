@@ -1195,7 +1195,9 @@ DHTworker::loadNodes()
       size_t counter = 0, dup = 0;
       for (const auto &node: nodes)
         {
-          LogPrint(eLogDebug, "DHT: loadNodes: node.ToBase64(): ", node.ToBase64());
+          LogPrint(eLogDebug,
+                   "DHT: loadNodes: node.ToBase64(): ",
+                   node.ToBase64().substr(0, 15), "...");
           auto t_hash = node.GetIdentHash();
           bool result =
             m_nodes_.insert(std::pair<i2p::data::IdentHash,
