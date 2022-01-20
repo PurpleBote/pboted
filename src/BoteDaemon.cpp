@@ -1,5 +1,9 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
+ *
+ * This file is part of pboted and licensed under BSD3
+ *
+ * See full license text in LICENSE file at top of project tree
  */
 
 #include <memory>
@@ -17,8 +21,10 @@
 #include "SMTP.h"
 #include "version.h"
 
-namespace pbote {
-namespace util {
+namespace pbote
+{
+namespace util
+{
 
 class Daemon_Singleton::Daemon_Singleton_Private {
  public:
@@ -32,6 +38,7 @@ class Daemon_Singleton::Daemon_Singleton_Private {
 
 Daemon_Singleton::Daemon_Singleton()
     : isDaemon(false), running(true), d(*new Daemon_Singleton_Private()) {}
+
 Daemon_Singleton::~Daemon_Singleton() { delete &d; }
 
 bool Daemon_Singleton::IsService() const {
@@ -81,7 +88,7 @@ bool Daemon_Singleton::init(int argc, char *argv[],
   if (logclftime)
     pbote::log::Logger().SetTimeFormat("[%d/%b/%Y:%H:%M:%S %z]");
 
-  if (isDaemon && (logs.empty() || logs == "stdout"))
+  if (isDaemon &&(logs.empty() || logs == "stdout"))
     logs = "file";
 
   pbote::log::Logger().SetLogLevel(loglevel);
