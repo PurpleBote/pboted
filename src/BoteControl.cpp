@@ -103,7 +103,7 @@ BoteControl::run ()
         }
       else
         {
-          LogPrint (eLogInfo, "BoteControl: run: Received new connection");
+          //LogPrint (eLogDebug, "BoteControl: run: Received new connection");
           handle_request ();
         }
     }
@@ -155,7 +155,7 @@ BoteControl::release ()
 void
 BoteControl::close ()
 {
-  if (conn_sockfd != INVALID_SOCKET)
+  if (conn_sockfd != (int)INVALID_SOCKET)
     {
       ::close (conn_sockfd);
       conn_sockfd = INVALID_SOCKET;
@@ -166,7 +166,8 @@ void
 BoteControl::handle_request ()
 {
   auto request = read_data ();
-  LogPrint (eLogDebug, "BoteControl: handle_request: Got request: ", request);
+  //LogPrint (eLogDebug, "BoteControl: handle_request: Got request: ",
+  //          request);
 
   // ToDo: parse request and combine response
   std::ostringstream result;
@@ -175,8 +176,8 @@ BoteControl::handle_request ()
   std::string cmd_prefix = request.substr (0, pos);
   std::string cmd_id = request.substr (pos + 1);
 
-  LogPrint (eLogDebug, "BoteControl: handle_request: cmd_prefix: ", cmd_prefix,
-            ", cmd_id: ", cmd_id);
+  /*LogPrint (eLogDebug, "BoteControl: handle_request: cmd_prefix: ",
+    cmd_prefix, ", cmd_id: ", cmd_id);*/
 
   auto it = handlers.find (cmd_prefix);
   if (it != handlers.end ())
