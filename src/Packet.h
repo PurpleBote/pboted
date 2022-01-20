@@ -1,5 +1,9 @@
 /**
- * Copyright (c) 2019-2021 polistern
+ * Copyright (C) 2019-2022 polistern
+ *
+ * This file is part of pboted and licensed under BSD3
+ *
+ * See full license text in LICENSE file at top of project tree
  */
 
 #ifndef PBOTE_PACKET_H__
@@ -25,7 +29,8 @@
 
 #include "Logging.h"
 
-namespace pbote {
+namespace pbote
+{
 
 /// because prefix[4] + type[1] + ver[1] +  cid[32] = 38
 #define COMM_DATA_LEN 38

@@ -1,5 +1,9 @@
 /**
- * Copyright (c) 2019-2021 polistern
+ * Copyright (C) 2019-2022 polistern
+ *
+ * This file is part of pboted and licensed under BSD3
+ *
+ * See full license text in LICENSE file at top of project tree
  */
 
 #include <fcntl.h>
@@ -38,8 +42,10 @@ void handle_signal(int sig) {
   }
 }
 
-namespace pbote {
-namespace util {
+namespace pbote
+{
+namespace util
+{
 
 int DaemonLinux::start() {
   if (isDaemon) {
