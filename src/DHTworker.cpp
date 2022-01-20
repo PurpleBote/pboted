@@ -145,6 +145,9 @@ DHTworker::getClosestNodes(i2p::data::IdentHash key, size_t num, bool to_us)
     bool operator< (const sortable_node &other) const { return metric < other.metric; };
   };
 
+  LogPrint(eLogDebug, "DHT: getClosestNodes: key: ", key.ToBase64 (),
+           ", num: ", num, ", to_us: ", to_us ? "true" : "false");
+
   std::set<sortable_node> sorted_nodes;
   //i2p::data::IdentHash destKey = CreateRoutingKey(key);
   i2p::data::XORMetric minMetric = {};
@@ -527,12 +530,11 @@ std::vector<Node> DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key) {
       else
         closestNodes = getClosestNodes(key, KADEMLIA_CONSTANT_K, false);
 
-      if (closestNodes.size () > KADEMLIA_CONSTANT_K)
-        {
-          LogPrint(eLogDebug, "DHT: closestNodesLookupTask: got ",
-            closestNodes.size (), " closest to key ", key.ToBase64 ());
-          return closestNodes;
-        }
+      LogPrint(eLogDebug, "DHT: closestNodesLookupTask: got ",
+               closestNodes.size (), " closest to key ", key.ToBase64 ());
+
+      if (closestNodes.size () >= KADEMLIA_CONSTANT_K)
+        return closestNodes;
     }
   for (const auto &node: req_nodes) {
     /// Create find closest peers packet
