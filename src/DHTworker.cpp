@@ -45,6 +45,7 @@ void DHTworker::start()
         LogPrint(eLogWarning, "DHT: have no nodes for start");
 
       LogPrint(eLogDebug, "DHT: load local packets");
+      dht_storage_.set_storage_limit ();
       dht_storage_.update();
 
       started_ = true;

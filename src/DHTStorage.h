@@ -37,7 +37,7 @@ T remove_extension(T const & filename) {
 
 class DHTStorage {
  public:
-  DHTStorage();
+  DHTStorage() = default;
   //~DHTStorage();
 
   void update();
@@ -53,6 +53,7 @@ class DHTStorage {
   std::vector<std::string> getEmailList() {return local_email_packets;}
   std::vector<std::string> getContactList() {return local_contact_packets;}
 
+  void set_storage_limit();
   bool limit_reached(size_t data_size);
   double limit_used() {return (double)((100 / (double)limit) * (double)used);}
 
@@ -74,7 +75,6 @@ class DHTStorage {
 
   size_t suffix_to_multiplier(const std::string &size_str);
 
-  void set_storage_limit();
   void update_storage_usage();
 
   void remove_old_packets();
