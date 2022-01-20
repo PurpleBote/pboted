@@ -1,5 +1,9 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
+ *
+ * This file is part of pboted and licensed under BSD3
+ *
+ * See full license text in LICENSE file at top of project tree
  */
 
 #include <mutex>
@@ -9,8 +13,10 @@
 #include "DHTworker.h"
 #include "Packet.h"
 
-namespace pbote {
-namespace kademlia {
+namespace pbote
+{
+namespace kademlia
+{
 
 DHTworker DHT_worker;
 
@@ -19,7 +25,8 @@ DHTworker::DHTworker()
       m_worker_thread_(nullptr),
       local_node_(nullptr)
 {
-  local_node_ = std::make_shared<Node>(context.getLocalDestination()->ToBase64());
+  local_node_ =
+    std::make_shared<Node>(context.getLocalDestination()->ToBase64());
 }
 
 DHTworker::~DHTworker()
@@ -512,6 +519,20 @@ std::vector<Node> DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key) {
   auto task_start_time = std::chrono::system_clock::now().time_since_epoch().count();
   //auto not_queried_nodes = getUnlockedNodes();
   auto req_nodes = getAllNodes();
+  if (req_nodes.size () > KADEMLIA_CONSTANT_K)
+    {
+      if (key == local_node_->GetIdentHash ())
+        closestNodes = getClosestNodes(key, KADEMLIA_CONSTANT_K, true);
+      else
+        closestNodes = getClosestNodes(key, KADEMLIA_CONSTANT_K, false);
+
+      if (closestNodes.size () > KADEMLIA_CONSTANT_K)
+        {
+          LogPrint(eLogDebug, "DHT: closestNodesLookupTask: got ",
+            closestNodes.size (), " closest to key ", key.ToBase64 ());
+          return closestNodes;
+        }
+    }
   for (const auto &node: req_nodes) {
     /// Create find closest peers packet
     auto packet = findClosePeersPacket(key);
@@ -732,7 +753,14 @@ std::vector<Node> DHTworker::receivePeerListV5(const uint8_t *buf, size_t len) {
 }
 
 void DHTworker::receiveRetrieveRequest(const std::shared_ptr<pbote::CommunicationPacket> &packet) {
-  LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: request from: ", packet->from.substr(0, 15));
+  LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: request from: ",
+    packet->from.substr(0, 15), "...");
+
+  if (packet->from == local_node_->ToBase64 ())
+  {
+    LogPrint(eLogWarning, "DHT: receiveRetrieveRequest: got request from ourself, skip");
+    return;
+  }
 
   if (addNode(packet->from)) {
     LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: add requester to nodes list");
@@ -787,7 +815,14 @@ void DHTworker::receiveRetrieveRequest(const std::shared_ptr<pbote::Communicatio
 }
 
 void DHTworker::receiveDeletionQuery(const std::shared_ptr<pbote::CommunicationPacket> &packet) {
-  LogPrint(eLogDebug, "DHT: receiveDeletionQuery: request from: ", packet->from.substr(0, 15));
+  LogPrint(eLogDebug, "DHT: receiveDeletionQuery: request from: ",
+           packet->from.substr(0, 15), "...");
+
+  if (packet->from == local_node_->ToBase64 ())
+  {
+    LogPrint(eLogWarning, "DHT: receiveDeletionQuery: got request from ourself, skip");
+    return;
+  }
 
   if (addNode(packet->from)) {
     LogPrint(eLogDebug, "DHT: receiveDeletionQuery: add requester to nodes list");
@@ -829,7 +864,14 @@ void DHTworker::receiveDeletionQuery(const std::shared_ptr<pbote::CommunicationP
 }
 
 void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPacket> &packet) {
-  LogPrint(eLogDebug, "DHT: receiveStoreRequest: request from: ", packet->from.substr(0, 15));
+  LogPrint(eLogDebug, "DHT: receiveStoreRequest: request from: ",
+           packet->from.substr(0, 15), "...");
+
+  if (packet->from == local_node_->ToBase64 ())
+  {
+    LogPrint(eLogWarning, "DHT: receiveStoreRequest: got request from ourself, skip");
+    return;
+  }
 
   if (addNode(packet->from)) {
     LogPrint(eLogDebug, "DHT: receiveStoreRequest: add requester to nodes list");
@@ -912,7 +954,14 @@ void DHTworker::receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPa
 }
 
 void DHTworker::receiveEmailPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket> &packet) {
-  LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: request from: ", packet->from.substr(0, 15));
+  LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: request from: ",
+           packet->from.substr(0, 15), "...");
+
+  if (packet->from == local_node_->ToBase64 ())
+  {
+    LogPrint(eLogWarning, "DHT: receiveEmailPacketDeleteRequest: got request from ourself, skip");
+    return;
+  }
 
   if (addNode(packet->from)) {
     LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: add requester to nodes list");
@@ -980,7 +1029,14 @@ void DHTworker::receiveEmailPacketDeleteRequest(const std::shared_ptr<pbote::Com
 }
 
 void DHTworker::receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket> &packet) {
-  LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: request from: ", packet->from.substr(0, 15));
+  LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: request from: ",
+           packet->from.substr(0, 15), "...");
+
+  if (packet->from == local_node_->ToBase64 ())
+  {
+    LogPrint(eLogWarning, "DHT: receiveIndexPacketDeleteRequest: got request from ourself, skip");
+    return;
+  }
 
   if (addNode(packet->from)) {
     LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: add requester to nodes list");
@@ -1078,7 +1134,14 @@ void DHTworker::receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::Com
 }
 
 void DHTworker::receiveFindClosePeers(const std::shared_ptr<pbote::CommunicationPacket> &packet) {
-  LogPrint(eLogDebug, "DHT: receiveFindClosePeers: request from: ", packet->from.substr(0, 15));
+  LogPrint(eLogDebug, "DHT: receiveFindClosePeers: request from: ",
+           packet->from.substr(0, 15), "...");
+
+  if (packet->from == local_node_->ToBase64 ())
+  {
+    LogPrint(eLogWarning, "DHT: receiveFindClosePeers: got request from ourself, skip");
+    return;
+  }
 
   if (addNode(packet->from)) {
     LogPrint(eLogDebug, "DHT: receiveFindClosePeers: add requester to nodes list");

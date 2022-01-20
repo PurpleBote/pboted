@@ -1,5 +1,9 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
+ *
+ * This file is part of pboted and licensed under BSD3
+ *
+ * See full license text in LICENSE file at top of project tree
  */
 
 #ifndef PBOTE_DHT_WORKER_H_
@@ -22,31 +26,48 @@
 
 #include "Identity.h"
 
-namespace pbote {
-namespace kademlia {
+namespace pbote
+{
+namespace kademlia
+{
 
 #define BIT_SIZE  256
+
 /// Number of redundant storage nodes
 #define KADEMLIA_CONSTANT_K 20
+
 /// The size of the sibling list for S/Kademlia
 #define KADEMLIA_CONSTANT_S 100
-/// const int KADEMLIA_CONSTANT_B = = 5;   // This is the value from the original Kademlia paper.
+
+// 5 is the value from the original Kademlia paper.
+/// #define KADEMLIA_CONSTANT_B 5
 #define KADEMLIA_CONSTANT_B 1
+
 /// According to the literature, 3 is the optimum choice,
-/// but until the network becomes significantly larger than S, we'll use a higher value for speed.
+/// but until the network becomes significantly larger than S,
+/// we'll use a higher value for speed.
 #define KADEMLIA_CONSTANT_ALPHA 10
-/// The amount of time after which a bucket is refreshed if a lookup hasn't been done in its ID range
+
+/// The amount of time after which a bucket is refreshed if
+/// a lookup hasn't been done in its ID range
 #define BUCKET_REFRESH_INTERVAL 3600
-/// Time interval for Kademlia replication (plus or minus <code>REPLICATE_VARIANCE</code>)
+
+/// Time interval for Kademlia replication
+/// (plus or minus <code>REPLICATE_VARIANCE</code>)
 #define REPLICATE_INTERVAL 3600
-/// the maximum amount of time the replication interval can deviate from REPLICATE_INTERVAL
+
+/// the maximum amount of time the replication interval
+/// can deviate from REPLICATE_INTERVAL
 #define REPLICATE_VARIANCE (5 * 60)
+
 /// Max. number of seconds to wait for replies to retrieve requests
 #define RESPONSE_TIMEOUT 60
+
 /// the maximum amount of time a FIND_CLOSEST_NODES can take
 #define CLOSEST_NODES_LOOKUP_TIMEOUT (5 * 60)
+
 /// the minimum nodes for find request
-#define MIN_CLOSEST_NODES 1
+#define MIN_CLOSEST_NODES 10
 
 /**
  * Terms:
