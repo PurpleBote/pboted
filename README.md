@@ -18,6 +18,7 @@ Tested with [i2pd](https://github.com/PurpleI2P/i2pd) and [Java I2P](https://git
 - Support for short recipient names (alias)
 - End-to-End encryption, see details [here](https://pboted.readthedocs.io/en/latest/bote/v5/cryptography/)
 - Runnable as daemon or as user service
+- [CLI utility](https://github.com/polistern/pbotectl)) (work in progress)
 - SMTP / POP3 support (tested with [Mozilla Thunderbird](https://www.thunderbird.net/en-US/))
 
 ### Planned Features
@@ -26,7 +27,6 @@ Tested with [i2pd](https://github.com/PurpleI2P/i2pd) and [Java I2P](https://git
 - Sending email anonymously
 - Delivery confirmation
 - Sending and receiving via relays, similar to Mixmaster
-- CLI and tools
 - Interfaces for interaction with third-party applications (IMAP, etc.)
 
 ## Resources
