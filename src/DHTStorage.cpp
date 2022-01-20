@@ -21,11 +21,6 @@ namespace pbote
 namespace kademlia
 {
 
-DHTStorage::DHTStorage ()
-{
-  set_storage_limit();
-}
-
 void
 DHTStorage::update ()
 {
