@@ -1,5 +1,9 @@
 /**
- * Copyright (c) 2019-2021 polistern
+ * Copyright (C) 2019-2022 polistern
+ *
+ * This file is part of pboted and licensed under BSD3
+ *
+ * See full license text in LICENSE file at top of project tree
  */
 
 #ifndef PACKET_HANDLER_H__
@@ -20,26 +24,23 @@
 
 #define PBOTE_PROTOCOL_VERSION 4
 
-namespace pbote {
-namespace packet {
+namespace pbote
+{
+namespace packet
+{
 
-extern uint8_t PacketType[];
-
-extern uint8_t CommunicationPreffix[];
-
-class RequestHandler;
 class IncomingRequest;
-class OutgoingRequest;
 
 typedef bool (IncomingRequest::*incomingPacketHandler)(const std::shared_ptr<pbote::CommunicationPacket> &packet);
 //typedef bool (OutgoingRequest::*outgoingPacketHandler)(const std::shared_ptr<pbote::CommunicationPacket> &packet);
 
 class IncomingRequest {
  public:
-  IncomingRequest(RequestHandler &parent);
+  IncomingRequest();
 
   bool handleNewPacket(const std::shared_ptr<PacketForQueue>& packet);
 
+ private:
   bool receiveRelayRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
   bool receiveRelayReturnRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
   bool receiveFetchRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
@@ -53,9 +54,7 @@ class IncomingRequest {
   bool receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
   bool receiveFindClosePeersRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
 
- private:
-  RequestHandler &m_Parent;
-  incomingPacketHandler incomingPacketHandlers_[256];
+  incomingPacketHandler i_handlers_[256];
 };
 
 class RequestHandler {

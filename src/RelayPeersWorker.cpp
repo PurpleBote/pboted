@@ -625,6 +625,8 @@ void
 RelayPeersWorker::peerListRequestV4 (const std::string &sender,
                                      const uint8_t *cid)
 {
+  LogPrint(eLogDebug, "RelayPeers: peerListRequestV4: request from: ",
+    sender.substr(0, 15), "...");
   if (addPeer (sender))
     {
       LogPrint (eLogDebug,
@@ -659,6 +661,8 @@ void
 RelayPeersWorker::peerListRequestV5 (const std::string &sender,
                                      const uint8_t *cid)
 {
+  LogPrint(eLogDebug, "RelayPeers: peerListRequestV5: request from: ",
+    sender.substr(0, 15), "...");
   if (addPeer (sender))
     {
       LogPrint (eLogDebug,
