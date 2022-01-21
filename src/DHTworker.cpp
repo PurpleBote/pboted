@@ -525,10 +525,7 @@ std::vector<Node> DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key) {
   auto req_nodes = getAllNodes();
   if (req_nodes.size () > KADEMLIA_CONSTANT_K)
     {
-      if (key == local_node_->GetIdentHash ())
-        closestNodes = getClosestNodes(key, KADEMLIA_CONSTANT_K, true);
-      else
-        closestNodes = getClosestNodes(key, KADEMLIA_CONSTANT_K, false);
+      closestNodes = getClosestNodes(key, KADEMLIA_CONSTANT_K, false);
 
       LogPrint(eLogDebug, "DHT: closestNodesLookupTask: got ",
                closestNodes.size (), " closest to key ", key.ToBase64 ());
