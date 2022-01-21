@@ -63,6 +63,7 @@ private:
   bool m_is_running;
   std::thread *m_thread;
 
+  const std::string socket_path;
   int conn_sockfd, data_sockfd;
   struct sockaddr_un conn_addr, data_addr;
 

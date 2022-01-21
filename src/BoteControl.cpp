@@ -17,13 +17,15 @@ namespace bote
 {
 
 BoteControl::BoteControl (const std::string &sock_path)
-    : m_is_running (false), m_thread (nullptr)
+  : m_is_running (false),
+    m_thread (nullptr),
+    socket_path (sock_path)
 {
-  if (!pbote::fs::Exists (sock_path))
+  if (!pbote::fs::Exists (socket_path))
     LogPrint (eLogInfo,
               "BoteControl: creating new socket for control connection");
   else
-    LogPrint (eLogDebug, "BoteControl: existing fsocket ", sock_path,
+    LogPrint (eLogDebug, "BoteControl: existing fsocket ", socket_path,
               " will be used");
 
   int status;
@@ -32,12 +34,12 @@ BoteControl::BoteControl (const std::string &sock_path)
   if (conn_sockfd == -1)
     LogPrint (eLogError, "BoteControl: Invalid socket");
 
-  unlink (sock_path.c_str ());
+  unlink (socket_path.c_str ());
 
   memset (&conn_addr, 0, sizeof conn_addr);
 
   conn_addr.sun_family = AF_UNIX;
-  strncpy (conn_addr.sun_path, sock_path.c_str (),
+  strncpy (conn_addr.sun_path, socket_path.c_str (),
            sizeof conn_addr.sun_path - 1)[sizeof conn_addr.sun_path - 1]
       = 0;
 
@@ -77,8 +79,9 @@ BoteControl::stop ()
 {
   if (m_is_running)
     {
-      close ();
       m_is_running = false;
+      close ();
+
       if (m_thread)
         {
           m_thread->join ();
@@ -107,6 +110,7 @@ BoteControl::run ()
           //LogPrint (eLogDebug, "BoteControl: run: Received new connection");
           handle_request ();
         }
+        ::close(data_sockfd);
     }
 }
 
@@ -160,6 +164,7 @@ BoteControl::close ()
     {
       ::close (conn_sockfd);
       conn_sockfd = INVALID_SOCKET;
+      unlink (socket_path.c_str ());
     }
 }
 
