@@ -137,6 +137,7 @@ RelayPeersWorker::checkPeersTask ()
 
   std::vector<std::shared_ptr<pbote::CommunicationPacket> > responses
       = batch->getResponses ();
+
   if (!responses.empty ())
     {
       task_status = true;
@@ -184,8 +185,9 @@ RelayPeersWorker::checkPeersTask ()
           // optimized
           LogPrint (eLogDebug, "RelayPeers: type: ", response->type,
                     ", ver: ", unsigned (response->ver));
-          if (unsigned (data[1]) == 5
-              && (data[0] == (uint8_t)'L' || data[0] == (uint8_t)'P'))
+          if (unsigned (data[1]) == 5 &&
+              (data[0] == (uint8_t)'L' ||
+               data[0] == (uint8_t)'P'))
             {
               if (receivePeerListV5 (data.data (), dataLen))
                 {
@@ -194,15 +196,16 @@ RelayPeersWorker::checkPeersTask ()
                     {
                       if (m_peer.second->ToBase64 () == response->from)
                         {
-                          LogPrint (eLogDebug, "RelayPeers: Got response from "
-                                               "peer, mark reachable");
+                          LogPrint (eLogDebug,
+                                    "RelayPeers: Got response, mark reachable");
                           m_peer.second->reachable (true);
                         }
                     }
                 }
             }
-          else if (unsigned (data[1]) == 4
-                   && (data[0] == (uint8_t)'L' || data[0] == (uint8_t)'P'))
+          else if (unsigned (data[1]) == 4 &&
+                   (data[0] == (uint8_t)'L' ||
+                    data[0] == (uint8_t)'P'))
             {
               if (receivePeerListV4 (data.data (), dataLen))
                 {
@@ -211,8 +214,8 @@ RelayPeersWorker::checkPeersTask ()
                     {
                       if (m_peer.second->ToBase64 () == response->from)
                         {
-                          LogPrint (eLogDebug, "RelayPeers: Got response from "
-                                               "peer, mark reachable");
+                          LogPrint (eLogDebug,
+                                    "RelayPeers: Got response, mark reachable");
                           m_peer.second->reachable (true);
                         }
                     }
@@ -305,13 +308,13 @@ RelayPeersWorker::findPeer (const i2p::data::IdentHash &ident) const
 std::vector<std::string>
 RelayPeersWorker::readPeers ()
 {
-  std::string peer_file_path = pbote::fs::DataDirPath ("peers.txt");
-  LogPrint (eLogInfo, "RelayPeers: read peers from ", peer_file_path);
+  std::string peer_file_path = pbote::fs::DataDirPath (PEER_FILE_NAME);
+  LogPrint (eLogInfo, "RelayPeers: Read peers from ", peer_file_path);
   std::ifstream peer_file (peer_file_path);
 
   if (!peer_file.is_open ())
     {
-      LogPrint (eLogError, "RelayPeers: can't open file ", peer_file_path);
+      LogPrint (eLogError, "RelayPeers: Can't open file ", peer_file_path);
       return {};
     }
 
@@ -354,7 +357,7 @@ RelayPeersWorker::loadPeers ()
             {
               if (peer.FromBase64 (peer_s))
                 {
-                  peer.setSamples (std::stoi (peer_str));
+                  peer.setSamples ((size_t)std::stoi (peer_str));
                   LogPrint (eLogDebug, "RelayPeers: loadPeers: peer: ",
                             peer.GetIdentHash ().ToBase64 (),
                             ", samples: ", peer.getReachability ());
@@ -367,7 +370,7 @@ RelayPeersWorker::loadPeers ()
   if (!peers.empty ())
     {
       addPeers (peers);
-      LogPrint (eLogInfo, "RelayPeers: peers loaded: ", peers.size ());
+      LogPrint (eLogInfo, "RelayPeers: Peers loaded: ", peers.size ());
       return true;
     }
 
@@ -375,7 +378,7 @@ RelayPeersWorker::loadPeers ()
   std::vector<std::string> bootstrap_addresses;
   pbote::config::GetOption ("bootstrap.address", bootstrap_addresses);
 
-  if (!bootstrap_addresses.empty () && peers.empty ())
+  if (!bootstrap_addresses.empty () && m_peers_.empty ())
     {
       size_t peers_added = 0;
       for (const auto &bootstrap_address : bootstrap_addresses)
@@ -388,10 +391,10 @@ RelayPeersWorker::loadPeers ()
 
           if (addPeer (new_peer, 0))
             peers_added++;
-          LogPrint (eLogDebug, "RelayPeers: successfully add node: ",
+          LogPrint (eLogDebug, "RelayPeers: Successfully add node: ",
                     new_peer->ToBase64 ());
         }
-      LogPrint (eLogInfo, "RelayPeers: added peers: ", peers_added);
+      LogPrint (eLogInfo, "RelayPeers: Added peers: ", peers_added);
       return true;
     }
   else
@@ -402,7 +405,7 @@ void
 RelayPeersWorker::writePeers ()
 {
   LogPrint (eLogInfo, "RelayPeers: save peers to FS");
-  std::string peer_file_path = pbote::fs::DataDirPath ("peers.txt");
+  std::string peer_file_path = pbote::fs::DataDirPath (PEER_FILE_NAME);
   std::ofstream peer_file (peer_file_path);
 
   if (!peer_file.is_open ())
@@ -444,7 +447,7 @@ RelayPeersWorker::getGoodPeers ()
 
   for (const auto &m_peer : m_peers_)
     {
-      if (m_peer.second->getReachability () > MIN_REACHABILITY)
+      if (m_peer.second->getReachability () > PEER_MIN_REACHABILITY)
         {
           result.push_back (*m_peer.second);
           counter++;
@@ -532,13 +535,9 @@ RelayPeersWorker::receivePeerListV4 (const uint8_t *buf, size_t len)
           if (res > 0)
             {
               if (addPeer (fullKey, 387))
-                {
-                  peers_added++;
-                }
+                peers_added++;
               else
-                {
-                  peers_dup++;
-                }
+                peers_dup++;
             }
           else
             LogPrint (eLogWarning,
@@ -598,13 +597,9 @@ RelayPeersWorker::receivePeerListV5 (const uint8_t *buf, size_t len)
           if (key_len > 0)
             {
               if (addPeer (peer, 0))
-                {
-                  peers_added++;
-                }
+                peers_added++;
               else
-                {
-                  peers_dup++;
-                }
+                peers_dup++;
             }
           else
             {
