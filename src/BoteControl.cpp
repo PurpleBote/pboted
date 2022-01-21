@@ -99,6 +99,7 @@ BoteControl::run ()
             {
               LogPrint (eLogError,
                         "BoteControl: run: Accept error: ", strerror (errno));
+              std::this_thread::sleep_for(std::chrono::seconds (5));
             }
         }
       else
