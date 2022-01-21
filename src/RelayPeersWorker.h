@@ -23,19 +23,24 @@ namespace relay
 
 /// maximum number of peers to keep track of
 #define MAX_PEERS 50
+
 /// maximum number of peers to send in a peer list (the bigger a datagram, the
 /// less chance of it getting through)
 #define MAX_PEERS_TO_SEND 20
+
 /// percentage of requests sent to a peer / responses received back
-#define MIN_REACHABILITY 80
+#define PEER_MIN_REACHABILITY 80
+#define PEER_MAX_REACHABILITY 1000 // for tests
+
 /// time in minutes between updating peers if no high-reachability peers are
 /// known
 #define UPDATE_INTERVAL_SHORT (2 * 60)
+
 /// time in minutes between updating peers if at least one high-reachability
 /// peer is known
 #define UPDATE_INTERVAL_LONG (60 * 60)
-/// maximum reachability value of peer
-#define PEER_MAX_REACHABILITY 100
+
+#define PEER_FILE_NAME "peers.txt"
 
 class RelayPeer : public i2p::data::IdentityEx
 {
@@ -47,7 +52,7 @@ public:
     this->FromBase64 (new_destination);
   }
 
-  RelayPeer (const std::string &new_destination, int samples_)
+  RelayPeer (const std::string &new_destination, size_t samples_)
       : samples (samples_)
   {
     this->FromBase64 (new_destination);
@@ -67,19 +72,21 @@ public:
   void
   reachable (bool result)
   {
-    if (samples < PEER_MAX_REACHABILITY && result)
+    if (result && samples < PEER_MAX_REACHABILITY - 1)
       samples += 2;
-    else if (samples > 0 && !result)
+    else if (result && samples < PEER_MAX_REACHABILITY)
+      samples++;
+    else if (!result && samples > 0)
       samples--;
   }
 
   void
-  setSamples (int s)
+  setSamples (size_t s)
   {
     samples = s;
   }
 
-  int
+  size_t
   getReachability () const
   {
     return samples;
@@ -92,7 +99,7 @@ public:
   }
 
 private:
-  int samples;
+  size_t samples;
 };
 
 class RelayPeersWorker
