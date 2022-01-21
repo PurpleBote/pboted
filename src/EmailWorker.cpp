@@ -12,8 +12,10 @@
 #include "DHTworker.h"
 #include "EmailWorker.h"
 
-namespace pbote {
-namespace kademlia {
+namespace pbote
+{
+namespace kademlia
+{
 
 EmailWorker email_worker;
 
@@ -474,7 +476,8 @@ std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr
       continue;
     }
 
-    LogPrint(eLogDebug, "EmailWorker: retrieveIndex: got response from: ", response->from.substr(0, 15));
+    LogPrint(eLogDebug, "EmailWorker: retrieveIndex: got response from: ",
+      response->from.substr(0, 15), "...");
     size_t offset = 0;
     uint8_t status;
     uint16_t dataLen;
