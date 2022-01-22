@@ -1,5 +1,9 @@
 /**
  * Copyright (c) 2019-2022 polistern
+ *
+ * This file is part of pboted and licensed under BSD3
+ *
+ * See full license text in LICENSE file at top of project tree
  */
 
 #include <utility>
