@@ -1,8 +1,8 @@
 /**
  * Copyright (c) 2013-2016, The PurpleI2P Project
- * Copyright (c) 2019-2021 polistern
+ * Copyright (c) 2019-2022 polistern
  *
- * This file is part of Purple i2pd project and licensed under BSD3
+ * This file is part of pboted project and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */

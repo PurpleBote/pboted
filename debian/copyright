@@ -3,11 +3,11 @@ Upstream-Name: pboted
 Source: https://github.com/polistern
 
 Files: *
-Copyright: 2019-2021 polistern <polistern@i2pmail.org>
+Copyright: 2019-2022 polistern <polistern@i2pmail.org>
 License: BSD-3-clause
 
 License: BSD-3-clause
- Copyright (c) 2019-2021, polistern <polistern@i2pmail.org>
+ Copyright (C) 2019-2022, polistern <polistern@i2pmail.org>
  .
  All rights reserved.
  .
