@@ -21,25 +21,26 @@ namespace pbote
 namespace relay
 {
 
-/// maximum number of peers to keep track of
+/// Maximum number of peers to keep track of
 #define MAX_PEERS 50
 
-/// maximum number of peers to send in a peer list (the bigger a datagram, the
+/// Maximum number of peers to send in a peer list (the bigger a datagram, the
 /// less chance of it getting through)
 #define MAX_PEERS_TO_SEND 20
 
-/// percentage of requests sent to a peer / responses received back
+/// Percentage of requests sent to a peer / responses received back
 #define PEER_MIN_REACHABILITY 80
 #define PEER_MAX_REACHABILITY 1000 // for tests
 
-/// time in minutes between updating peers if no high-reachability peers are
+/// Time in minutes between updating peers if no high-reachability peers are
 /// known
 #define UPDATE_INTERVAL_SHORT (2 * 60)
 
-/// time in minutes between updating peers if at least one high-reachability
+/// Time in minutes between updating peers if at least one high-reachability
 /// peer is known
 #define UPDATE_INTERVAL_LONG (60 * 60)
 
+/// Default filename for peers file
 #define PEER_FILE_NAME "peers.txt"
 
 class RelayPeer : public i2p::data::IdentityEx
