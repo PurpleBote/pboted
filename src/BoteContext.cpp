@@ -88,13 +88,17 @@ void BoteContext::send(const std::shared_ptr<PacketBatch<pbote::CommunicationPac
 bool BoteContext::receive(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
   std::vector<uint8_t> v_cid(packet->cid, packet->cid + 32);
   for (const auto& batch: runningBatches) {
-    if (batch->contains(v_cid)) {
+    if (batch->contains(v_cid))
+    {
+      size_t remain_response_count = 0;
+      if (((long)batch->packetCount() - (long)batch->responseCount()) > 0)
+        remain_response_count = batch->packetCount() = batch->responseCount();
+
       batch->addResponse(packet);
       LogPrint(eLogDebug,
-               "Context: response received for batch ",
-               batch->owner,
-               ", remain response count: ",
-               batch->packetCount() - batch->responseCount());
+               "Context: response received for batch ", batch->owner,
+               ", remain responses count: ", remain_response_count);
+               
       return true;
     }
   }
