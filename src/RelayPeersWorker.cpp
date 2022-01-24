@@ -255,7 +255,7 @@ RelayPeersWorker::addPeer (const std::string &peer)
   std::shared_ptr<i2p::data::IdentityEx> identity
       = std::make_shared<i2p::data::IdentityEx> ();
   if (identity->FromBase64 (peer))
-    return addPeer (identity, 0);
+    return addPeer (identity, PEER_MIN_REACHABILITY);
   return false;
 }
 
@@ -443,19 +443,11 @@ std::vector<RelayPeer>
 RelayPeersWorker::getGoodPeers ()
 {
   std::vector<RelayPeer> result;
-  int counter = 0;
 
   for (const auto &m_peer : m_peers_)
     {
       if (m_peer.second->getReachability () > PEER_MIN_REACHABILITY)
-        {
-          result.push_back (*m_peer.second);
-          counter++;
-          if (counter >= MAX_PEERS_TO_SEND)
-            {
-              break;
-            }
-        }
+        result.push_back (*m_peer.second);
     }
 
   return result;
@@ -466,7 +458,7 @@ RelayPeersWorker::getGoodPeers (uint8_t num)
 {
   auto result = getGoodPeers ();
 
-  while (result.size () > num)
+  while (result.size () < num)
     result.pop_back ();
 
   return result;
@@ -481,6 +473,18 @@ RelayPeersWorker::getAllPeers ()
     result.push_back (m_peer.second);
 
   return result;
+}
+
+size_t
+RelayPeersWorker::getPeersCount ()
+{
+  return m_peers_.size ();
+}
+
+size_t
+RelayPeersWorker::get_good_peer_count ()
+{
+  return getGoodPeers ().size ();
 }
 
 bool
@@ -628,7 +632,7 @@ RelayPeersWorker::peerListRequestV4 (const std::string &sender,
                 "RelayPeers: peerListRequestV4: add requester to peers list");
     }
 
-  auto good_peers = getGoodPeers ();
+  auto good_peers = getGoodPeers (MAX_PEERS_TO_SEND);
   pbote::PeerListPacketV4 peer_list;
   peer_list.count = good_peers.size ();
 
@@ -664,7 +668,7 @@ RelayPeersWorker::peerListRequestV5 (const std::string &sender,
                 "RelayPeers: peerListRequestV5: add requester to peers list");
     }
 
-  auto good_peers = getGoodPeers ();
+  auto good_peers = getGoodPeers (MAX_PEERS_TO_SEND);
   pbote::PeerListPacketV5 peer_list;
   peer_list.count = good_peers.size ();
 
