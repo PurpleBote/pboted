@@ -128,11 +128,8 @@ public:
   std::vector<RelayPeer> getGoodPeers ();
   std::vector<RelayPeer> getGoodPeers (uint8_t num);
   std::vector<std::shared_ptr<RelayPeer> > getAllPeers ();
-  size_t
-  getPeersCount ()
-  {
-    return m_peers_.size ();
-  };
+  size_t getPeersCount ();
+  size_t get_good_peer_count ();
 
   bool receivePeerListV4 (const uint8_t *buf, size_t len);
   bool receivePeerListV5 (const uint8_t *buf, size_t len);
