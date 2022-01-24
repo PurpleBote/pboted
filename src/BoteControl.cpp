@@ -248,7 +248,11 @@ BoteControl::daemon (const std::string &cmd_id, std::ostringstream &results)
 {
   results << "\"daemon\": {";
   insert_param (results, "uptime", (int)pbote::context.get_uptime ());
-  results << "}";
+  results << "\"bytes\": {";
+  insert_param (results, "recived", (int)pbote::context.get_bytes_recv ());
+  results << ", ";
+  insert_param (results, "sent", (int)pbote::context.get_bytes_sent ());
+  results << "}}";
 }
 
 void
@@ -271,19 +275,27 @@ BoteControl::storage (const std::string &cmd_id, std::ostringstream &results)
 void
 BoteControl::peer (const std::string &cmd_id, std::ostringstream &results)
 {
-  results << "\"peer\": {";
-  insert_param (results, "count",
+  results << "\"peers\": {";
+  results << "\"count\": {";
+  insert_param (results, "all",
                 (int)pbote::relay::relay_peers_worker.getPeersCount ());
-  results << "}";
+  results << ", ";
+  insert_param (results, "good",
+                (int)pbote::relay::relay_peers_worker.get_good_peer_count ());
+  results << "}}";
 }
 
 void
 BoteControl::node (const std::string &cmd_id, std::ostringstream &results)
 {
-  results << "\"node\": {";
-  insert_param (results, "count",
+  results << "\"nodes\": {";
+  results << "\"count\": {";
+  insert_param (results, "all",
                 (int)pbote::kademlia::DHT_worker.getNodesCount ());
-  results << "}";
+  results << ", ";
+  insert_param (results, "unlocked",
+                (int)pbote::kademlia::DHT_worker.get_unlocked_nodes_count ());
+  results << "}}";
 }
 
 void
