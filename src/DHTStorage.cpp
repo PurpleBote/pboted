@@ -525,7 +525,8 @@ DHTStorage::remove_old_packets()
   size_t removed_count = 0;
 
   const auto time_now = std::chrono::system_clock::now();
-  const auto current_timestamp =  (int32_t)std::chrono::duration_cast<std::chrono::seconds>(time_now.time_since_epoch()).count();
+  const auto current_timestamp =
+    (int32_t)std::chrono::duration_cast<std::chrono::seconds>(time_now.time_since_epoch()).count();
 
   std::string dir_path = pbote::fs::DataDirPath("DHTemail");
 
@@ -571,7 +572,7 @@ DHTStorage::remove_old_packets()
       stored_time = (int32_t)ntohl((uint32_t)stored_time);
 
       LogPrint(eLogDebug, "DHTStorage: remove_old_packets: current_timestamp: ", current_timestamp);
-      LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packet_timestamp: ", stored_time + store_duration);
+      LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packet_timestamp:  ", stored_time + store_duration);
 
       if (stored_time + store_duration < current_timestamp)
         {

@@ -16,27 +16,30 @@
 
 #include "Email.h"
 
-namespace bote {
-namespace pop3 {
+namespace bote
+{
+namespace pop3
+{
 
 #define MAX_CLIENTS 5
 #define MAX_RCPT_USR 1
 #define BUF_SIZE 10485760 // 10MB
 
-const char capa_list[][100] = {
-    {"+OK Capability list follows\n"},
-    {"USER\n"}, // added USER PASS
-    // ToDo: {"APOP\n"}, // added APOP
-    // ToDo: {"TOP\n"}, // added TOP
-    // ToDo: {"UIDL\n"}, // added UIDL
-    // ToDo: {"SASL\n"}, // added AUTH; reference: POP-AUTH, SASL. libsasl2?
-    // ToDo: {"STARTTLS\n"},
-    // ToDo: {"RESP-CODES\n"},
-    // ToDo: {"LOGIN-DELAY 900\n"}, // affected USER PASS APOP AUTH
-    // ToDo: {"PIPELINING\n"},
-    // ToDo: {"EXPIRE 60\n"},
-    // ToDo: {"IMPLEMENTATION\n"},
-    {".\r\n"}
+const char capa_list[][100] =
+{
+  { "+OK Capability list follows\n" },
+  { "USER\n" }, // added USER PASS
+  // ToDo: {"APOP\n"}, // added APOP
+  // ToDo: {"TOP\n"}, // added TOP
+  // ToDo: {"UIDL\n"}, // added UIDL
+  // ToDo: {"SASL\n"}, // added AUTH; reference: POP-AUTH, SASL. libsasl2?
+  // ToDo: {"STARTTLS\n"},
+  // ToDo: {"RESP-CODES\n"},
+  // ToDo: {"LOGIN-DELAY 900\n"}, // affected USER PASS APOP AUTH
+  // ToDo: {"PIPELINING\n"},
+  // ToDo: {"EXPIRE 60\n"},
+  // ToDo: {"IMPLEMENTATION\n"},
+  { ".\r\n" }
 };
 
 #define OK_SIMP 0
@@ -49,22 +52,22 @@ const char capa_list[][100] = {
 #define OK_DEL 7
 #define OK_LIST 8
 #define OK_RETR 9
-#define OK_TOP  10
-#define OK_UIDL  11
+#define OK_TOP 10
+#define OK_UIDL 11
 
 const char reply_ok[][100] = {
-    {"+OK\r\n"},                                          // 0
-    {"+OK pboted POP3 server ready <pboted.i2p>\r\n"},    // 1
-    {"+OK %s is a valid mailbox\r\n"},                    // 2
-    {"+OK maildrop locked and ready\r\n"},                // 3
-    {"+OK pboted POP3 server signing off\r\n"},           // 4
-    {"+OK maildrop has %d messages (%d octets)\r\n"},     // 5
-    {"+OK %d %d\r\n"},                                    // 6
-    {"+OK message %d deleted\r\n"},                       // 7
-    {"+OK %d messages (%d octets)\n"},                    // 8
-    {"+OK %d octets\n"},                                  // 9
-    {"+OK top of message follows\r\n"},                   // 10
-    {"+OK unique-id listing for %d emails follows\n"}     // 11
+  { "+OK\r\n" },                                       // 0
+  { "+OK pboted POP3 server ready <pboted.i2p>\r\n" }, // 1
+  { "+OK %s is a valid mailbox\r\n" },                 // 2
+  { "+OK maildrop locked and ready\r\n" },             // 3
+  { "+OK pboted POP3 server signing off\r\n" },        // 4
+  { "+OK maildrop has %d messages (%d octets)\r\n" },  // 5
+  { "+OK %d %d\r\n" },                                 // 6
+  { "+OK message %d deleted\r\n" },                    // 7
+  { "+OK %d messages (%d octets)\n" },                 // 8
+  { "+OK %d octets\n" },                               // 9
+  { "+OK top of message follows\r\n" },                // 10
+  { "+OK unique-id listing for %d emails follows\n" }  // 11
 };
 
 #define ERR_SIMP 0
@@ -78,37 +81,38 @@ const char reply_ok[][100] = {
 #define ERR_NOT_REMOVED 8
 
 const char reply_err[][100] = {
-    {"-ERR\r\n"},                                   // 0
-    {"-ERR Command not implemented\r\n"},           // 1
-    {"-ERR never heard of mailbox %s\r\n"},         // 2
-    {"-ERR invalid password\r\n"},                  // 3
-    {"-ERR unable to lock maildrop\r\n"},           // 4
-    {"-ERR permission denied\r\n"},                 // 5
-    {"-ERR no such message\r\n"},                   // 6
-    {"-ERR message %d already deleted\r\n"},        // 7
-    {"-ERR some deleted messages not removed\r\n"}  // 8
+  { "-ERR\r\n" },                                  // 0
+  { "-ERR Command not implemented\r\n" },          // 1
+  { "-ERR never heard of mailbox %s\r\n" },        // 2
+  { "-ERR invalid password\r\n" },                 // 3
+  { "-ERR unable to lock maildrop\r\n" },          // 4
+  { "-ERR permission denied\r\n" },                // 5
+  { "-ERR no such message\r\n" },                  // 6
+  { "-ERR message %d already deleted\r\n" },       // 7
+  { "-ERR some deleted messages not removed\r\n" } // 8
 };
 
 #define TEMPLATE_LIST_ITEM 0
 #define TEMPLATE_UIDL_ITEM 1
 
 const char templates[][100] = {
-    {"%d %d"}, // 0
-    {"%d %s"}  // 1
+  { "%d %d" }, // 0
+  { "%d %s" }  // 1
 };
 
 class POP3session;
 
-class POP3 {
+class POP3
+{
 public:
-  POP3(const std::string &address, int port);
-  ~POP3();
+  POP3 (const std::string &address, int port);
+  ~POP3 ();
 
-  void start();
-  void stop();
+  void start ();
+  void stop ();
 
 private:
-  void run();
+  void run ();
 
   int server_sockfd, client_sockfd;
   socklen_t sin_size;
@@ -116,50 +120,55 @@ private:
 
   bool started;
   std::thread *pop3_thread;
-  std::vector<std::shared_ptr<POP3session>> sessions;
+  std::vector<std::shared_ptr<POP3session> > sessions;
 };
 
 /// POP3 session states
-#define STATE_QUIT 0 // Only after quit
-#define STATE_USER 1 // After TCP connection
-#define STATE_PASS 2 // After successful USER
+#define STATE_QUIT 0        // Only after quit
+#define STATE_USER 1        // After TCP connection
+#define STATE_PASS 2        // After successful USER
 #define STATE_TRANSACTION 3 // After successful PASS
-#define STATE_UPDATE 4 // After disconnect from TRANSACTION
+#define STATE_UPDATE 4      // After disconnect from TRANSACTION
 
-class POP3session {
+class POP3session
+{
 public:
-  POP3session(int socket);
-  ~POP3session();
+  POP3session (int socket);
+  ~POP3session ();
 
-  void start();
-  void stop();
+  void start ();
+  void stop ();
 
-  bool stopped() const { return !started; }
+  bool
+  stopped () const
+  {
+    return !started;
+  }
 
 private:
-  void run();
-  void respond(char *request);
-  void reply(const char *data);
+  void run ();
+  void respond (char *request);
+  void reply (const char *data);
 
-  void USER(char *request);
-  void PASS(char *request);
+  void USER (char *request);
+  void PASS (char *request);
 
-  void STAT();
-  void LIST(char *request);
-  void RETR(char *request);
-  void DELE(char *request);
-  void NOOP();
-  void RSET();
-  void QUIT();
+  void STAT ();
+  void LIST (char *request);
+  void RETR (char *request);
+  void DELE (char *request);
+  void NOOP ();
+  void RSET ();
+  void QUIT ();
 
   /// Extension RFC 2449
-  void CAPA();
-  void APOP(char *request);
-  void TOP(char *request);
-  void UIDL(char *request);
+  void CAPA ();
+  void APOP (char *request);
+  void TOP (char *request);
+  void UIDL (char *request);
 
-  static bool check_user(const std::string &user);
-  static bool check_pass(const std::string &pass);
+  static bool check_user (const std::string &user);
+  static bool check_pass (const std::string &pass);
 
   bool started;
   std::thread *session_thread;
@@ -168,32 +177,39 @@ private:
   int session_state;
   char buf[BUF_SIZE];
 
-  std::vector<std::shared_ptr<pbote::Email>> emails;
+  std::vector<std::shared_ptr<pbote::Email> > emails;
 };
 
-template<typename... t_args>
-std::string format_response(const char *msg) {
-  return {msg};
+template <typename... t_args>
+std::string
+format_response (const char *msg)
+{
+  return { msg };
 }
 
-template<typename... t_args>
-std::string format_response(const char *format, t_args &&... args) {
-  const int bufferStatus = std::snprintf(nullptr, 0, format, args...);
+template <typename... t_args>
+std::string
+format_response (const char *format, t_args &&... args)
+{
+  const int bufferStatus = std::snprintf (nullptr, 0, format, args...);
 
-  if (bufferStatus < 0) {
-    LogPrint(eLogError, "POP3: format_response: Failed to allocate buffer");
-    return {};
-  }
+  if (bufferStatus < 0)
+    {
+      LogPrint (eLogError, "POP3: format_response: Failed to allocate buffer");
+      return {};
+    }
 
-  std::vector<char> buffer(bufferStatus + 1);
-  const int status = std::snprintf(buffer.data(), buffer.size(), format, args...);
+  std::vector<char> buffer (bufferStatus + 1);
+  const int status
+      = std::snprintf (buffer.data (), buffer.size (), format, args...);
 
-  if (status < 0) {
-    LogPrint(eLogError, "POP3: format_response: Failed to format message");
-    return {};
-  }
+  if (status < 0)
+    {
+      LogPrint (eLogError, "POP3: format_response: Failed to format message");
+      return {};
+    }
 
-  return {buffer.data()};
+  return { buffer.data () };
 }
 
 } // namespace pop3

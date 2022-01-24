@@ -18,374 +18,513 @@
 #include "Logging.h"
 #include "SMTP.h"
 
-namespace bote {
-namespace smtp {
+namespace bote
+{
+namespace smtp
+{
 
-SMTP::SMTP(const std::string &address, int port)
-    : server_sockfd(-1), client_sockfd(-1), sin_size(0), server_addr(),
-      client_addr(), started(false), smtp_thread(nullptr) {
-  std::memset(&server_addr, 0, sizeof(server_addr));
+SMTP::SMTP (const std::string &address, int port)
+    : server_sockfd (-1), client_sockfd (-1), sin_size (0), server_addr (),
+      client_addr (), started (false), smtp_thread (nullptr)
+{
+  std::memset (&server_addr, 0, sizeof (server_addr));
 
-  if ((server_sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-    // ToDo: add error handling
-    LogPrint(eLogError, "SMTP: socket create error: ", strerror(errno));
-  }
+  if ((server_sockfd = socket (AF_INET, SOCK_STREAM, 0)) == -1)
+    {
+      // ToDo: add error handling
+      LogPrint (eLogError, "SMTP: socket create error: ", strerror (errno));
+    }
 
   server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons(port);
-  server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-  bzero(&(server_addr.sin_zero), 8);
+  server_addr.sin_port = htons (port);
+  server_addr.sin_addr.s_addr = htonl (INADDR_ANY);
+  bzero (&(server_addr.sin_zero), 8);
 }
 
-SMTP::~SMTP() { stop(); }
+SMTP::~SMTP () { stop (); }
 
-void SMTP::start() {
-  if (!started) {
-    if (bind(server_sockfd, (struct sockaddr *)&server_addr,
-             sizeof(struct sockaddr)) == -1) {
-      // ToDo: add error handling
-      LogPrint(eLogError, "SMTP: bind error: ", strerror(errno));
+void
+SMTP::start ()
+{
+  if (!started)
+    {
+      if (bind (server_sockfd, (struct sockaddr *)&server_addr,
+                sizeof (struct sockaddr))
+          == -1)
+        {
+          // ToDo: add error handling
+          LogPrint (eLogError, "SMTP: bind error: ", strerror (errno));
+        }
+
+      fcntl (server_sockfd, F_SETFL,
+             fcntl (server_sockfd, F_GETFL, 0) | O_NONBLOCK);
+
+      if (listen (server_sockfd, MAX_CLIENTS - 1) == -1)
+        {
+          // ToDo: add error handling
+          LogPrint (eLogError, "SMTP: listen error: ", strerror (errno));
+        }
+
+      started = true;
+      smtp_thread = new std::thread ([this] { run (); });
     }
-
-    fcntl(server_sockfd, F_SETFL,
-          fcntl(server_sockfd, F_GETFL, 0) | O_NONBLOCK);
-
-    if (listen(server_sockfd, MAX_CLIENTS - 1) == -1) {
-      // ToDo: add error handling
-      LogPrint(eLogError, "SMTP: listen error: ", strerror(errno));
-    }
-
-    started = true;
-    smtp_thread = new std::thread([this] { run(); });
-  }
 }
 
-void SMTP::stop() {
+void
+SMTP::stop ()
+{
   for (auto &session : sessions)
-    session->stop();
+    session->stop ();
 
   started = false;
-  close(server_sockfd);
+  close (server_sockfd);
 
-  smtp_thread->join();
+  smtp_thread->join ();
   delete smtp_thread;
   smtp_thread = nullptr;
 }
 
-void SMTP::run() {
-  LogPrint(eLogInfo, "SMTP: Started");
-  sin_size = sizeof(client_addr);
+void
+SMTP::run ()
+{
+  LogPrint (eLogInfo, "SMTP: Started");
+  sin_size = sizeof (client_addr);
 
-  while (started) {
-    if ((client_sockfd = accept(server_sockfd, (struct sockaddr *)&client_addr,
-                                &sin_size)) == -1) {
-      if (errno != EWOULDBLOCK && errno != EAGAIN) {
-        // ToDo: add error handling
-        LogPrint(eLogError, "SMTP: Accept error: ", strerror(errno));
-      }
-    } else {
-      LogPrint(eLogInfo, "SMTP: received connection from ",
-               inet_ntoa(client_addr.sin_addr));
+  while (started)
+    {
+      if ((client_sockfd = accept (server_sockfd,
+                                   (struct sockaddr *)&client_addr, &sin_size))
+          == -1)
+        {
+          if (errno != EWOULDBLOCK && errno != EAGAIN)
+            {
+              // ToDo: add error handling
+              LogPrint (eLogError, "SMTP: Accept error: ", strerror (errno));
+            }
+        }
+      else
+        {
+          LogPrint (eLogInfo, "SMTP: received connection from ",
+                    inet_ntoa (client_addr.sin_addr));
 
-      std::shared_ptr<SMTPsession> new_session =
-          std::make_shared<SMTPsession>(client_sockfd);
-      new_session->start();
-      sessions.push_back(new_session);
+          std::shared_ptr<SMTPsession> new_session
+              = std::make_shared<SMTPsession> (client_sockfd);
+          new_session->start ();
+          sessions.push_back (new_session);
+        }
+
+      // ToDo: Check and remove closed sessions
+      /*for (auto it = sessions.begin(); it != sessions.end(); it++) {
+        if (it.operator*()->stopped()) {
+          sessions.erase(it);
+        }
+      }*/
     }
-
-    // ToDo: Check and remove closed sessions
-    /*for (auto it = sessions.begin(); it != sessions.end(); it++) {
-      if (it.operator*()->stopped()) {
-        sessions.erase(it);
-      }
-    }*/
-  }
 }
 
-SMTPsession::SMTPsession(int socket)
-    : started(false), session_thread(nullptr), client_sockfd(socket),
-      session_state(STATE_QUIT), rcpt_user_num(0), from_user(), rcpt_user() {
-  memset(buf, 0, sizeof(buf));
+SMTPsession::SMTPsession (int socket)
+    : started (false), session_thread (nullptr), client_sockfd (socket),
+      session_state (STATE_QUIT), rcpt_user_num (0), from_user (), rcpt_user ()
+{
+  memset (buf, 0, sizeof (buf));
 }
 
-SMTPsession::~SMTPsession() {
-  LogPrint(eLogDebug, "SMTPsession: Destructor");
-  stop();
+SMTPsession::~SMTPsession ()
+{
+  LogPrint (eLogDebug, "SMTPsession: Destructor");
+  stop ();
 
-  session_thread->join();
+  session_thread->join ();
   delete session_thread;
   session_thread = nullptr;
 }
 
-void SMTPsession::start() {
+void
+SMTPsession::start ()
+{
   started = true;
-  session_thread = new std::thread([this] { run(); });
+  session_thread = new std::thread ([this] { run (); });
 }
 
-void SMTPsession::stop() {
-  LogPrint(eLogDebug, "SMTPsession: stop");
+void
+SMTPsession::stop ()
+{
+  LogPrint (eLogDebug, "SMTPsession: stop");
   started = false;
-  close(client_sockfd);
+  close (client_sockfd);
 }
 
-void SMTPsession::run() {
-  LogPrint(eLogDebug, "SMTPsession: run: Prepare buffer");
+void
+SMTPsession::run ()
+{
+  LogPrint (eLogDebug, "SMTPsession: run: Prepare buffer");
   ssize_t len;
 
-  reply(reply_2XX[CODE_220]);
+  reply (reply_2XX[CODE_220]);
   session_state = STATE_INIT;
 
-  while (started) {
-    memset(buf, 0, sizeof(buf));
-    len = recv(client_sockfd, buf, sizeof(buf), 0);
-    if (len > 0) {
-      std::string str_buf(buf);
-      LogPrint(eLogDebug, "SMTPsession: run: Request stream: ",
-               str_buf.substr(0, str_buf.size() - 2));
-      respond(buf);
-    } else if (len == 0) {
-      //LogPrint(eLogDebug, "SMTPsession: run: no data received");
-      continue;
-    } else {
-      // ToDo: add error handling
-      // The server exit permanently
-      LogPrint(eLogError, "SMTPsession: run: Can't recieve data, exit");
-      started = false;
-      break;
+  while (started)
+    {
+      memset (buf, 0, sizeof (buf));
+      len = recv (client_sockfd, buf, sizeof (buf), 0);
+      if (len > 0)
+        {
+          std::string str_buf (buf);
+          LogPrint (eLogDebug, "SMTPsession: run: Request stream: ",
+                    str_buf.substr (0, str_buf.size () - 2));
+          respond (buf);
+        }
+      else if (len == 0)
+        {
+          // LogPrint(eLogDebug, "SMTPsession: run: no data received");
+          continue;
+        }
+      else
+        {
+          // ToDo: add error handling
+          // The server exit permanently
+          LogPrint (eLogError, "SMTPsession: run: Can't recieve data, exit");
+          started = false;
+          break;
+        }
     }
-  }
-  LogPrint(eLogInfo, "SMTPsession: run: socket closed by client");
-  stop();
+  LogPrint (eLogInfo, "SMTPsession: run: socket closed by client");
+  stop ();
 }
 
-void SMTPsession::respond(char *request) {
+void
+SMTPsession::respond (char *request)
+{
   char output[1024];
-  memset(output, 0, sizeof(output));
+  memset (output, 0, sizeof (output));
 
   // ToDo: command part to upper case
   //   https://datatracker.ietf.org/doc/html/rfc5321#section-2.4
 
   /// SMTP
-  if (strncmp(request, "HELO", 4) == 0) {
-    HELO();
-  } else if (strncmp(request, "EHLO", 4) == 0) {
-    EHLO();
-  } else if (strncmp(request, "MAIL", 4) == 0) {
-    MAIL(request);
-  } else if (strncmp(request, "RCPT", 4) == 0) {
-    RCPT(request);
-  } else if (strncmp(request, "DATA", 4) == 0) {
-    DATA();
-  } else if (strncmp(request, "RSET", 4) == 0) {
-    RSET();
-  } else if (strncmp(request, "VRFY", 4) == 0) {
-    VRFY();
-  } else if (strncmp(request, "NOOP", 4) == 0) {
-    NOOP();
-  } else if (strncmp(request, "QUIT", 4) == 0) {
-    QUIT();
-  }
+  if (strncmp (request, "HELO", 4) == 0)
+    {
+      HELO ();
+    }
+  else if (strncmp (request, "EHLO", 4) == 0)
+    {
+      EHLO ();
+    }
+  else if (strncmp (request, "MAIL", 4) == 0)
+    {
+      MAIL (request);
+    }
+  else if (strncmp (request, "RCPT", 4) == 0)
+    {
+      RCPT (request);
+    }
+  else if (strncmp (request, "DATA", 4) == 0)
+    {
+      DATA ();
+    }
+  else if (strncmp (request, "RSET", 4) == 0)
+    {
+      RSET ();
+    }
+  else if (strncmp (request, "VRFY", 4) == 0)
+    {
+      VRFY ();
+    }
+  else if (strncmp (request, "NOOP", 4) == 0)
+    {
+      NOOP ();
+    }
+  else if (strncmp (request, "QUIT", 4) == 0)
+    {
+      QUIT ();
+    }
   /// Extension
-  else if (strncmp(request, "AUTH", 4) == 0) {
-    AUTH(request);
-  } else if (strncmp(request, "EXPN", 4) == 0) {
-    EXPN();
-  } else if (strncmp(request, "HELP", 4) == 0) {
-    HELP();
-  } else {
-    reply(reply_5XX[CODE_502]);
-  }
+  else if (strncmp (request, "AUTH", 4) == 0)
+    {
+      AUTH (request);
+    }
+  else if (strncmp (request, "EXPN", 4) == 0)
+    {
+      EXPN ();
+    }
+  else if (strncmp (request, "HELP", 4) == 0)
+    {
+      HELP ();
+    }
+  else
+    {
+      reply (reply_5XX[CODE_502]);
+    }
 }
 
-void SMTPsession::reply(const char *data) {
-  if (data != nullptr) {
-    send(client_sockfd, data, strlen(data), 0);
-    std::string str_data(data);
-    LogPrint(eLogDebug, "SMTPsession: reply: Reply stream: ",
-             str_data.substr(0, str_data.size() - 2));
-  }
+void
+SMTPsession::reply (const char *data)
+{
+  if (data != nullptr)
+    {
+      send (client_sockfd, data, strlen (data), 0);
+      std::string str_data (data);
+      LogPrint (eLogDebug, "SMTPsession: reply: Reply stream: ",
+                str_data.substr (0, str_data.size () - 2));
+    }
 }
 
 /// SMTP
-void SMTPsession::HELO() {
-  if (session_state == STATE_INIT) {
-    reply(reply_2XX[CODE_250]);
-    rcpt_user_num = 0;
-    memset(rcpt_user, 0, sizeof(rcpt_user));
-    session_state = STATE_HELO;
-  } else {
-    reply(reply_5XX[CODE_503]);
-  }
-}
-
-void SMTPsession::EHLO() {
-  if (session_state == STATE_INIT) {
-    // ToDo: looks like in EHLO client try to use PIPELINING
-    //   without declaration in EHLO, for now disabled
-    /*std::string reply_str;
-    for (auto line : reply_info) {
-      reply_str.append(line);
+void
+SMTPsession::HELO ()
+{
+  if (session_state == STATE_INIT)
+    {
+      reply (reply_2XX[CODE_250]);
+      rcpt_user_num = 0;
+      memset (rcpt_user, 0, sizeof (rcpt_user));
+      session_state = STATE_HELO;
     }
-    reply(reply_str.c_str());
-    session_state = STATE_EHLO;*/
-    reply(reply_5XX[CODE_502]);
-  } else {
-    reply(reply_5XX[CODE_501]);
-  }
-}
-
-void SMTPsession::MAIL(char *request) {
-  if (strncmp(request, "MAIL FROM:", 10) == 0) {
-    if (session_state == STATE_HELO || session_state == STATE_AUTH) {
-      std::string user, alias;
-
-      // Use first part as identity name
-      std::string str_req(request);
-      std::size_t pos = str_req.find('<');
-
-      if (pos != std::string::npos) {
-        user = str_req.substr(10, pos);
-        str_req.erase(0, pos + 1);
-      } else {
-        str_req.erase(0, 11);
-      }
-      pos = str_req.find('@');
-      alias = str_req.substr(0, pos);
-
-      LogPrint(eLogDebug, "SMTPsession: MAIL: user: ", user, ", alias: ",
-               alias);
-
-      // ToDo: if no name in FROM - use identity alias
-      strncpy(from_user, user.c_str(), user.size());
-
-      if (check_identity(alias)) {
-        reply(reply_2XX[CODE_250]);
-        session_state = STATE_MAIL;
-      } else {
-        reply(reply_5XX[CODE_550]);
-      }
-    } else if (session_state == STATE_EHLO) {
-      reply(reply_5XX[CODE_553]);
-    } else {
-      reply(reply_5XX[CODE_503_2]);
+  else
+    {
+      reply (reply_5XX[CODE_503]);
     }
-  }
 }
 
-void SMTPsession::RCPT(char *request) {
-  if (strncmp(request, "RCPT TO:", 8) == 0) {
-    if ((session_state == STATE_MAIL || session_state == STATE_RCPT) &&
-        rcpt_user_num < MAX_RCPT_USR) {
-      std::string user, alias;
-
-      // Use first part as identity name
-      std::string str_req(request);
-      std::size_t pos = str_req.find('<');
-
-      if (pos != std::string::npos) {
-        user = str_req.substr(8, pos);
-        str_req.erase(0, pos + 1);
-      } else {
-        str_req.erase(0, 9);
+void
+SMTPsession::EHLO ()
+{
+  if (session_state == STATE_INIT)
+    {
+      // ToDo: looks like in EHLO client try to use PIPELINING
+      //   without declaration in EHLO, for now disabled
+      /*std::string reply_str;
+      for (auto line : reply_info) {
+        reply_str.append(line);
       }
-      pos = str_req.find('>');
-      alias = str_req.substr(0, pos);
-
-      LogPrint(eLogDebug, "SMTPsession: RCPT: user: ", user, ", alias: ",
-               alias);
-
-      // ToDo: if no name in FROM - use identity alias
-      //char current_rcpt_user[100];
-      //strncpy(current_rcpt_user, user.c_str(), user.size());
-
-      if (check_recipient(alias)) {
-        strncpy(rcpt_user[rcpt_user_num++], user.c_str(), user.size());
-        reply(reply_2XX[CODE_250]);
-      } else {
-        reply(reply_5XX[CODE_551]);
-      }
-      session_state = STATE_RCPT;
-    } else {
-      reply(reply_5XX[CODE_503]);
+      reply(reply_str.c_str());
+      session_state = STATE_EHLO;*/
+      reply (reply_5XX[CODE_502]);
     }
-  }
+  else
+    {
+      reply (reply_5XX[CODE_501]);
+    }
 }
 
-void SMTPsession::DATA() {
-  if (session_state == STATE_RCPT) {
-    reply(reply_3XX[CODE_354]);
+void
+SMTPsession::MAIL (char *request)
+{
+  if (strncmp (request, "MAIL FROM:", 10) == 0)
+    {
+      if (session_state == STATE_HELO || session_state == STATE_AUTH)
+        {
+          std::string user, alias;
 
-    memset(buf, 0, sizeof(buf));
+          // Use first part as identity name
+          std::string str_req (request);
+          std::size_t pos = str_req.find ('<');
 
-    ssize_t recv_len = recv(client_sockfd, buf, sizeof(buf), 0);
-    if (recv_len == -1) {
-      LogPrint(eLogError,
-               "SMTPsession: DATA: Receive error: ", strerror(errno));
-      reply(reply_4XX[CODE_451]);
-    } else {
-      LogPrint(eLogDebug, "SMTPsession: DATA: mail content:\n", buf);
+          if (pos != std::string::npos)
+            {
+              user = str_req.substr (10, pos);
+              str_req.erase (0, pos + 1);
+            }
+          else
+            {
+              str_req.erase (0, 11);
+            }
+          pos = str_req.find ('@');
+          alias = str_req.substr (0, pos);
 
-      std::vector<uint8_t> mail_data(buf, buf + recv_len);
-      mail.fromMIME(mail_data);
-      mail.save("outbox");
+          LogPrint (eLogDebug, "SMTPsession: MAIL: user: ", user,
+                    ", alias: ", alias);
 
-      session_state = STATE_DATA;
+          // ToDo: if no name in FROM - use identity alias
+          strncpy (from_user, user.c_str (), user.size ());
 
-      reply(reply_2XX[CODE_250]);
+          if (check_identity (alias))
+            {
+              reply (reply_2XX[CODE_250]);
+              session_state = STATE_MAIL;
+            }
+          else
+            {
+              reply (reply_5XX[CODE_550]);
+            }
+        }
+      else if (session_state == STATE_EHLO)
+        {
+          reply (reply_5XX[CODE_553]);
+        }
+      else
+        {
+          reply (reply_5XX[CODE_503_2]);
+        }
     }
-  } else {
-    reply(reply_5XX[CODE_503]);
-  }
 }
 
-void SMTPsession::RSET() {
+void
+SMTPsession::RCPT (char *request)
+{
+  if (strncmp (request, "RCPT TO:", 8) == 0)
+    {
+      if ((session_state == STATE_MAIL || session_state == STATE_RCPT)
+          && rcpt_user_num < MAX_RCPT_USR)
+        {
+          std::string user, alias;
+
+          // Use first part as identity name
+          std::string str_req (request);
+          std::size_t pos = str_req.find ('<');
+
+          if (pos != std::string::npos)
+            {
+              user = str_req.substr (8, pos);
+              str_req.erase (0, pos + 1);
+            }
+          else
+            {
+              str_req.erase (0, 9);
+            }
+          pos = str_req.find ('>');
+          alias = str_req.substr (0, pos);
+
+          LogPrint (eLogDebug, "SMTPsession: RCPT: user: ", user,
+                    ", alias: ", alias);
+
+          // ToDo: if no name in FROM - use identity alias
+          // char current_rcpt_user[100];
+          // strncpy(current_rcpt_user, user.c_str(), user.size());
+
+          if (check_recipient (alias))
+            {
+              strncpy (rcpt_user[rcpt_user_num++], user.c_str (),
+                       user.size ());
+              reply (reply_2XX[CODE_250]);
+            }
+          else
+            {
+              reply (reply_5XX[CODE_551]);
+            }
+          session_state = STATE_RCPT;
+        }
+      else
+        {
+          reply (reply_5XX[CODE_503]);
+        }
+    }
+}
+
+void
+SMTPsession::DATA ()
+{
+  if (session_state == STATE_RCPT)
+    {
+      reply (reply_3XX[CODE_354]);
+
+      memset (buf, 0, sizeof (buf));
+
+      ssize_t recv_len = recv (client_sockfd, buf, sizeof (buf), 0);
+      if (recv_len == -1)
+        {
+          LogPrint (eLogError,
+                    "SMTPsession: DATA: Receive error: ", strerror (errno));
+          reply (reply_4XX[CODE_451]);
+        }
+      else
+        {
+          LogPrint (eLogDebug, "SMTPsession: DATA: mail content:\n", buf);
+
+          std::vector<uint8_t> mail_data (buf, buf + recv_len);
+          mail.fromMIME (mail_data);
+          mail.save ("outbox");
+
+          session_state = STATE_DATA;
+
+          reply (reply_2XX[CODE_250]);
+        }
+    }
+  else
+    {
+      reply (reply_5XX[CODE_503]);
+    }
+}
+
+void
+SMTPsession::RSET ()
+{
   session_state = STATE_INIT;
-  reply(reply_2XX[CODE_250]);
+  reply (reply_2XX[CODE_250]);
 }
 
-void SMTPsession::VRFY() { reply(reply_2XX[CODE_252]); }
+void
+SMTPsession::VRFY ()
+{
+  reply (reply_2XX[CODE_252]);
+}
 
-void SMTPsession::NOOP() { reply(reply_2XX[CODE_250]); }
+void
+SMTPsession::NOOP ()
+{
+  reply (reply_2XX[CODE_250]);
+}
 
-void SMTPsession::QUIT() {
+void
+SMTPsession::QUIT ()
+{
   session_state = STATE_QUIT;
-  reply(reply_2XX[CODE_221]);
-  stop();
+  reply (reply_2XX[CODE_221]);
+  stop ();
 }
 
 /// Extension
-void SMTPsession::AUTH(char *request) {
+void
+SMTPsession::AUTH (char *request)
+{
   // ToDo: looks like we can keep pass hash in identity file
   //   for now ignored
-  if (strncmp(request, "AUTH LOGIN", 10) == 0) {
-    LogPrint(eLogDebug, "SMTPsession: AUTH: Login successfully");
-    session_state = STATE_AUTH;
-    reply(reply_2XX[CODE_235]);
-  } else if (strncmp(request, "AUTH PLAIN", 10) == 0) {
-    LogPrint(eLogDebug, "SMTPsession: AUTH: Plain successfully");
-    session_state = STATE_AUTH;
-    reply(reply_2XX[CODE_235]);
-  } else {
-    reply(reply_5XX[CODE_504]);
-  }
+  if (strncmp (request, "AUTH LOGIN", 10) == 0)
+    {
+      LogPrint (eLogDebug, "SMTPsession: AUTH: Login successfully");
+      session_state = STATE_AUTH;
+      reply (reply_2XX[CODE_235]);
+    }
+  else if (strncmp (request, "AUTH PLAIN", 10) == 0)
+    {
+      LogPrint (eLogDebug, "SMTPsession: AUTH: Plain successfully");
+      session_state = STATE_AUTH;
+      reply (reply_2XX[CODE_235]);
+    }
+  else
+    {
+      reply (reply_5XX[CODE_504]);
+    }
 }
 
-void SMTPsession::EXPN() { reply(reply_2XX[CODE_252]); }
+void
+SMTPsession::EXPN ()
+{
+  reply (reply_2XX[CODE_252]);
+}
 
-void SMTPsession::HELP() { reply(reply_2XX[CODE_214]); }
+void
+SMTPsession::HELP ()
+{
+  reply (reply_2XX[CODE_214]);
+}
 
-bool SMTPsession::check_identity(const std::string &name) {
-  LogPrint(eLogDebug, "SMTPsession: check_identity: name:",
-           name.substr(0, name.size() - 2));
-  if (pbote::context.identityByName(name))
+bool
+SMTPsession::check_identity (const std::string &name)
+{
+  LogPrint (eLogDebug, "SMTPsession: check_identity: name:",
+            name.substr (0, name.size () - 2));
+  if (pbote::context.identityByName (name))
     return true;
   return false;
 }
 
-bool SMTPsession::check_recipient(const std::string &name) {
-  LogPrint(eLogDebug, "SMTPsession: check_recipient: name:",
-           name.substr(0, name.size() - 2));
-  if (pbote::context.alias_exist(name))
+bool
+SMTPsession::check_recipient (const std::string &name)
+{
+  LogPrint (eLogDebug, "SMTPsession: check_recipient: name:",
+            name.substr (0, name.size () - 2));
+  if (pbote::context.alias_exist (name))
     return true;
   return false;
 }
