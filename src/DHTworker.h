@@ -118,7 +118,9 @@ struct Node : i2p::data::IdentityEx {
     locked_until = 0;
   }
 
-  bool locked() {
+  bool
+  locked ()
+  {
     auto time_now = std::chrono::system_clock::now().time_since_epoch().count();
     return time_now < locked_until;
   }
@@ -143,6 +145,7 @@ class DHTworker {
   std::vector<Node> getAllNodes();
   std::vector<Node> getUnlockedNodes();
   size_t getNodesCount() { return m_nodes_.size(); }
+  size_t get_unlocked_nodes_count () { return getUnlockedNodes ().size (); }
   float get_storage_usage() { return dht_storage_.limit_used(); }
 
   std::vector<std::shared_ptr<pbote::CommunicationPacket>> findOne(i2p::data::Tag<32> hash, uint8_t type);
@@ -178,6 +181,8 @@ class DHTworker {
   static std::vector<std::string> readNodes();
   bool loadNodes();
   void writeNodes();
+
+  void counting_nodes_responses (std::vector<std::shared_ptr<pbote::CommunicationPacket>> responses);
 
   static pbote::FindClosePeersRequestPacket findClosePeersPacket(i2p::data::Tag<32> key);
   static pbote::RetrieveRequestPacket retrieveRequestPacket(uint8_t data_type, i2p::data::Tag<32> key);
