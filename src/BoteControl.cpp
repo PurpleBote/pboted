@@ -248,6 +248,7 @@ BoteControl::daemon (const std::string &cmd_id, std::ostringstream &results)
 {
   results << "\"daemon\": {";
   insert_param (results, "uptime", (int)pbote::context.get_uptime ());
+  results << ", ";
   results << "\"bytes\": {";
   insert_param (results, "recived", (int)pbote::context.get_bytes_recv ());
   results << ", ";
