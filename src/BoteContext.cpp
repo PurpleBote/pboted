@@ -90,14 +90,10 @@ bool BoteContext::receive(const std::shared_ptr<pbote::CommunicationPacket>& pac
   for (const auto& batch: runningBatches) {
     if (batch->contains(v_cid))
     {
-      size_t remain_response_count = 0;
-      if (((long)batch->packetCount() - (long)batch->responseCount()) > 0)
-        remain_response_count = batch->packetCount() = batch->responseCount();
-
       batch->addResponse(packet);
       LogPrint(eLogDebug,
                "Context: response received for batch ", batch->owner,
-               ", remain responses count: ", remain_response_count);
+               ", remain responses count: ", batch->remain_responses);
                
       return true;
     }

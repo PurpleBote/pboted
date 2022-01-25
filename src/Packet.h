@@ -112,56 +112,94 @@ struct PacketForQueue {
 };
 
 template <typename T>
-struct PacketBatch {
+struct PacketBatch
+{
   std::map<std::vector<uint8_t>, PacketForQueue> outgoingPackets;
   std::vector<std::shared_ptr<T>> incomingPackets;
   std::mutex m_batchMutex;
   std::condition_variable m_first, m_last;
   std::string owner;
+  size_t remain_responses = 0;
 
-  bool operator== (const PacketBatch& other) const {
+  bool
+  operator== (const PacketBatch& other) const
+  {
     return outgoingPackets.size() == other.outgoingPackets.size() &&
     incomingPackets.size() == other.incomingPackets.size() &&
     std::equal(outgoingPackets.begin(), outgoingPackets.end(), other.outgoingPackets.begin()) &&
     std::equal(incomingPackets.begin(), incomingPackets.end(), other.incomingPackets.begin());
   }
 
-  std::map<std::vector<uint8_t>, PacketForQueue> getPackets() { return outgoingPackets; }
+  std::map<std::vector<uint8_t>, PacketForQueue>
+  getPackets ()
+  {
+    return outgoingPackets;
+  }
 
-  std::vector<std::shared_ptr<T>> getResponses() { return incomingPackets; }
+  std::vector<std::shared_ptr<T>>
+  getResponses ()
+  {
+    return incomingPackets;
+  }
 
-  bool contains(const std::vector<uint8_t>& id) {
+  bool
+  contains (const std::vector<uint8_t>& id)
+  {
     return outgoingPackets.find(id) != outgoingPackets.end();
   }
 
-  size_t packetCount() { return outgoingPackets.size(); }
-
-  size_t responseCount() { return incomingPackets.size(); }
-
-  void addPacket(const std::vector<uint8_t>& id, const PacketForQueue& packet) {
-    //i2p::data::Tag<32> cid(id.data());
-    //LogPrint(eLogDebug, "PacketBatch: addPacket: owner: ", owner,", packet.cid: ", cid.ToBase64());
-    outgoingPackets.insert(std::pair<std::vector<uint8_t>, PacketForQueue>(id, packet));
+  size_t
+  packetCount ()
+  {
+    return outgoingPackets.size();
   }
 
-  void removePacket(const std::vector<uint8_t>& cid) { outgoingPackets.erase(cid); }
+  size_t
+  responseCount ()
+  {
+    return incomingPackets.size();
+  }
 
-  void addResponse(std::shared_ptr<T> packet) {
+  void
+  addPacket(const std::vector<uint8_t>& id, const PacketForQueue& packet)
+  {
+    outgoingPackets.insert(std::pair<std::vector<uint8_t>, PacketForQueue>(id, packet));
+    remain_responses++;
+  }
+
+  void
+  removePacket(const std::vector<uint8_t>& cid)
+  {
+    outgoingPackets.erase(cid);
+  }
+
+  void
+  addResponse(std::shared_ptr<T> packet)
+  {
     incomingPackets.push_back(packet);
+
+    if (remain_responses > 0)
+      remain_responses--;
+
     if (incomingPackets.size() == 1)
       m_first.notify_one();
+
     if (incomingPackets.size() == outgoingPackets.size())
       m_last.notify_one();
   }
 
-  bool waitFist(long timeout_sec) {
+  bool
+  waitFist(long timeout_sec)
+  {
     std::chrono::duration<long> timeout = std::chrono::seconds(timeout_sec);
     std::unique_lock<std::mutex> l(m_batchMutex);
     m_first.wait_for(l, timeout);
     return true;
   }
 
-  bool waitLast(long timeout_sec) {
+  bool
+  waitLast(long timeout_sec)
+  {
     std::chrono::duration<long> timeout = std::chrono::seconds(timeout_sec);
     std::unique_lock<std::mutex> l(m_batchMutex);
     m_last.wait_for(l, timeout);
