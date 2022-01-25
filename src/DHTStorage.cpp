@@ -536,17 +536,25 @@ DHTStorage::remove_old_packets()
       return;
     }
 
+  std::vector<std::string> paths;
+
   for (auto& entry : boost::filesystem::recursive_directory_iterator(dir_path))
     {
       if (boost::filesystem::is_directory(entry))
         continue;
+      std::stringstream buffer;
+      buffer << entry.path();
+      paths.push_back (buffer.str ());
+    }
 
-      LogPrint(eLogDebug, "DHTStorage: remove_old_packets: checking file: ", entry.path());
+  for (auto& path : paths)
+    {  
+      //LogPrint(eLogDebug, "DHTStorage: remove_old_packets: checking file: ", path);
 
-      std::ifstream file(entry.path(), std::ios::binary);
+      std::ifstream file(path.c_str (), std::ios::binary);
       if (!file.is_open())
         {
-          LogPrint(eLogError, "DHTStorage: remove_old_packets: can't open file ", entry.path());
+          LogPrint(eLogError, "DHTStorage: remove_old_packets: can't open file ", path);
           continue;
         }
 
@@ -576,15 +584,27 @@ DHTStorage::remove_old_packets()
 
       if (stored_time + store_duration < current_timestamp)
         {
-          LogPrint(eLogInfo, "DHTStorage: remove_old_packets: remove: ", entry.path());
-          if (deleteEmail(i2p::data::Tag<32>(key)))
+          LogPrint(eLogDebug, "DHTStorage: remove_old_packets: remove: ", path);
+
+          auto filename = remove_extension (base_name (path));
+          i2p::data::Tag<32> dht_key(key);
+
+          if (filename != dht_key.ToBase64 ())
+            {
+              LogPrint(eLogWarning, "DHTStorage: remove_old_packets: filename and DHT key mismatch",
+                ", key: ", dht_key.ToBase64 (),
+                ", filename: ", filename);
+              dht_key.FromBase64 (filename);
+            }
+
+          if (deleteEmail(dht_key))
             removed_count++;
           else
-            LogPrint(eLogError, "DHTStorage: remove_old_packets: can't remove file: ", entry.path());
+            LogPrint(eLogError, "DHTStorage: remove_old_packets: can't remove file: ", path);
         }
       else
         {
-          LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packet ", entry.path(), " is too young to die.");
+          LogPrint(eLogDebug, "DHTStorage: remove_old_packets: packet ", path, " is too young to die.");
         }
     }
 
