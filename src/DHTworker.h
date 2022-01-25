@@ -69,6 +69,8 @@ namespace kademlia
 /// the minimum nodes for find request
 #define MIN_CLOSEST_NODES 10
 
+#define DEFAULT_NODE_FILE_NAME "nodes.txt"
+
 /**
  * Terms:
  * peer - any I2P router endpoint with Bote, filled with RelayPeersWorker
@@ -140,10 +142,10 @@ class DHTworker {
   std::shared_ptr<Node> findNode(const i2p::data::IdentHash &ident) const; /// duplication check
 
   std::shared_ptr<Node> getClosestNode(const i2p::data::IdentHash & key, bool to_us);
-  std::vector<Node> getClosestNodes(i2p::data::IdentHash key, size_t num, bool to_us);
+  std::vector<std::shared_ptr<Node>> getClosestNodes(i2p::data::IdentHash key, size_t num, bool to_us);
 
-  std::vector<Node> getAllNodes();
-  std::vector<Node> getUnlockedNodes();
+  std::vector<std::shared_ptr<Node>> getAllNodes();
+  std::vector<std::shared_ptr<Node>> getUnlockedNodes();
   size_t getNodesCount() { return m_nodes_.size(); }
   size_t get_unlocked_nodes_count () { return getUnlockedNodes ().size (); }
   float get_storage_usage() { return dht_storage_.limit_used(); }
@@ -164,10 +166,10 @@ class DHTworker {
   std::vector<uint8_t> getEmail(i2p::data::Tag<32> key) { return dht_storage_.getEmail(key); }
   std::vector<uint8_t> getContact(i2p::data::Tag<32> key) { return dht_storage_.getContact(key); }
 
-  std::vector<Node> closestNodesLookupTask(i2p::data::Tag<32> key);
+  std::vector<std::shared_ptr<Node>> closestNodesLookupTask(i2p::data::Tag<32> key);
 
-  std::vector<Node> receivePeerListV4(const uint8_t* buf, size_t len);
-  std::vector<Node> receivePeerListV5(const uint8_t* buf, size_t len);
+  std::vector<std::shared_ptr<Node>> receivePeerListV4(const uint8_t* buf, size_t len);
+  std::vector<std::shared_ptr<Node>> receivePeerListV5(const uint8_t* buf, size_t len);
   void receiveRetrieveRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
   void receiveDeletionQuery(const std::shared_ptr<pbote::CommunicationPacket>& packet);
   void receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);

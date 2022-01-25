@@ -132,15 +132,15 @@ DHTworker::findNode(const i2p::data::IdentHash &ident) const
 std::shared_ptr<Node>
 DHTworker::getClosestNode(const i2p::data::IdentHash &key, bool to_us)
 {
-  return std::make_shared<Node>(getClosestNodes(key, 1, to_us)[0]);
+  return getClosestNodes(key, 1, to_us)[0];
 }
 
-std::vector<Node>
+std::vector<std::shared_ptr<Node>>
 DHTworker::getClosestNodes(i2p::data::IdentHash key, size_t num, bool to_us)
 {
   struct sortable_node
   {
-    std::shared_ptr<const Node> node;
+    std::shared_ptr<Node> node;
     i2p::data::XORMetric metric;
     bool operator< (const sortable_node &other) const { return metric < other.metric; };
   };
@@ -199,13 +199,13 @@ DHTworker::getClosestNodes(i2p::data::IdentHash key, size_t num, bool to_us)
       }
     }
 
-  std::vector<Node> result;
+  std::vector<std::shared_ptr<Node>> result;
   size_t i = 0;
   for (const auto &it: sorted_nodes)
     {
       if (i < num)
         {
-          result.push_back(*it.node);
+          result.push_back(it.node);
           i++;
         }
       else
@@ -215,30 +215,28 @@ DHTworker::getClosestNodes(i2p::data::IdentHash key, size_t num, bool to_us)
   return result;
 }
 
-std::vector<Node>
+std::vector<std::shared_ptr<Node>>
 DHTworker::getAllNodes ()
 {
-  std::vector<Node> result;
+  std::vector<std::shared_ptr<Node>> result;
 
   for (const auto &node: m_nodes_)
-    result.push_back(*node.second);
+    result.push_back(node.second);
 
   return result;
 }
 
-std::vector<Node>
+std::vector<std::shared_ptr<Node>>
 DHTworker::getUnlockedNodes()
 {
-  std::vector<Node> res;
-  //size_t i = 0;
+  std::vector<std::shared_ptr<Node>> res;
   std::unique_lock<std::mutex> l(m_nodes_mutex_);
 
   for (const auto &it: m_nodes_)
     {
       if (!it.second->locked())
         {
-          res.push_back(*it.second);
-          //i++;
+          res.push_back(it.second);
         }
     }
 
@@ -266,7 +264,7 @@ DHTworker::find(i2p::data::Tag<32> key, uint8_t type, bool exhaustive)
   LogPrint(eLogDebug,
     "DHT: find: Try to find closest nodes to key ", key.ToBase64());
 
-  std::vector<Node> closestNodes = closestNodesLookupTask(key);
+  std::vector<std::shared_ptr<Node>> closestNodes = closestNodesLookupTask(key);
 
   // ToDo: add find locally
 
@@ -278,7 +276,7 @@ DHTworker::find(i2p::data::Tag<32> key, uint8_t type, bool exhaustive)
         "DHT: find: Not enough nodes for find, try to use usual nodes");
 
       for (const auto &node: m_nodes_)
-        closestNodes.push_back(*node.second);
+        closestNodes.push_back(node.second);
 
       LogPrint(eLogDebug,
         "DHT: find: Usual nodes count: ", closestNodes.size());
@@ -297,7 +295,7 @@ DHTworker::find(i2p::data::Tag<32> key, uint8_t type, bool exhaustive)
     {
       auto packet = retrieveRequestPacket(type, key);
 
-      PacketForQueue q_packet(node.ToBase64(),
+      PacketForQueue q_packet(node->ToBase64(),
                               packet.toByte().data(),
                               packet.toByte().size());
 
@@ -345,7 +343,7 @@ DHTworker::store(i2p::data::Tag<32> hash, uint8_t type, pbote::StoreRequestPacke
   batch->owner = "DHTworker::store";
   LogPrint(eLogDebug, "DHT: store: Get closest nodes");
 
-  std::vector<Node> closestNodes = closestNodesLookupTask(hash);
+  std::vector<std::shared_ptr<Node>> closestNodes = closestNodesLookupTask(hash);
 
   // ToDo: add find locally
 
@@ -353,7 +351,7 @@ DHTworker::store(i2p::data::Tag<32> hash, uint8_t type, pbote::StoreRequestPacke
   if (closestNodes.size() < MIN_CLOSEST_NODES) {
     LogPrint(eLogInfo, "DHT: store: not enough nodes for store, try to use usual nodes");
     for (const auto &node: m_nodes_)
-      closestNodes.push_back(*node.second);
+      closestNodes.push_back(node.second);
     LogPrint(eLogDebug, "DHT: store: usual nodes count: ", closestNodes.size());
     if (closestNodes.size() < MIN_CLOSEST_NODES) {
       LogPrint(eLogWarning, "DHT: store: not enough nodes for store");
@@ -365,7 +363,7 @@ DHTworker::store(i2p::data::Tag<32> hash, uint8_t type, pbote::StoreRequestPacke
   for (const auto &node: closestNodes) {
     context.random_cid(packet.cid, 32);
     auto packet_bytes = packet.toByte();
-    PacketForQueue q_packet(node.ToBase64(), packet_bytes.data(), packet_bytes.size());
+    PacketForQueue q_packet(node->ToBase64(), packet_bytes.data(), packet_bytes.size());
 
     std::vector<uint8_t> v_cid(std::begin(packet.cid), std::end(packet.cid));
     batch->addPacket(v_cid, q_packet);
@@ -391,6 +389,8 @@ DHTworker::store(i2p::data::Tag<32> hash, uint8_t type, pbote::StoreRequestPacke
 
   auto responses = batch->getResponses();
 
+  counting_nodes_responses (responses);
+
   res.reserve(responses.size());
   for (const auto &response: responses) {
     ResponsePacket response_packet = {};
@@ -410,7 +410,7 @@ std::vector<std::string> DHTworker::deleteEmail(i2p::data::Tag<32> hash, uint8_t
   batch->owner = "DHTworker::deleteEmail";
   LogPrint(eLogDebug, "DHT: deleteEmail: Get closest nodes");
 
-  std::vector<Node> closestNodes = closestNodesLookupTask(hash);
+  std::vector<std::shared_ptr<Node>> closestNodes = closestNodesLookupTask(hash);
 
   // ToDo: add remove locally
 
@@ -418,7 +418,7 @@ std::vector<std::string> DHTworker::deleteEmail(i2p::data::Tag<32> hash, uint8_t
   if (closestNodes.size() < MIN_CLOSEST_NODES) {
     LogPrint(eLogInfo, "DHT: deleteEmail: not enough nodes for delete request, try to use usual nodes");
     for (const auto &node: m_nodes_)
-      closestNodes.push_back(*node.second);
+      closestNodes.push_back(node.second);
     LogPrint(eLogDebug, "DHT: deleteEmail: usual nodes count: ", closestNodes.size());
     if (closestNodes.size() < MIN_CLOSEST_NODES) {
       LogPrint(eLogWarning, "DHT: deleteEmail: not enough nodes for delete request");
@@ -430,7 +430,7 @@ std::vector<std::string> DHTworker::deleteEmail(i2p::data::Tag<32> hash, uint8_t
   for (const auto &node: closestNodes) {
     context.random_cid(packet.cid, 32);
     auto packet_bytes = packet.toByte();
-    PacketForQueue q_packet(node.ToBase64(), packet_bytes.data(), packet_bytes.size());
+    PacketForQueue q_packet(node->ToBase64(), packet_bytes.data(), packet_bytes.size());
 
     std::vector<uint8_t> v_cid(std::begin(packet.cid), std::end(packet.cid));
     batch->addPacket(v_cid, q_packet);
@@ -470,7 +470,7 @@ std::vector<std::string> DHTworker::deleteIndexEntry(i2p::data::Tag<32> index_dh
   batch->owner = "DHTworker::deleteIndexEntry";
   LogPrint(eLogDebug, "DHT: deleteIndexEntry: Get closest nodes");
 
-  std::vector<Node> closestNodes = closestNodesLookupTask(index_dht_key);
+  std::vector<std::shared_ptr<Node>> closestNodes = closestNodesLookupTask(index_dht_key);
 
   // ToDo: add remove locally
 
@@ -478,7 +478,7 @@ std::vector<std::string> DHTworker::deleteIndexEntry(i2p::data::Tag<32> index_dh
   if (closestNodes.size() < MIN_CLOSEST_NODES) {
     LogPrint(eLogInfo, "DHT: deleteIndexEntry: not enough nodes for delete request, try to use usual nodes");
     for (const auto &node: m_nodes_)
-      closestNodes.push_back(*node.second);
+      closestNodes.push_back(node.second);
     LogPrint(eLogDebug, "DHT: deleteIndexEntry: usual nodes count: ", closestNodes.size());
     if (closestNodes.size() < MIN_CLOSEST_NODES) {
       LogPrint(eLogWarning, "DHT: deleteIndexEntry: not enough nodes for delete request");
@@ -500,7 +500,7 @@ std::vector<std::string> DHTworker::deleteIndexEntry(i2p::data::Tag<32> index_dh
     packet.data.push_back(item);
 
     auto packet_bytes = packet.toByte();
-    PacketForQueue q_packet(node.ToBase64(), packet_bytes.data(), packet_bytes.size());
+    PacketForQueue q_packet(node->ToBase64(), packet_bytes.data(), packet_bytes.size());
 
     std::vector<uint8_t> v_cid(std::begin(packet.cid), std::end(packet.cid));
     batch->addPacket(v_cid, q_packet);
@@ -533,40 +533,30 @@ std::vector<std::string> DHTworker::deleteIndexEntry(i2p::data::Tag<32> index_dh
   return res;
 }
 
-std::vector<Node> DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key) {
+std::vector<std::shared_ptr<Node>>
+DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key)
+{
   unsigned long current_time, exec_duration;
   auto batch = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket>>();
   batch->owner = "DHT::closestNodesLookupTask";
-  std::vector<Node> closestNodes;
+  std::vector<std::shared_ptr<Node>> closestNodes;
   std::vector<std::shared_ptr<pbote::CommunicationPacket>> responses;
 
   /// Set start time
   auto task_start_time = std::chrono::system_clock::now().time_since_epoch().count();
   auto not_queried_nodes = getUnlockedNodes();
-  //auto req_nodes = getAllNodes();
 
-  /*if (req_nodes.size () > KADEMLIA_CONSTANT_K)
-    {
-      closestNodes = getClosestNodes(key, KADEMLIA_CONSTANT_K, false);
-
-      LogPrint(eLogDebug, "DHT: closestNodesLookupTask: got ",
-               closestNodes.size (), " closest to key ", key.ToBase64 ());
-
-      if (closestNodes.size () >= KADEMLIA_CONSTANT_K)
-        return closestNodes;
-    }*/
-
-  for (const auto &node: not_queried_nodes) {
+  for (auto &node: not_queried_nodes) {
     /// Create find closest peers packet
     auto packet = findClosePeersPacket(key);
     auto bytes = packet.toByte();
 
-    PacketForQueue q_packet(node.ToBase64(), bytes.data(), bytes.size());
+    PacketForQueue q_packet(node->ToBase64(), bytes.data(), bytes.size());
     std::vector<uint8_t> v_cid(std::begin(packet.cid), std::end(packet.cid));
-    node.noResponse ();
+    node->noResponse ();
 
     /// Copy packet to pending task for check timeout later
-    active_requests.insert(std::pair<std::vector<uint8_t>, std::shared_ptr<Node>>(v_cid, std::make_shared<Node>(node)));
+    active_requests.insert(std::pair<std::vector<uint8_t>, std::shared_ptr<Node>>(v_cid, node));
     batch->addPacket(v_cid, q_packet);
   }
 
@@ -588,19 +578,16 @@ std::vector<Node> DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key) {
       {
         std::vector<uint8_t> v_cid(std::begin(response->cid), std::end(response->cid));
         // check if we sent requests with this CID
-        // ToDo: decrease if have no response
         if (active_requests.find(v_cid) != active_requests.end())
         {
           // mark that the node sent response
           auto peer = active_requests[v_cid];
           peer->gotResponse();
-          // remove node from active requests
+          // remove node from active requests and from batch
           active_requests.erase(v_cid);
+          batch->removePacket(v_cid);
         }
       }
-      // ToDo: remove in release
-      //if (responses.size() >= MIN_CLOSEST_NODES)
-      //  break;
     } else {
       LogPrint(eLogWarning, "DHT: closestNodesLookupTask: have no responses, try to resend batch");
       context.removeBatch(batch);
@@ -642,7 +629,7 @@ std::vector<Node> DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key) {
                                  response->payload.data() + offset + dataLen};
 
     LogPrint(eLogDebug, "DHT: closestNodesLookupTask: type: ", response->type, ", ver: ", unsigned(response->ver));
-    std::vector<Node> peers_list;
+    std::vector<std::shared_ptr<Node>> peers_list;
     if (unsigned(data[1]) == 4 &&
         (data[0] == (uint8_t) 'L' ||
          data[0] == (uint8_t) 'P'))
@@ -658,14 +645,25 @@ std::vector<Node> DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key) {
 
     if (!peers_list.empty())
     {
-      closestNodes.insert(closestNodes.end(), peers_list.begin(), peers_list.end());
+      for (auto peer : peers_list)
+        {
+          std::string peer_base = peer->ToBase64 ();
+          auto it = find_if(closestNodes.begin(),
+                            closestNodes.end(),
+                            [&peer_base](const std::shared_ptr<Node>& obj) {return obj->ToBase64 () == peer_base;});
+
+          if (it == closestNodes.end())
+            closestNodes.insert(closestNodes.end(), peers_list.begin(), peers_list.end());
+        
+        }
     }
   }
 
   /// If there are no more requests to send, and no more responses to wait for, we're finished
   context.removeBatch(batch);
 
-  for (const auto &node: closestNodes) addNode(node);
+  for (const auto &node: closestNodes)
+    addNode(node->ToBase64 ());
 
   current_time = std::chrono::system_clock::now().time_since_epoch().count();
   exec_duration = (current_time - task_start_time) / 1000000000;
@@ -680,7 +678,8 @@ std::vector<Node> DHTworker::closestNodesLookupTask(i2p::data::Tag<32> key) {
   return closestNodes;
 }
 
-std::vector<Node> DHTworker::receivePeerListV4(const uint8_t *buf, size_t len) {
+std::vector<std::shared_ptr<Node>>
+DHTworker::receivePeerListV4(const uint8_t *buf, size_t len) {
   size_t offset = 0;
   uint8_t type, ver;
   uint16_t nodes_count;
@@ -697,7 +696,7 @@ std::vector<Node> DHTworker::receivePeerListV4(const uint8_t *buf, size_t len) {
        type == (uint8_t) 'P') &&
       ver == (uint8_t) 4)
   {
-    std::vector<Node> closestNodes;
+    std::vector<std::shared_ptr<Node>> closestNodes;
     size_t nodes_added = 0, nodes_dup = 0;
     for (size_t i = 0; i < nodes_count; i++) {
       if (offset == len) {
@@ -723,8 +722,8 @@ std::vector<Node> DHTworker::receivePeerListV4(const uint8_t *buf, size_t len) {
 
       size_t res = node.FromBuffer(fullKey, 387);
       if (res > 0) {
+        closestNodes.emplace_back(std::make_shared<Node>(node.ToBase64()));
         if (addNode(fullKey, 387)) {
-          closestNodes.emplace_back(node.ToBase64());
           nodes_added++;
         } else {
           nodes_dup++;
@@ -741,7 +740,9 @@ std::vector<Node> DHTworker::receivePeerListV4(const uint8_t *buf, size_t len) {
   }
 }
 
-std::vector<Node> DHTworker::receivePeerListV5(const uint8_t *buf, size_t len) {
+std::vector<std::shared_ptr<Node>>
+DHTworker::receivePeerListV5(const uint8_t *buf, size_t len)
+{
   size_t offset = 0;
   uint8_t type, ver;
   uint16_t nump;
@@ -758,7 +759,7 @@ std::vector<Node> DHTworker::receivePeerListV5(const uint8_t *buf, size_t len) {
        type == (uint8_t) 'P') &&
       ver == (uint8_t) 5)
   {
-    std::vector<Node> closestNodes;
+    std::vector<std::shared_ptr<Node>> closestNodes;
     size_t nodes_added = 0, nodes_dup = 0;
     for (size_t i = 0; i < nump; i++) {
       if (offset == len) {
@@ -775,10 +776,10 @@ std::vector<Node> DHTworker::receivePeerListV5(const uint8_t *buf, size_t len) {
       size_t key_len = identity.FromBuffer(buf + offset, len - offset);
       offset += key_len;
       if (key_len > 0) {
+        closestNodes.emplace_back(std::make_shared<Node>(identity.ToBase64()));
         if (addNode(identity)) {
           //LogPrint(eLogDebug, "DHT: receivePeerListV5: add node sign: ", sign_type, ", res: ", res);
           nodes_added++;
-          closestNodes.emplace_back(identity.ToBase64());
         } else {
           //LogPrint(eLogWarning, "DHT: receivePeerListV5: fail to add node with sign: ", sign_type);
           nodes_dup++;
@@ -1206,7 +1207,7 @@ void DHTworker::receiveFindClosePeers(const std::shared_ptr<pbote::Communication
 
   auto closest_nodes = getClosestNodes(t_key, KADEMLIA_CONSTANT_K, false);
   for (const auto& test : closest_nodes) {
-    LogPrint(eLogDebug, "DHT: receiveFindClosePeers: node: ", test.GetIdentHash().ToBase32());
+    LogPrint(eLogDebug, "DHT: receiveFindClosePeers: node: ", test->GetIdentHash().ToBase32());
   }
 
   if (closest_nodes.empty()) {
@@ -1232,9 +1233,9 @@ void DHTworker::receiveFindClosePeers(const std::shared_ptr<pbote::Communication
       peer_list.count = closest_nodes.size();
 
       for (const auto &node: closest_nodes) {
-        size_t ilen = node.GetFullLen();
+        size_t ilen = node->GetFullLen();
         std::vector<uint8_t> buf(ilen);
-        node.ToBuffer(buf.data(), ilen);
+        node->ToBuffer(buf.data(), ilen);
         peer_list.data.insert(peer_list.data.end(), buf.begin(), buf.end());
       }
       response.data = peer_list.toByte();
@@ -1246,9 +1247,9 @@ void DHTworker::receiveFindClosePeers(const std::shared_ptr<pbote::Communication
       peer_list.count = closest_nodes.size();
 
       for (const auto &node: closest_nodes) {
-        size_t ilen = node.GetFullLen();
+        size_t ilen = node->GetFullLen();
         std::vector<uint8_t> buf(ilen);
-        node.ToBuffer(buf.data(), ilen);
+        node->ToBuffer(buf.data(), ilen);
         peer_list.data.insert(peer_list.data.end(), buf.begin(), buf.end());
       }
       response.data = peer_list.toByte();
@@ -1262,19 +1263,20 @@ void DHTworker::receiveFindClosePeers(const std::shared_ptr<pbote::Communication
   }
 }
 
-void DHTworker::run() {
-  std::string loglevel;
-  pbote::config::GetOption("loglevel", loglevel);
-
+void
+DHTworker::run ()
+{
   while (started_) {
-    writeNodes();
+    writeNodes ();
     dht_storage_.update();
     std::this_thread::sleep_for(std::chrono::seconds(60));
   }
 }
 
-std::vector<std::string> DHTworker::readNodes() {
-  std::string nodes_file_path = pbote::fs::DataDirPath("nodes.txt");
+std::vector<std::string>
+DHTworker::readNodes ()
+{
+  std::string nodes_file_path = pbote::fs::DataDirPath(DEFAULT_NODE_FILE_NAME);
   LogPrint(eLogInfo, "DHT: readNodes: read nodes from ", nodes_file_path);
   std::ifstream nodes_file(nodes_file_path);
 
@@ -1296,12 +1298,12 @@ bool
 DHTworker::loadNodes()
 {
   std::vector<std::string> nodes_list = readNodes();
-  std::vector<Node> nodes;
+  std::vector<std::shared_ptr<Node>> nodes;
 
   for (const auto &node_str: nodes_list)
     {
-      auto node = new Node(node_str);
-      nodes.push_back(*node);
+      auto node = std::make_shared<Node>(node_str);
+      nodes.push_back(node);
     }
 
   if (!nodes.empty())
@@ -1310,13 +1312,13 @@ DHTworker::loadNodes()
       for (const auto &node: nodes)
         {
           LogPrint(eLogDebug,
-                   "DHT: loadNodes: node.ToBase64(): ",
-                   node.ToBase64().substr(0, 15), "...");
-          auto t_hash = node.GetIdentHash();
+                   "DHT: loadNodes: node: ",
+                   node->ToBase64().substr(0, 15), "...");
+          auto t_hash = node->GetIdentHash();
           bool result =
             m_nodes_.insert(std::pair<i2p::data::IdentHash,
                             std::shared_ptr<Node>>(t_hash,
-                                                   std::make_shared<Node>(node))).second;
+                                                   node)).second;
           if (result)
             counter++;
           else
@@ -1359,7 +1361,7 @@ void
 DHTworker::writeNodes()
 {
   LogPrint(eLogInfo, "DHT: writeNodes: save nodes to FS");
-  std::string nodes_file_path = pbote::fs::DataDirPath("nodes.txt");
+  std::string nodes_file_path = pbote::fs::DataDirPath(DEFAULT_NODE_FILE_NAME);
   std::ofstream nodes_file(nodes_file_path);
 
   if (!nodes_file.is_open())
