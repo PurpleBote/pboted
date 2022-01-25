@@ -116,7 +116,7 @@ public:
   bool addPeer (const std::string &peer);
   bool addPeer (const std::shared_ptr<i2p::data::IdentityEx> &identity,
                 int samples);
-  void addPeers (const std::vector<RelayPeer> &peers);
+  void addPeers (const std::vector<std::shared_ptr<RelayPeer> > &peers);
 
   std::shared_ptr<RelayPeer>
   findPeer (const i2p::data::IdentHash &ident) const;
@@ -125,8 +125,8 @@ public:
   bool loadPeers ();
 
   void getRandomPeers ();
-  std::vector<RelayPeer> getGoodPeers ();
-  std::vector<RelayPeer> getGoodPeers (uint8_t num);
+  std::vector<std::shared_ptr<RelayPeer> > getGoodPeers ();
+  std::vector<std::shared_ptr<RelayPeer> > getGoodPeers (uint8_t num);
   std::vector<std::shared_ptr<RelayPeer> > getAllPeers ();
   size_t getPeersCount ();
   size_t get_good_peer_count ();

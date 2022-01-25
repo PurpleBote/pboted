@@ -284,13 +284,13 @@ RelayPeersWorker::addPeer (
 }
 
 void
-RelayPeersWorker::addPeers (const std::vector<RelayPeer> &peers)
+RelayPeersWorker::addPeers (const std::vector<std::shared_ptr<RelayPeer> > &peers)
 {
   for (const auto &peer : peers)
     {
-      std::shared_ptr<RelayPeer> s_peer
-          = std::make_shared<RelayPeer> (peer.ToBase64 ());
-      addPeer (s_peer, peer.getReachability ());
+      //std::shared_ptr<RelayPeer> s_peer
+      //    = std::make_shared<RelayPeer> (peer.ToBase64 ());
+      addPeer (peer, peer->getReachability ());
     }
 }
 
@@ -335,7 +335,7 @@ RelayPeersWorker::loadPeers ()
 {
   LogPrint (eLogInfo, "RelayPeers: loadPeers: Load peers from FS");
   std::string value_delimiter = " ";
-  std::vector<RelayPeer> peers;
+  std::vector<std::shared_ptr<RelayPeer> > peers;
   std::vector<std::string> peers_list = readPeers ();
 
   // std::unique_lock<std::mutex> l(m_peers_mutex_);
@@ -361,7 +361,7 @@ RelayPeersWorker::loadPeers ()
                   LogPrint (eLogDebug, "RelayPeers: loadPeers: peer: ",
                             peer.GetIdentHash ().ToBase64 (),
                             ", samples: ", peer.getReachability ());
-                  peers.push_back (peer);
+                  peers.push_back (std::make_shared<RelayPeer>(peer));
                 }
             }
         }
@@ -439,26 +439,26 @@ RelayPeersWorker::getRandomPeers ()
 {
 }
 
-std::vector<RelayPeer>
+std::vector<std::shared_ptr<RelayPeer> >
 RelayPeersWorker::getGoodPeers ()
 {
-  std::vector<RelayPeer> result;
+  std::vector<std::shared_ptr<RelayPeer> > result;
 
   for (const auto &m_peer : m_peers_)
     {
       if (m_peer.second->getReachability () > PEER_MIN_REACHABILITY)
-        result.push_back (*m_peer.second);
+        result.push_back (m_peer.second);
     }
 
   return result;
 }
 
-std::vector<RelayPeer>
+std::vector<std::shared_ptr<RelayPeer> >
 RelayPeersWorker::getGoodPeers (uint8_t num)
 {
   auto result = getGoodPeers ();
 
-  while (result.size () < num)
+  while (result.size () > num)
     result.pop_back ();
 
   return result;
@@ -638,10 +638,11 @@ RelayPeersWorker::peerListRequestV4 (const std::string &sender,
 
   for (const auto &peer : good_peers)
     {
-      size_t ilen = peer.GetFullLen ();
-      std::vector<uint8_t> buf (ilen);
-      peer.ToBuffer (buf.data (), ilen);
-      peer_list.data.insert (peer_list.data.end (), buf.begin (), buf.end ());
+      uint8_t * buf = new uint8_t[peer->GetFullLen ()];
+      size_t l = peer->ToBuffer (buf, peer->GetFullLen ());
+      if (l > 0)
+        peer_list.data.insert (peer_list.data.end (), buf, buf + l);
+      delete[] buf;
     }
 
   pbote::ResponsePacket response;
@@ -662,6 +663,7 @@ RelayPeersWorker::peerListRequestV5 (const std::string &sender,
 {
   LogPrint(eLogDebug, "RelayPeers: peerListRequestV5: request from: ",
     sender.substr(0, 15), "...");
+
   if (addPeer (sender))
     {
       LogPrint (eLogDebug,
@@ -674,10 +676,11 @@ RelayPeersWorker::peerListRequestV5 (const std::string &sender,
 
   for (const auto &peer : good_peers)
     {
-      size_t ilen = peer.GetFullLen ();
-      std::vector<uint8_t> buf (ilen);
-      peer.ToBuffer (buf.data (), ilen);
-      peer_list.data.insert (peer_list.data.end (), buf.begin (), buf.end ());
+      uint8_t * buf = new uint8_t[peer->GetFullLen ()];
+      size_t l = peer->ToBuffer (buf, peer->GetFullLen ());
+      if (l > 0)
+        peer_list.data.insert (peer_list.data.end (), buf, buf + l);
+      delete[] buf;
     }
 
   pbote::ResponsePacket response;
