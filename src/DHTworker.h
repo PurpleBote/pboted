@@ -111,7 +111,9 @@ struct Node : i2p::data::IdentityEx {
   std::string
   short_name ()
   {
-    return this->ToBase64 ().substr(0, 15), "...";
+    std::string str = this->ToBase64 ().substr(0, 15);
+    str.append("...");
+    return  str;
   }
 
   void noResponse() {

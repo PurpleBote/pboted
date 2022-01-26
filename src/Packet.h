@@ -35,6 +35,8 @@ namespace pbote
 /// because prefix[4] + type[1] + ver[1] +  cid[32] = 38
 #define COMM_DATA_LEN 38
 
+//#define PACKET_ERROR_MALFORMED -1
+
 const std::array<std::uint8_t, 12> PACKET_TYPE{0x52, 0x4b, 0x46, 0x4e, 0x41, 0x51, 0x4c, 0x53, 0x44, 0x58, 0x43};
 const std::array<std::uint8_t, 4> COMM_PREFIX{0x6D, 0x30, 0x52, 0xE9};
 const std::array<std::uint8_t, 5> BOTE_VERSION{0x1, 0x2, 0x3, 0x4, 0x5};
@@ -502,6 +504,11 @@ struct PeerListPacketV4 : public DataPacket{
   uint16_t count;
   std::vector<uint8_t> data;
 
+  /*bool fromBuffer(uint8_t *buf, size_t len, bool from_net)
+  {
+    
+  }*/
+
   std::vector<uint8_t> toByte() {
     /// Start basic part
     std::vector<uint8_t> result;
@@ -524,6 +531,11 @@ struct PeerListPacketV5 : public DataPacket{
 
   uint16_t count;
   std::vector<uint8_t> data;
+
+  /*bool fromBuffer(uint8_t *buf, size_t len, bool from_net)
+  {
+
+  }*/
 
   std::vector<uint8_t> toByte() {
     /// Start basic part
@@ -624,10 +636,8 @@ struct ResponsePacket : public CleanCommunicationPacket{
 
   bool fromBuffer(uint8_t *buf, size_t len, bool from_net) {
     /// 3 cause status[1] + length[2]
-    if (len < 3) {
-      LogPrint(eLogWarning, "Packet: ResponsePacket: fromBuffer: Payload is too short: ", len);
+    if (len < 3)
       return false;
-    }
 
     size_t offset = 0;
 
@@ -639,15 +649,11 @@ struct ResponsePacket : public CleanCommunicationPacket{
     if (from_net)
       length = ntohs(length);
 
-    if (status != StatusCode::OK) {
-      LogPrint(eLogWarning, "Packet: ResponsePacket: Response status: ", statusToString(status));
+    if (status != StatusCode::OK)
       return true;
-    }
 
-    if (length == 0) {
-      LogPrint(eLogWarning, "Packet: ResponsePacket: Packet without payload, skip parsing");
+    if (length == 0)
       return true;
-    }
 
     data = std::vector<uint8_t>(buf + offset, buf + offset + length);
     return true;
