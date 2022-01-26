@@ -278,7 +278,7 @@ BoteControl::peer (const std::string &cmd_id, std::ostringstream &results)
 {
   results << "\"peers\": {";
   results << "\"count\": {";
-  insert_param (results, "all",
+  insert_param (results, "total",
                 (int)pbote::relay::relay_peers_worker.getPeersCount ());
   results << ", ";
   insert_param (results, "good",
@@ -291,7 +291,7 @@ BoteControl::node (const std::string &cmd_id, std::ostringstream &results)
 {
   results << "\"nodes\": {";
   results << "\"count\": {";
-  insert_param (results, "all",
+  insert_param (results, "total",
                 (int)pbote::kademlia::DHT_worker.getNodesCount ());
   results << ", ";
   insert_param (results, "unlocked",
