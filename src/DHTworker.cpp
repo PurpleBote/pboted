@@ -335,7 +335,7 @@ std::vector<std::string>
 DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 {
   LogPrint(eLogDebug,
-    "DHT: store: Start for type: ", type ", key: ", hash.ToBase64 ());
+    "DHT: store: Start for type: ", type, ", key: ", hash.ToBase64 ());
 
   auto batch =
     std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket>>();
