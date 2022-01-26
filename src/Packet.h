@@ -625,7 +625,7 @@ struct ResponsePacket : public CleanCommunicationPacket{
   bool fromBuffer(uint8_t *buf, size_t len, bool from_net) {
     /// 3 cause status[1] + length[2]
     if (len < 3) {
-      LogPrint(eLogWarning, "Packet: ResponsePacket: fromBuffer: payload is too short: ", len);
+      LogPrint(eLogWarning, "Packet: ResponsePacket: fromBuffer: Payload is too short: ", len);
       return false;
     }
 
@@ -640,12 +640,12 @@ struct ResponsePacket : public CleanCommunicationPacket{
       length = ntohs(length);
 
     if (status != StatusCode::OK) {
-      LogPrint(eLogWarning, "Packet: ResponsePacket: response status: ", statusToString(status));
+      LogPrint(eLogWarning, "Packet: ResponsePacket: Response status: ", statusToString(status));
       return true;
     }
 
     if (length == 0) {
-      LogPrint(eLogWarning, "Packet: ResponsePacket: packet without payload, skip parsing");
+      LogPrint(eLogWarning, "Packet: ResponsePacket: Packet without payload, skip parsing");
       return true;
     }
 
