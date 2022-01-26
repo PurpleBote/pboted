@@ -245,7 +245,7 @@ RelayPeersWorker::addPeer (const uint8_t *buf, int len)
   std::shared_ptr<i2p::data::IdentityEx> identity
       = std::make_shared<i2p::data::IdentityEx> ();
   if (identity->FromBuffer (buf, len))
-    return addPeer (identity, 0);
+    return addPeer (identity, PEER_MIN_REACHABILITY);
   return false;
 }
 
@@ -287,11 +287,7 @@ void
 RelayPeersWorker::addPeers (const std::vector<std::shared_ptr<RelayPeer> > &peers)
 {
   for (const auto &peer : peers)
-    {
-      //std::shared_ptr<RelayPeer> s_peer
-      //    = std::make_shared<RelayPeer> (peer.ToBase64 ());
-      addPeer (peer, peer->getReachability ());
-    }
+    addPeer (peer, peer->getReachability ());
 }
 
 std::shared_ptr<RelayPeer>
@@ -389,7 +385,7 @@ RelayPeersWorker::loadPeers ()
           if (!bootstrap_address.empty ())
             new_peer->FromBase64 (bootstrap_address);
 
-          if (addPeer (new_peer, 0))
+          if (addPeer (new_peer, PEER_MIN_REACHABILITY))
             peers_added++;
           LogPrint (eLogDebug, "RelayPeers: Successfully add node: ",
                     new_peer->ToBase64 ());
@@ -600,7 +596,7 @@ RelayPeersWorker::receivePeerListV5 (const uint8_t *buf, size_t len)
 
           if (key_len > 0)
             {
-              if (addPeer (peer, 0))
+              if (addPeer (peer->ToBase64 ()))
                 peers_added++;
               else
                 peers_dup++;
