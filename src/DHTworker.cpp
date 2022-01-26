@@ -40,34 +40,35 @@ DHTworker::start ()
   std::string loglevel;
   pbote::config::GetOption("loglevel", loglevel);
 
-  if (!isStarted())
-    {
-      if (!loadNodes())
-        LogPrint(eLogWarning, "DHT: have no nodes for start");
+  if (isStarted())
+    return;
 
-      LogPrint(eLogDebug, "DHT: load local packets");
-      dht_storage_.set_storage_limit ();
-      dht_storage_.update();
+  if (!loadNodes())
+    LogPrint(eLogWarning, "DHT: Have no nodes for start");
 
-      started_ = true;
-      m_worker_thread_ = new std::thread(std::bind(&DHTworker::run, this));
-    }
+  LogPrint(eLogDebug, "DHT: Load local packets");
+  dht_storage_.set_storage_limit ();
+  dht_storage_.update();
+
+  started_ = true;
+  m_worker_thread_ = new std::thread(std::bind(&DHTworker::run, this));
 }
 
 void
 DHTworker::stop ()
 {
   LogPrint(eLogWarning, "DHT: stopping");
-  if (isStarted())
+  if (!isStarted())
+    return;
+
+  started_ = false;
+  if (m_worker_thread_)
     {
-      started_ = false;
-      if (m_worker_thread_)
-        {
-          m_worker_thread_->join();
-          delete m_worker_thread_;
-          m_worker_thread_ = nullptr;
-        }
+      m_worker_thread_->join();
+      delete m_worker_thread_;
+      m_worker_thread_ = nullptr;
     }
+
   LogPrint(eLogWarning, "DHT: stopped");
 }
 
@@ -143,7 +144,10 @@ DHTworker::getClosestNodes (HashKey key, size_t num, bool to_us)
   {
     sp_node node;
     i2p::data::XORMetric metric;
-    bool operator< (const sortable_node &other) const { return metric < other.metric; };
+    bool operator< (const sortable_node &other) const
+    {
+      return metric < other.metric;
+    };
   };
 
   LogPrint(eLogDebug, "DHT: getClosestNodes: key: ", key.ToBase64 (),
@@ -161,28 +165,13 @@ DHTworker::getClosestNodes (HashKey key, size_t num, bool to_us)
   for (const auto &it: m_nodes_)
     {
       if (!it.second->locked()) {
-        /// The XOR result for two hashes will be the larger, the more they differ by byte.
-        /// In this case, we are interested in the minimum difference (distance).
+        /// The XOR result for two hashes will be the larger,
+        /// the more they differ by byte.
+        /// In this case, we are interested in the minimum difference
+        /// (distance).
+        // ToDo: Think how to print metric
         i2p::data::XORMetric metric = key ^ it.second->GetIdentHash();
 
-        // ToDo: print distance in human readable format
-        //std::string minMetric_S(minMetric.metric, minMetric.metric + 32);
-        // std::string metric_S(metric.metric, metric.metric + 32);
-
-        //LogPrint(eLogDebug, "DHT: getClosestNodes: Metric.metric_ll: ", ToHex(minMetric_S, false));
-        // LogPrint(eLogDebug, "DHT: getClosestNodes: metric: ", ToHex(metric_S, false));
-        
-        //long long metric_ll = (long long)metric.metric;
-        //LogPrint(eLogDebug, "DHT: getClosestNodes: metric: ", (uint64_t)metric.metric,
-        //         (uint64_t)(metric.metric + 8), (uint64_t)(metric.metric + 16), (uint64_t)(metric.metric + 24));
-        //BIGNUM *metric_bn;
-        //metric_bn = BN_bin2bn(metric.metric, 32, nullptr);
-        //LogPrint(eLogDebug, "DHT: getClosestNodes: metric_bn: ", metric_bn);
-        //BN_free(metric_bn);
-
-        //if (to_us && minMetric < metric) {
-        //  continue;
-        //}
 
       if (metric < minMetric)
         minMetric = metric;
@@ -424,50 +413,64 @@ std::vector<std::string>
 DHTworker::deleteEmail (HashKey hash, uint8_t type,
                         pbote::EmailDeleteRequestPacket packet)
 {
-  auto batch = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket>>();
+  LogPrint(eLogDebug, "DHT: deleteEmail: Start for type: ", type,
+    ", hash: ", hash.ToBase64());
+
+  auto batch =
+    std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket>>();
   batch->owner = "DHTworker::deleteEmail";
-  LogPrint(eLogDebug, "DHT: deleteEmail: Get closest nodes");
 
   std::vector<sp_node> closestNodes = closestNodesLookupTask(hash);
 
   // ToDo: add remove locally
 
-  LogPrint(eLogDebug, "DHT: deleteEmail: closest nodes count: ", closestNodes.size());
-  if (closestNodes.size() < MIN_CLOSEST_NODES) {
-    LogPrint(eLogInfo, "DHT: deleteEmail: not enough nodes for delete request, try to use usual nodes");
+  LogPrint(eLogDebug, "DHT: deleteEmail: Closest nodes: ", closestNodes.size());
+
+  if (closestNodes.size() < MIN_CLOSEST_NODES)
+  {
+    LogPrint(eLogInfo, "DHT: deleteEmail: Not enough nodes, try usual nodes");
+
     for (const auto &node: m_nodes_)
       closestNodes.push_back(node.second);
-    LogPrint(eLogDebug, "DHT: deleteEmail: usual nodes count: ", closestNodes.size());
-    if (closestNodes.size() < MIN_CLOSEST_NODES) {
-      LogPrint(eLogWarning, "DHT: deleteEmail: not enough nodes for delete request");
+
+    LogPrint(eLogDebug, "DHT: deleteEmail: Usual nodes: ", closestNodes.size());
+
+    if (closestNodes.size() < MIN_CLOSEST_NODES)
+    {
+      LogPrint(eLogWarning, "DHT: deleteEmail: Not enough nodes");
       return {};
     }
   }
 
-  LogPrint(eLogDebug, "DHT: deleteEmail: Start to delete type: ", type, ", hash: ", hash.ToBase64());
-  for (const auto &node: closestNodes) {
+  for (const auto &node: closestNodes)
+  {
     context.random_cid(packet.cid, 32);
     auto packet_bytes = packet.toByte();
-    PacketForQueue q_packet(node->ToBase64(), packet_bytes.data(), packet_bytes.size());
+    PacketForQueue q_packet(node->ToBase64(),
+                            packet_bytes.data(), packet_bytes.size());
 
     std::vector<uint8_t> v_cid(std::begin(packet.cid), std::end(packet.cid));
     batch->addPacket(v_cid, q_packet);
   }
-  LogPrint(eLogDebug, "DHT: deleteEmail: batch.size: ", batch->packetCount());
+
+  LogPrint(eLogDebug, "DHT: deleteEmail: Batch size: ", batch->packetCount());
   context.send(batch);
 
   batch->waitLast(RESPONSE_TIMEOUT);
 
   int counter = 0;
-  while (batch->responseCount() < 1 && counter < 5) {
-    LogPrint(eLogWarning, "DHT: deleteEmail: have no responses, try to resend batch, try #", counter);
+  while (batch->responseCount() < 1 && counter < 5)
+  {
+    LogPrint(eLogWarning, "DHT: deleteEmail: No responses, resend: #", counter);
     context.removeBatch(batch);
     context.send(batch);
     // ToDo: remove answered nodes from batch
     batch->waitLast(RESPONSE_TIMEOUT);
     counter++;
   }
-  LogPrint(eLogDebug, "DHT: deleteEmail: ", batch->responseCount(), " responses for ", hash.ToBase64(), ", type: ", type);
+
+  LogPrint(eLogDebug, "DHT: deleteEmail: Got ", batch->responseCount(),
+    " responses for ", hash.ToBase64(), ", type: ", type);
   context.removeBatch(batch);
 
   std::vector<std::string> res;
@@ -486,28 +489,40 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key,
                              HashKey email_dht_key,
                              HashKey del_auth)
 {
-  auto batch = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket>>();
+  LogPrint(eLogDebug, "DHT: deleteIndexEntry: Start for key: ",
+    email_dht_key.ToBase64(), ", hash: ", del_auth.ToBase64());
+
+  auto batch =
+    std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket>>();
   batch->owner = "DHTworker::deleteIndexEntry";
-  LogPrint(eLogDebug, "DHT: deleteIndexEntry: Get closest nodes");
 
   std::vector<sp_node> closestNodes = closestNodesLookupTask(index_dht_key);
 
   // ToDo: add remove locally
 
-  LogPrint(eLogDebug, "DHT: deleteIndexEntry: closest nodes count: ", closestNodes.size());
-  if (closestNodes.size() < MIN_CLOSEST_NODES) {
-    LogPrint(eLogInfo, "DHT: deleteIndexEntry: not enough nodes for delete request, try to use usual nodes");
+  LogPrint(eLogDebug,
+    "DHT: deleteIndexEntry: Closest nodes: ", closestNodes.size());
+
+  if (closestNodes.size() < MIN_CLOSEST_NODES)
+  {
+    LogPrint(eLogInfo,
+      "DHT: deleteIndexEntry: Not enough nodes, try usual nodes");
+
     for (const auto &node: m_nodes_)
       closestNodes.push_back(node.second);
-    LogPrint(eLogDebug, "DHT: deleteIndexEntry: usual nodes count: ", closestNodes.size());
-    if (closestNodes.size() < MIN_CLOSEST_NODES) {
-      LogPrint(eLogWarning, "DHT: deleteIndexEntry: not enough nodes for delete request");
-      return {};
-    }
+
+    LogPrint(eLogDebug,
+      "DHT: deleteIndexEntry: Usual nodes: ", closestNodes.size());
   }
 
-  LogPrint(eLogDebug, "DHT: deleteIndexEntry: Start to delete key: ", email_dht_key.ToBase64(), ", hash: ", del_auth.ToBase64());
-  for (const auto &node: closestNodes) {
+  if (closestNodes.empty ())
+  {
+    LogPrint(eLogWarning, "DHT: deleteIndexEntry: Not enough nodes");
+    return {};
+  }
+
+  for (const auto &node: closestNodes)
+  {
     pbote::IndexDeleteRequestPacket packet;
     context.random_cid(packet.cid, 32);
 
@@ -520,26 +535,35 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key,
     packet.data.push_back(item);
 
     auto packet_bytes = packet.toByte();
-    PacketForQueue q_packet(node->ToBase64(), packet_bytes.data(), packet_bytes.size());
+    PacketForQueue q_packet(node->ToBase64(),
+                            packet_bytes.data(), packet_bytes.size());
 
     std::vector<uint8_t> v_cid(std::begin(packet.cid), std::end(packet.cid));
     batch->addPacket(v_cid, q_packet);
   }
-  LogPrint(eLogDebug, "DHT: deleteIndexEntry: batch.size: ", batch->packetCount());
+
+  LogPrint(eLogDebug,
+    "DHT: deleteIndexEntry: Batch size: ", batch->packetCount());
+
   context.send(batch);
 
   batch->waitLast(RESPONSE_TIMEOUT);
 
   int counter = 0;
-  while (batch->responseCount() < 1 && counter < 5) {
-    LogPrint(eLogWarning, "DHT: deleteIndexEntry: have no responses, try to resend batch, try #", counter);
+  while (batch->responseCount() < 1 && counter < 5)
+  {
+    LogPrint(eLogWarning,
+      "DHT: deleteIndexEntry: No responses, resend: #", counter);
     context.removeBatch(batch);
     context.send(batch);
     // ToDo: remove answered nodes from batch
     batch->waitLast(RESPONSE_TIMEOUT);
     counter++;
   }
-  LogPrint(eLogDebug, "DHT: deleteIndexEntry: ", batch->responseCount(), " responses for ", email_dht_key.ToBase64());
+
+  LogPrint(eLogDebug, "DHT: deleteIndexEntry: Got", batch->responseCount(),
+    " responses for key ", email_dht_key.ToBase64());
+
   context.removeBatch(batch);
 
   std::vector<std::string> res;
@@ -773,13 +797,14 @@ DHTworker::receivePeerListV4 (const uint8_t *buf, size_t len)
           nodes_dup++;
         }
       } else
-        LogPrint(eLogWarning, "DHT: receivePeerListV4: fail to add node");
+        LogPrint(eLogWarning, "DHT: receivePeerListV4: Fail to add node");
     }
-    LogPrint(eLogDebug, "DHT: receivePeerListV4: nodes: ", nodes_count, ", added: ", nodes_added,
-             ", dup: ", nodes_dup);
+    LogPrint(eLogDebug, "DHT: receivePeerListV4: nodes: ", nodes_count,
+             ", added: ", nodes_added, ", dup: ", nodes_dup);
     return closestNodes;
   } else {
-    LogPrint(eLogWarning, "DHT: receivePeerListV4: unknown packet, type: ", type, ", ver: ", unsigned(ver));
+    LogPrint(eLogWarning, "DHT: receivePeerListV4: Unknown packet, type: ",
+             type, ", ver: ", unsigned(ver));
     return {};
   }
 }
@@ -807,11 +832,11 @@ DHTworker::receivePeerListV5 (const uint8_t *buf, size_t len)
     size_t nodes_added = 0, nodes_dup = 0;
     for (size_t i = 0; i < nump; i++) {
       if (offset == len) {
-        LogPrint(eLogWarning, "DHT: receivePeerListV5: end of packet");
+        LogPrint(eLogWarning, "DHT: receivePeerListV5: End of packet");
         break;
       }
       if (offset + 384 > len) {
-        LogPrint(eLogWarning, "DHT: receivePeerListV5: incomplete packet");
+        LogPrint(eLogWarning, "DHT: receivePeerListV5: Incomplete packet");
         break;
       }
 
@@ -822,20 +847,19 @@ DHTworker::receivePeerListV5 (const uint8_t *buf, size_t len)
       if (key_len > 0) {
         closestNodes.emplace_back(std::make_shared<Node>(identity.ToBase64()));
         if (addNode(identity)) {
-          //LogPrint(eLogDebug, "DHT: receivePeerListV5: add node sign: ", sign_type, ", res: ", res);
           nodes_added++;
         } else {
-          //LogPrint(eLogWarning, "DHT: receivePeerListV5: fail to add node with sign: ", sign_type);
           nodes_dup++;
         }
       } else
-        LogPrint(eLogWarning, "DHT: receivePeerListV5: fail to add node");
+        LogPrint(eLogWarning, "DHT: receivePeerListV5: Fail to add node");
     }
-    LogPrint(eLogDebug,
-             "DHT: receivePeerListV5: nodes: ", nump, ", added: ", nodes_added, ", dup: ", nodes_dup);
+    LogPrint(eLogDebug, "DHT: receivePeerListV5: nodes: ", nump,
+             ", added: ", nodes_added, ", dup: ", nodes_dup);
     return closestNodes;
   } else {
-    LogPrint(eLogWarning, "DHT: receivePeerListV5: unknown packet, type: ", type, ", ver: ", unsigned(ver));
+    LogPrint(eLogWarning, "DHT: receivePeerListV5: Unknown packet, type: ",
+             type, ", ver: ", unsigned(ver));
     return {};
   }
 }
@@ -853,7 +877,8 @@ DHTworker::receiveRetrieveRequest (const sp_comm_packet &packet)
   }
 
   if (addNode(packet->from)) {
-    LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: Sender added to nodes list");
+    LogPrint(eLogDebug,
+      "DHT: receiveRetrieveRequest: Sender added to nodes list");
   }
 
   uint16_t offset = 0;
@@ -867,9 +892,13 @@ DHTworker::receiveRetrieveRequest (const sp_comm_packet &packet)
   pbote::ResponsePacket response;
   memcpy(response.cid, packet->cid, 32);
 
-  if (dataType == (uint8_t) 'I' || dataType == (uint8_t) 'E' || dataType == (uint8_t) 'C') {
+  if (dataType == (uint8_t) 'I' ||
+      dataType == (uint8_t) 'E' ||
+      dataType == (uint8_t) 'C')
+  {
     HashKey hash(key);
-    LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: request for type: ", dataType, ", key: ", hash.ToBase64());
+    LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: Request for type: ",
+             dataType, ", key: ", hash.ToBase64());
 
     /// Try to find packet in storage
     std::vector<uint8_t> data;
@@ -883,24 +912,34 @@ DHTworker::receiveRetrieveRequest (const sp_comm_packet &packet)
       default:break;
     }
 
-    if (data.empty()) {
-      LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: can't find type: ", dataType, ", key: ", hash.ToBase64());
+    if (data.empty())
+    {
+      LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: Can't find type: ",
+        dataType, ", key: ", hash.ToBase64());
       response.status = pbote::StatusCode::NO_DATA_FOUND;
       response.length = 0;
-    } else {
-      LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: found data type: ", dataType, ", key: ", hash.ToBase64());
+    }
+    else
+    {
+      LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: Found data type: ",
+        dataType, ", key: ", hash.ToBase64());
+
       response.status = pbote::StatusCode::OK;
       response.length = data.size();
       response.data = data;
     }
-  } else {
+  }
+  else
+  {
     // In case if we can't parse
-    LogPrint(eLogDebug, "DHT: receiveRetrieveRequest: unknown packet type: ", dataType);
+    LogPrint(eLogDebug,
+      "DHT: receiveRetrieveRequest: Unknown packet type: ", dataType);
     response.status = pbote::StatusCode::INVALID_PACKET;
     response.length = 0;
   }
 
-  PacketForQueue q_packet(packet->from, response.toByte().data(), response.toByte().size());
+  PacketForQueue q_packet(packet->from,
+                          response.toByte().data(), response.toByte().size());
   context.send(q_packet);
 }
 
@@ -916,8 +955,10 @@ DHTworker::receiveDeletionQuery (const sp_comm_packet &packet)
     return;
   }
 
-  if (addNode(packet->from)) {
-    LogPrint(eLogDebug, "DHT: receiveDeletionQuery: Sender added to nodes list");
+  if (addNode(packet->from))
+  {
+    LogPrint(eLogDebug,
+      "DHT: receiveDeletionQuery: Sender added to nodes list");
   }
 
   uint8_t key[32];
@@ -925,33 +966,43 @@ DHTworker::receiveDeletionQuery (const sp_comm_packet &packet)
   pbote::ResponsePacket response;
   memcpy(response.cid, packet->cid, 32);
 
-  if (packet->payload.size() == 32) {
+  if (packet->payload.size() == 32)
+  {
     std::memcpy(&key, packet->payload.data(), 32);
     HashKey t_key(key);
 
-    LogPrint(eLogDebug, "DHT: receiveDeletionQuery: got request for key: ", t_key.ToBase64());
+    LogPrint(eLogDebug,
+      "DHT: receiveDeletionQuery: got request for key: ", t_key.ToBase64());
 
     auto data = dht_storage_.getEmail(key);
-    if (data.empty()) {
-      LogPrint(eLogDebug, "DHT: receiveDeletionQuery: key not found: ", t_key.ToBase64());
+    if (data.empty())
+    {
+      LogPrint(eLogDebug,
+        "DHT: receiveDeletionQuery: key not found: ", t_key.ToBase64());
       response.status = pbote::StatusCode::NO_DATA_FOUND;
       response.length = 0;
-    } else {
-      LogPrint(eLogDebug, "DHT: receiveDeletionQuery: found key: ", t_key.ToBase64());
+    }
+    else
+    {
+      LogPrint(eLogDebug,
+        "DHT: receiveDeletionQuery: found key: ", t_key.ToBase64());
 
       // ToDo: delete local packet
 
       response.status = pbote::StatusCode::OK;
       response.length = 0;
     }
-  } else {
+  }
+  else
+  {
     // In case if can't parse
     LogPrint(eLogDebug, "DHT: receiveDeletionQuery: Packet is too short");
     response.status = pbote::StatusCode::INVALID_PACKET;
     response.length = 0;
   }
 
-  PacketForQueue q_packet(packet->from, response.toByte().data(), response.toByte().size());
+  PacketForQueue q_packet(packet->from,
+                          response.toByte().data(), response.toByte().size());
   context.send(q_packet);
 }
 
@@ -990,13 +1041,13 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
   std::memcpy(&new_packet.length, packet->payload.data() + offset, 2);
   new_packet.length = ntohs(new_packet.length);
   offset += 2;
-  LogPrint(eLogDebug, "DHT: receiveStoreRequest: length: ", new_packet.length);
+  LogPrint(eLogDebug, "DHT: receiveStoreRequest: Length: ", new_packet.length);
 
   new_packet.data =
     std::vector<uint8_t>(packet->payload.begin() + offset,
                          packet->payload.begin() + offset + new_packet.length);
 
-  LogPrint(eLogDebug, "DHT: receiveStoreRequest: got request for type: ",
+  LogPrint(eLogDebug, "DHT: receiveStoreRequest: Got request for type: ",
            new_packet.data[0], ", ver: ", unsigned(new_packet.data[1]));
 
   pbote::ResponsePacket response;
@@ -1009,7 +1060,7 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
     bool prev_status = true;
 
     if (dht_storage_.limit_reached(new_packet.data.size())) {
-      LogPrint(eLogWarning, "DHT: receiveStoreRequest: storage limit reached!");
+      LogPrint(eLogWarning, "DHT: receiveStoreRequest: Storage limit reached!");
       response.status = pbote::StatusCode::NO_DISK_SPACE;
       response.length = 0;
       prev_status = false;
@@ -1029,11 +1080,12 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
       save_status = dht_storage_.safe(new_packet.data);
 
     if (prev_status && save_status == STORE_SUCCESS) {
-      LogPrint(eLogDebug, "DHT: receiveStoreRequest: packet saved");
+      LogPrint(eLogDebug, "DHT: receiveStoreRequest: Packet saved");
       response.status = pbote::StatusCode::OK;
       response.length = 0;
     } else if (prev_status) {
-      LogPrint(eLogWarning, "DHT: receiveStoreRequest: got error while try to save packet");
+      LogPrint(eLogWarning,
+        "DHT: receiveStoreRequest: Got error while try to save packet");
       if (save_status == STORE_FILE_EXIST)
         response.status = pbote::StatusCode::DUPLICATED_DATA;
       else
@@ -1041,13 +1093,15 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
       response.length = 0;
     }
   } else {
-    LogPrint(eLogWarning, "DHT: receiveStoreRequest: unsupported packet, type: ", new_packet.data[0],
-             ", ver: ", unsigned(new_packet.data[1]));
+    LogPrint(eLogWarning,
+      "DHT: receiveStoreRequest: Unsupported packet, type: ",
+      new_packet.data[0], ", ver: ", unsigned(new_packet.data[1]));
     response.status = pbote::StatusCode::INVALID_PACKET;
     response.length = 0;
   }
 
-  PacketForQueue q_packet(packet->from, response.toByte().data(), response.toByte().size());
+  PacketForQueue q_packet(packet->from,
+                          response.toByte().data(), response.toByte().size());
   context.send(q_packet);
 }
 
@@ -1065,7 +1119,8 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
   }
 
   if (addNode(packet->from)) {
-    LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: Sender added to nodes list");
+    LogPrint(eLogDebug,
+      "DHT: receiveEmailPacketDeleteRequest: Sender added to nodes list");
   }
 
   uint16_t offset = 0;
@@ -1078,7 +1133,9 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
   std::memcpy(&delAuth, packet->payload.data() + offset, 32); //offset += 32;
 
   HashKey t_key(key);
-  LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: got request for key: ", t_key.ToBase64());
+  LogPrint(eLogDebug,
+    "DHT: receiveEmailPacketDeleteRequest: Got request for key: ",
+    t_key.ToBase64());
 
   pbote::ResponsePacket response;
   memcpy(response.cid, packet->cid, 32);
@@ -1088,36 +1145,56 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
   auto email_packet = dht_storage_.getEmail(t_key);
 
   // ToDo: re-think
-  if (email_packet.empty()) {
-    LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: key not found: ", t_key.ToBase64());
+  if (email_packet.empty())
+  {
+    LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: Key not found: ",
+      t_key.ToBase64());
     response.status = pbote::StatusCode::NO_DATA_FOUND;
     response.length = 0;
-  } else {
-    LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: found key: ", t_key.ToBase64());
+  }
+  else
+  {
+    LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: Found key: ",
+      t_key.ToBase64());
 
     // Get Delete Auth hash from email packet
     std::vector<uint8_t> email_delete_hash;
-    if ( email_packet.size() < 70) {
-      LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: local packet is too short: ", t_key.ToBase64());
+    if ( email_packet.size() < 70)
+    {
+      LogPrint(eLogDebug,
+        "DHT: receiveEmailPacketDeleteRequest: Local packet is too short: ",
+        t_key.ToBase64());
       response.status = pbote::StatusCode::GENERAL_ERROR;
       response.length = 0;
     } else {
-      email_delete_hash.insert(email_delete_hash.end(), email_packet.begin() + 38, email_packet.begin() + 70);
+      email_delete_hash.insert(email_delete_hash.end(),
+                               email_packet.begin() + 38,
+                               email_packet.begin() + 70);
 
       // Compare hashes
-      if (memcmp(delHash, email_delete_hash.data(), 32) != 0) {
-        LogPrint(eLogWarning, "DHT: receiveEmailPacketDeleteRequest: delete auth hashes mismatch");
+      if (memcmp(delHash, email_delete_hash.data(), 32) != 0)
+      {
+        LogPrint(eLogWarning,
+          "DHT: receiveEmailPacketDeleteRequest: Delete auth hashes mismatch");
         response.status = pbote::StatusCode::INVALID_PACKET;
         response.length = 0;
-      } else {
-        LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: delete auth hashes match");
+      }
+      else
+      {
+        LogPrint(eLogDebug,
+          "DHT: receiveEmailPacketDeleteRequest: Delete auth hashes match");
 
-        if (dht_storage_.deleteEmail(t_key)) {
-          LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: packet successfully removed");
+        if (dht_storage_.deleteEmail(t_key))
+        {
+          LogPrint(eLogDebug,
+            "DHT: receiveEmailPacketDeleteRequest: Packet successfully removed");
           response.status = pbote::StatusCode::OK;
           response.length = 0;
-        } else {
-          LogPrint(eLogDebug, "DHT: receiveEmailPacketDeleteRequest: Can't remove packet");
+        }
+        else
+        {
+          LogPrint(eLogDebug,
+            "DHT: receiveEmailPacketDeleteRequest: Can't remove packet");
           response.status = pbote::StatusCode::GENERAL_ERROR;
           response.length = 0;
         }
@@ -1125,7 +1202,8 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
     }
   }
 
-  PacketForQueue q_packet(packet->from, response.toByte().data(), response.toByte().size());
+  PacketForQueue q_packet(packet->from,
+                          response.toByte().data(), response.toByte().size());
   context.send(q_packet);
 }
 
@@ -1143,7 +1221,8 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
   }
 
   if (addNode(packet->from)) {
-    LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: Sender added to nodes list");
+    LogPrint(eLogDebug,
+      "DHT: receiveIndexPacketDeleteRequest: Sender added to nodes list");
   }
 
   uint16_t offset = 0;
@@ -1160,20 +1239,29 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
   response.length = 0;
 
   HashKey t_key(dh);
-  LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: got request for key: ", t_key.ToBase64());
+  LogPrint(eLogDebug,
+    "DHT: receiveIndexPacketDeleteRequest: Got request for key: ",
+    t_key.ToBase64());
   auto data = dht_storage_.getIndex(t_key);
-  if (data.empty()) {
-    LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: key not found: ", t_key.ToBase64());
+  if (data.empty())
+  {
+    LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: Key not found: ",
+      t_key.ToBase64());
     response.status = pbote::StatusCode::NO_DATA_FOUND;
-  } else {
-    LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: found key: ", t_key.ToBase64());
+  }
+  else
+  {
+    LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: Found key: ",
+      t_key.ToBase64());
 
     pbote::IndexPacket index_packet;
     bool parsed = index_packet.fromBuffer(data, true);
 
-    if (parsed) {
+    if (parsed)
+    {
       bool equals = false;
-      for (uint8_t i = 0; i < num; i++) {
+      for (uint8_t i = 0; i < num; i++)
+      {
         uint8_t dht[32];
         uint8_t delAuth[32];
         uint8_t delHash[32];
@@ -1187,8 +1275,10 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
         SHA256(delAuth, 32, delHash);
 
         // Compare hashes
-        for (uint8_t k = 0; k < (uint8_t)index_packet.data.size(); k++) {
-          if (memcmp(delHash, index_packet.data[k].dv, 32) == 0) {
+        for (uint8_t k = 0; k < (uint8_t)index_packet.data.size(); k++)
+        {
+          if (memcmp(delHash, index_packet.data[k].dv, 32) == 0)
+          {
             equals = true;
             index_packet.data.erase(index_packet.data.begin() + k);
             index_packet.nump = index_packet.data.size();
@@ -1197,43 +1287,64 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
         }
 
         // Check result of compare
-        if (!equals) {
-          LogPrint(eLogWarning, "DHT: receiveIndexPacketDeleteRequest: delete auth hashes mismatch");
+        if (!equals)
+        {
+          LogPrint(eLogWarning,
+            "DHT: receiveIndexPacketDeleteRequest: Delete auth hashes mismatch");
           response.status = pbote::StatusCode::INVALID_PACKET;
         }
       }
-      if (equals) {
-        LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: delete auth hashes match");
+      if (equals)
+      {
+        LogPrint(eLogDebug,
+          "DHT: receiveIndexPacketDeleteRequest: Delete auth hashes match");
         // Delete "old" and write "new" packet, if not empty
         bool deleted = dht_storage_.deleteIndex(t_key);
         int saved = STORE_FILE_NOT_STORED;
         if (!index_packet.data.empty())
           saved = dht_storage_.safe(index_packet.toByte());
 
-        if (deleted && saved == STORE_SUCCESS) {
-          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: Packet replaced");
+        if (deleted && saved == STORE_SUCCESS)
+        {
+          LogPrint(eLogDebug,
+            "DHT: receiveIndexPacketDeleteRequest: Packet replaced");
           response.status = pbote::StatusCode::OK;
-        } else if (!deleted && saved == STORE_SUCCESS) {
-          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: New packet saved");
+        }
+        else if (!deleted && saved == STORE_SUCCESS)
+        {
+          LogPrint(eLogDebug,
+            "DHT: receiveIndexPacketDeleteRequest: New packet saved");
           response.status = pbote::StatusCode::OK;
-        } else if (deleted && index_packet.data.empty()) {
-          LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: Delete empty packet");
+        }
+        else if (deleted && index_packet.data.empty())
+        {
+          LogPrint(eLogDebug,
+            "DHT: receiveIndexPacketDeleteRequest: Delete empty packet");
           response.status = pbote::StatusCode::OK;
-        } else {
-          LogPrint(eLogError, "DHT: receiveIndexPacketDeleteRequest: Can't save new packet");
+        }
+        else
+        {
+          LogPrint(eLogError,
+            "DHT: receiveIndexPacketDeleteRequest: Can't save new packet");
+
           if (saved == STORE_FILE_EXIST)
             response.status = pbote::StatusCode::DUPLICATED_DATA;
           else
             response.status = pbote::StatusCode::GENERAL_ERROR;
         }
       }
-    } else {
-      LogPrint(eLogDebug, "DHT: receiveIndexPacketDeleteRequest: can't parse local packet for key: ", t_key.ToBase64());
+    }
+    else
+    {
+      LogPrint(eLogDebug,
+        "DHT: receiveIndexPacketDeleteRequest: Can't parse local packet for key: ",
+        t_key.ToBase64());
       response.status = pbote::StatusCode::GENERAL_ERROR;
     }
   }
 
-  PacketForQueue q_packet(packet->from, response.toByte().data(), response.toByte().size());
+  PacketForQueue q_packet(packet->from,
+                          response.toByte().data(), response.toByte().size());
   context.send(q_packet);
 }
 
@@ -1250,14 +1361,16 @@ DHTworker::receiveFindClosePeers (const sp_comm_packet &packet)
   }
 
   if (addNode(packet->from)) {
-    LogPrint(eLogDebug, "DHT: receiveFindClosePeers: Sender added to nodes list");
+    LogPrint(eLogDebug,
+      "DHT: receiveFindClosePeers: Sender added to nodes list");
   }
 
   uint8_t key[32];
   std::memcpy(&key, packet->payload.data(), 32);
   HashKey t_key(key);
 
-  LogPrint(eLogDebug, "DHT: receiveFindClosePeers: Got request for key: ", t_key.ToBase64());
+  LogPrint(eLogDebug, "DHT: receiveFindClosePeers: Got request for key: ",
+    t_key.ToBase64());
 
   auto closest_nodes = getClosestNodes(t_key, KADEMLIA_CONSTANT_K, false);
   for (const auto& test : closest_nodes) {
@@ -1275,7 +1388,9 @@ DHTworker::receiveFindClosePeers (const sp_comm_packet &packet)
       response.status = pbote::StatusCode::GENERAL_ERROR;
       response.length = 0;
 
-      PacketForQueue q_packet(packet->from, response.toByte().data(), response.toByte().size());
+      PacketForQueue q_packet(packet->from,
+                              response.toByte().data(),
+                              response.toByte().size());
       context.send(q_packet);
     }
   else
@@ -1346,11 +1461,11 @@ std::vector<std::string>
 DHTworker::readNodes ()
 {
   std::string nodes_file_path = pbote::fs::DataDirPath(DEFAULT_NODE_FILE_NAME);
-  LogPrint(eLogInfo, "DHT: readNodes: read nodes from ", nodes_file_path);
+  LogPrint(eLogInfo, "DHT: readNodes: Read nodes from ", nodes_file_path);
   std::ifstream nodes_file(nodes_file_path);
 
   if (!nodes_file.is_open()) {
-    LogPrint(eLogError, "DHT: readNodes: can't open file ", nodes_file_path);
+    LogPrint(eLogError, "DHT: readNodes: Can't open file ", nodes_file_path);
     return {};
   }
 
@@ -1381,7 +1496,7 @@ DHTworker::loadNodes ()
       for (const auto &node: nodes)
         {
           LogPrint(eLogDebug,
-                   "DHT: loadNodes: node: ", node->short_name ());
+                   "DHT: loadNodes: Node: ", node->short_name ());
           auto t_hash = node->GetIdentHash();
           bool result =
             m_nodes_.insert(std::pair<HashKey,
@@ -1394,10 +1509,10 @@ DHTworker::loadNodes ()
         }
       
       if (counter == 0)
-        LogPrint(eLogInfo, "DHT: loadNodes: can't load nodes, try bootstrap");
+        LogPrint(eLogInfo, "DHT: loadNodes: Can't load nodes, try bootstrap");
       else
         {
-          LogPrint(eLogInfo, "DHT: loadNodes: nodes loaded: ", counter,
+          LogPrint(eLogInfo, "DHT: loadNodes: Nodes loaded: ", counter,
                    ", duplicated: ", dup);
           return true;
         }
@@ -1415,7 +1530,7 @@ DHTworker::loadNodes ()
             {
               i2p::data::IdentityEx new_node;
               new_node.FromBase64(bootstrap_address);
-              LogPrint(eLogDebug, "DHT: loadNodes: successfully add node: ",
+              LogPrint(eLogDebug, "DHT: loadNodes: Successfully add node: ",
                        new_node.GetIdentHash().ToBase64());
             }
         }
@@ -1428,13 +1543,14 @@ DHTworker::loadNodes ()
 void
 DHTworker::writeNodes ()
 {
-  LogPrint(eLogInfo, "DHT: writeNodes: save nodes to FS");
   std::string nodes_file_path = pbote::fs::DataDirPath(DEFAULT_NODE_FILE_NAME);
   std::ofstream nodes_file(nodes_file_path);
 
+  LogPrint(eLogInfo, "DHT: writeNodes: Save nodes to ", nodes_file_path);
+
   if (!nodes_file.is_open())
     {
-      LogPrint(eLogError, "DHT: writeNodes: can't open file ", nodes_file_path);
+      LogPrint(eLogError, "DHT: writeNodes: Can't open file ", nodes_file_path);
       return;
     }
 
@@ -1477,10 +1593,11 @@ DHTworker::calc_locks (std::vector<sp_comm_packet> responses)
 pbote::FindClosePeersRequestPacket
 DHTworker::findClosePeersPacket (HashKey key)
 {
-  /// don't reuse request packets because PacketBatch will not add the same one more than once
   pbote::FindClosePeersRequestPacket packet;
-  /// Java will be answer wuth v4, c++ - with v5
+  /// Java will be answer wuth v4, pboted - with v5
   packet.ver = 5;
+  /// Don't reuse request packets because PacketBatch will not add
+  /// the same one more than once
   context.random_cid(packet.cid, 32);
   memcpy(packet.key, key.data(), 32);
 
