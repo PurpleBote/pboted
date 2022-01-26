@@ -78,29 +78,47 @@ namespace kademlia
  * Both started filling up with bootstrap nodes!
  */
 
-struct Node : i2p::data::IdentityEx {
+struct Node : i2p::data::IdentityEx
+{
   long first_seen;
   long last_seen;
   int consecutive_timeouts = 0;
   long locked_until = 0;
 
   Node()
-      : first_seen(0), last_seen(0), consecutive_timeouts(0), locked_until(0) {}
+    : first_seen(0),
+      last_seen(0),
+      consecutive_timeouts(0),
+      locked_until(0)
+  {}
 
   Node(const std::string &new_destination)
-      : first_seen(0), last_seen(0), consecutive_timeouts(0), locked_until(0) {
+    : first_seen(0),
+      last_seen(0),
+      consecutive_timeouts(0),
+      locked_until(0)
+  {
     this->FromBase64(new_destination);
   }
 
   Node(const uint8_t * buf, int len)
-      : first_seen(0), last_seen(0), consecutive_timeouts(0), locked_until(0) {
+    : first_seen(0),
+      last_seen(0),
+      consecutive_timeouts(0),
+      locked_until(0)
+  {
     this->FromBuffer(buf, len);
   }
 
-  Node(const std::string &new_destination, long firstSeen, int consecutiveTimeouts,
+  Node(const std::string &new_destination,
+       long firstSeen,
+       int consecutiveTimeouts,
        long lockedUntil)
-      : first_seen(firstSeen), last_seen(0), consecutive_timeouts(consecutiveTimeouts),
-        locked_until(lockedUntil) {
+    : first_seen(firstSeen),
+      last_seen(0),
+      consecutive_timeouts(consecutiveTimeouts),
+      locked_until(lockedUntil)
+  {
     this->FromBase64(new_destination);
   }
 
@@ -120,13 +138,12 @@ struct Node : i2p::data::IdentityEx {
     consecutive_timeouts++;
 
     const auto current_time = std::chrono::system_clock::now();
-    const auto lock_time = current_time + std::chrono::minutes(consecutive_timeouts * 10);
-    //int lockDuration = 1 << std::min(consecutive_timeouts, 10);   // in minutes
-    //auto time_now = std::chrono::system_clock::now().time_since_epoch().count();
-    //locked_until = time_now + 60*1000*lockDuration;
-    
+    const auto lock_time =
+      current_time + std::chrono::minutes(consecutive_timeouts * 10);
+    const auto lock_epoch = lock_time.time_since_epoch();
 
-    locked_until = std::chrono::duration_cast<std::chrono::seconds>(lock_time.time_since_epoch()).count();
+    locked_until =
+      std::chrono::duration_cast<std::chrono::seconds>(lock_epoch).count();
   }
 
   void gotResponse() {
@@ -138,7 +155,8 @@ struct Node : i2p::data::IdentityEx {
   locked ()
   {
     const auto epoch_now = std::chrono::system_clock::now().time_since_epoch();
-    auto time_now = std::chrono::duration_cast<std::chrono::seconds>(epoch_now).count();
+    auto time_now =
+      std::chrono::duration_cast<std::chrono::seconds>(epoch_now).count();
     return time_now < locked_until;
   }
 };
