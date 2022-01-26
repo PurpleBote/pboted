@@ -108,7 +108,7 @@ DHTworker::addNode (const i2p::data::IdentityEx &identity)
   auto local_destination = context.getLocalDestination();
   if (*local_destination == identity)
     {
-      LogPrint(eLogDebug, "DHT: addNode: skip local destination");
+      LogPrint(eLogDebug, "DHT: addNode: Local destination, skipped");
       return false;
     }
 
@@ -649,11 +649,25 @@ DHTworker::closestNodesLookupTask (HashKey key)
     bool parsed = packet.fromBuffer (response->payload.data(),
                                      response->payload.size(), true);
     if (!parsed)
-      continue;
+      {
+        LogPrint(eLogWarning,
+          "DHT: closestNodesLookupTask: Payload is too short, parsing skipped");
+        continue;
+      }
 
-    /// Will be logged in fromBuffer
     if (packet.status != StatusCode::OK)
-      continue;
+      {
+        LogPrint(eLogWarning, "DHT: closestNodesLookupTask: Response status: ",
+          statusToString(packet.status ));
+        continue;
+      }
+
+    if (packet.length == 0)
+      {
+        LogPrint(eLogWarning,
+          "DHT: closestNodesLookupTask: Packet without payload, parsing skipped");
+        continue;
+      }
 
     std::vector<sp_node> peers_list;
 
@@ -834,7 +848,7 @@ DHTworker::receiveRetrieveRequest (const sp_comm_packet &packet)
 
   if (packet->from == local_node_->ToBase64 ())
   {
-    LogPrint(eLogWarning, "DHT: receiveRetrieveRequest: Self request, skip");
+    LogPrint(eLogWarning, "DHT: receiveRetrieveRequest: Self request, skipped");
     return;
   }
 
@@ -898,7 +912,7 @@ DHTworker::receiveDeletionQuery (const sp_comm_packet &packet)
 
   if (packet->from == local_node_->ToBase64 ())
   {
-    LogPrint(eLogWarning, "DHT: receiveDeletionQuery: Self request, skip");
+    LogPrint(eLogWarning, "DHT: receiveDeletionQuery: Self request, skipped");
     return;
   }
 
@@ -949,7 +963,7 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
 
   if (packet->from == local_node_->ToBase64 ())
   {
-    LogPrint(eLogWarning, "DHT: receiveStoreRequest: Self request, skip");
+    LogPrint(eLogWarning, "DHT: receiveStoreRequest: Self request, skipped");
     return;
   }
 
@@ -1045,7 +1059,8 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
 
   if (packet->from == local_node_->ToBase64 ())
   {
-    LogPrint(eLogWarning, "DHT: receiveEmailPacketDeleteRequest: Self request, skip");
+    LogPrint(eLogWarning,
+      "DHT: receiveEmailPacketDeleteRequest: Self request, skipped");
     return;
   }
 
@@ -1122,7 +1137,8 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
 
   if (packet->from == local_node_->ToBase64 ())
   {
-    LogPrint(eLogWarning, "DHT: receiveIndexPacketDeleteRequest: Self request, skip");
+    LogPrint(eLogWarning,
+      "DHT: receiveIndexPacketDeleteRequest: Self request, skipped");
     return;
   }
 
@@ -1229,7 +1245,7 @@ DHTworker::receiveFindClosePeers (const sp_comm_packet &packet)
 
   if (packet->from == local_node_->ToBase64 ())
   {
-    LogPrint(eLogWarning, "DHT: receiveFindClosePeers: Self request, skip");
+    LogPrint(eLogWarning, "DHT: receiveFindClosePeers: Self request, skipped");
     return;
   }
 
