@@ -12,6 +12,13 @@ You can find more details in the [documentation](https://pboted.readthedocs.io/e
 Interaction with the I2P network occurs through the [SAMv3](https://geti2p.net/ru/docs/api/samv3) interface.    
 Tested with [i2pd](https://github.com/PurpleI2P/i2pd) and [Java I2P](https://github.com/i2p/i2p.i2p).
 
+## Alpha
+
+Please note that **pboted** version **0.7.X** is still in **alpha**.    
+During this period, there may be significant changes in the application.
+
+Transition to **beta** planned in version **0.9.X**
+
 ## Features
 
 - Sending and receiving emails
