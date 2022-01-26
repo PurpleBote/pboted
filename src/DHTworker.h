@@ -108,11 +108,23 @@ struct Node : i2p::data::IdentityEx {
     return this->FromBase64(new_destination);
   }*/
 
+  std::string
+  short_name ()
+  {
+    return this.ToBase64 ().substr(0, 15), "...";
+  }
+
   void noResponse() {
     consecutive_timeouts++;
-    int lockDuration = 1 << std::min(consecutive_timeouts, 10);   // in minutes
-    auto time_now = std::chrono::system_clock::now().time_since_epoch().count();
-    locked_until = time_now + 60*1000*lockDuration;
+
+    const auto current_time = std::chrono::system_clock::now();
+    const auto lock_time = current_time + std::chrono::minutes(consecutive_timeouts * 10);
+    //int lockDuration = 1 << std::min(consecutive_timeouts, 10);   // in minutes
+    //auto time_now = std::chrono::system_clock::now().time_since_epoch().count();
+    //locked_until = time_now + 60*1000*lockDuration;
+    
+
+    locked_until = std::chrono::duration_cast<std::chrono::seconds>(lock_time.time_since_epoch()).count();
   }
 
   void gotResponse() {
@@ -123,10 +135,15 @@ struct Node : i2p::data::IdentityEx {
   bool
   locked ()
   {
-    auto time_now = std::chrono::system_clock::now().time_since_epoch().count();
+    const auto epoch_now = std::chrono::system_clock::now().time_since_epoch();
+    auto time_now = std::chrono::duration_cast<std::chrono::seconds>(epoch_now).count();
     return time_now < locked_until;
   }
 };
+
+using sp_node = std::shared_ptr<Node>;
+using sp_comm_packet = std::shared_ptr<pbote::CommunicationPacket>;
+using HashKey = i2p::data::Tag<32>;
 
 class DHTworker {
  public:
@@ -139,43 +156,47 @@ class DHTworker {
   bool addNode(const std::string& dest);
   bool addNode(const uint8_t *buf, size_t len);
   bool addNode(const i2p::data::IdentityEx &identity);
-  std::shared_ptr<Node> findNode(const i2p::data::IdentHash &ident) const; /// duplication check
+  sp_node findNode(const HashKey &ident) const; /// duplication check
 
-  std::shared_ptr<Node> getClosestNode(const i2p::data::IdentHash & key, bool to_us);
-  std::vector<std::shared_ptr<Node>> getClosestNodes(i2p::data::IdentHash key, size_t num, bool to_us);
+  sp_node getClosestNode(const HashKey & key, bool to_us);
+  std::vector<sp_node> getClosestNodes(HashKey key, size_t num, bool to_us);
 
-  std::vector<std::shared_ptr<Node>> getAllNodes();
-  std::vector<std::shared_ptr<Node>> getUnlockedNodes();
+  std::vector<sp_node> getAllNodes();
+  std::vector<sp_node> getUnlockedNodes();
   size_t getNodesCount() { return m_nodes_.size(); }
   size_t get_unlocked_nodes_count () { return getUnlockedNodes ().size (); }
+
+  std::vector<sp_comm_packet> findOne(HashKey hash, uint8_t type);
+  std::vector<sp_comm_packet> findAll(HashKey hash, uint8_t type);
+  std::vector<sp_comm_packet> find(HashKey hash, uint8_t type, bool exhaustive);
+  std::vector<std::string> store(HashKey hash, uint8_t type,
+                                 pbote::StoreRequestPacket packet);
+  
+
+  std::vector<std::string> deleteEmail(HashKey hash, uint8_t type,
+                                       pbote::EmailDeleteRequestPacket packet);
+  std::vector<std::string> deleteIndexEntry(HashKey index_dht_key,
+                                            HashKey email_dht_key,
+                                            HashKey del_auth);
+
+  std::vector<sp_node> closestNodesLookupTask(HashKey key);
+
+  std::vector<sp_node> receivePeerListV4(const uint8_t* buf, size_t len);
+  std::vector<sp_node> receivePeerListV5(const uint8_t* buf, size_t len);
+
+  void receiveRetrieveRequest(const sp_comm_packet& packet);
+  void receiveDeletionQuery(const sp_comm_packet& packet);
+  void receiveStoreRequest(const sp_comm_packet& packet);
+  void receiveEmailPacketDeleteRequest(const sp_comm_packet& packet);
+  void receiveIndexPacketDeleteRequest(const sp_comm_packet& packet);
+  void receiveFindClosePeers(const sp_comm_packet& packet);
+
+  /// Storage interfaces
   float get_storage_usage() { return dht_storage_.limit_used(); }
-
-  std::vector<std::shared_ptr<pbote::CommunicationPacket>> findOne(i2p::data::Tag<32> hash, uint8_t type);
-  std::vector<std::shared_ptr<pbote::CommunicationPacket>> findAll(i2p::data::Tag<32> hash, uint8_t type);
-  std::vector<std::shared_ptr<pbote::CommunicationPacket>> find(i2p::data::Tag<32> hash, uint8_t type, bool exhaustive);
-
-  std::vector<std::string> store(i2p::data::Tag<32> hash, uint8_t type, pbote::StoreRequestPacket packet);
   bool safe(const std::vector<uint8_t>& data) { return dht_storage_.safe(data); }
-
-  std::vector<std::string> deleteEmail(i2p::data::Tag<32> hash, uint8_t type, pbote::EmailDeleteRequestPacket packet);
-  std::vector<std::string> deleteIndexEntry(i2p::data::Tag<32> index_dht_key,
-                                            i2p::data::Tag<32> email_dht_key,
-                                            i2p::data::Tag<32> del_auth);
-
-  std::vector<uint8_t> getIndex(i2p::data::Tag<32> key) { return dht_storage_.getIndex(key); }
-  std::vector<uint8_t> getEmail(i2p::data::Tag<32> key) { return dht_storage_.getEmail(key); }
-  std::vector<uint8_t> getContact(i2p::data::Tag<32> key) { return dht_storage_.getContact(key); }
-
-  std::vector<std::shared_ptr<Node>> closestNodesLookupTask(i2p::data::Tag<32> key);
-
-  std::vector<std::shared_ptr<Node>> receivePeerListV4(const uint8_t* buf, size_t len);
-  std::vector<std::shared_ptr<Node>> receivePeerListV5(const uint8_t* buf, size_t len);
-  void receiveRetrieveRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  void receiveDeletionQuery(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  void receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  void receiveEmailPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  void receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  void receiveFindClosePeers(const std::shared_ptr<pbote::CommunicationPacket>& packet);
+  std::vector<uint8_t> getIndex(HashKey key) { return dht_storage_.getIndex(key); }
+  std::vector<uint8_t> getEmail(HashKey key) { return dht_storage_.getEmail(key); }
+  std::vector<uint8_t> getContact(HashKey key) { return dht_storage_.getContact(key); }
 
  private:
   void run();
@@ -184,21 +205,21 @@ class DHTworker {
   bool loadNodes();
   void writeNodes();
 
-  void counting_nodes_responses (std::vector<std::shared_ptr<pbote::CommunicationPacket>> responses);
+  void calc_locks (std::vector<sp_comm_packet> responses);
 
-  static pbote::FindClosePeersRequestPacket findClosePeersPacket(i2p::data::Tag<32> key);
-  static pbote::RetrieveRequestPacket retrieveRequestPacket(uint8_t data_type, i2p::data::Tag<32> key);
+  static pbote::FindClosePeersRequestPacket findClosePeersPacket(HashKey key);
+  static pbote::RetrieveRequestPacket retrieveRequestPacket(uint8_t data_type,
+                                                            HashKey key);
 
   bool isStarted() const { return started_; };
   static bool isHealthy() { return true; };
 
   bool started_;
   std::thread *m_worker_thread_;
-  std::shared_ptr<Node> local_node_;
-  std::map<std::vector<uint8_t>, std::shared_ptr<Node>> active_requests;
+  sp_node local_node_;
 
   mutable std::mutex m_nodes_mutex_;
-  std::map<i2p::data::IdentHash, std::shared_ptr<Node>> m_nodes_;
+  std::map<HashKey, sp_node> m_nodes_;
 
   // ToDo: K-bucket/routing table and S-bucket (NEED MORE DISCUSSION)
 
