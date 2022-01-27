@@ -24,8 +24,18 @@ namespace smtp
 {
 
 SMTP::SMTP (const std::string &address, int port)
-    : server_sockfd (-1), client_sockfd (-1), sin_size (0), server_addr (),
-      client_addr (), started (false), smtp_thread (nullptr)
+  : started (false),
+    processing (false),
+    smtp_thread (nullptr),
+    server_sockfd (-1),
+    client_sockfd (-1),
+    sin_size (0),
+    server_addr (),
+    client_addr (),
+    session_state (STATE_QUIT),
+    rcpt_user_num (0),
+    from_user (),
+    rcpt_user ()
 {
   std::memset (&server_addr, 0, sizeof (server_addr));
 
@@ -39,9 +49,19 @@ SMTP::SMTP (const std::string &address, int port)
   server_addr.sin_port = htons (port);
   server_addr.sin_addr.s_addr = htonl (INADDR_ANY);
   bzero (&(server_addr.sin_zero), 8);
+
+  memset (buf, 0, sizeof (buf));
 }
 
-SMTP::~SMTP () { stop (); }
+SMTP::~SMTP ()
+{
+  stop ();
+
+  smtp_thread->join ();
+
+  delete smtp_thread;
+  smtp_thread = nullptr;
+}
 
 void
 SMTP::start ()
@@ -53,16 +73,16 @@ SMTP::start ()
           == -1)
         {
           // ToDo: add error handling
-          LogPrint (eLogError, "SMTP: bind error: ", strerror (errno));
+          LogPrint (eLogError, "SMTP: Bind error: ", strerror (errno));
         }
 
       fcntl (server_sockfd, F_SETFL,
              fcntl (server_sockfd, F_GETFL, 0) | O_NONBLOCK);
 
-      if (listen (server_sockfd, MAX_CLIENTS - 1) == -1)
+      if (listen (server_sockfd, MAX_CLIENTS) == -1)
         {
           // ToDo: add error handling
-          LogPrint (eLogError, "SMTP: listen error: ", strerror (errno));
+          LogPrint (eLogError, "SMTP: Listen error: ", strerror (errno));
         }
 
       started = true;
@@ -73,15 +93,9 @@ SMTP::start ()
 void
 SMTP::stop ()
 {
-  for (auto &session : sessions)
-    session->stop ();
-
+  LogPrint (eLogInfo, "SMTP: Stopping server");
   started = false;
   close (server_sockfd);
-
-  smtp_thread->join ();
-  delete smtp_thread;
-  smtp_thread = nullptr;
 }
 
 void
@@ -92,85 +106,59 @@ SMTP::run ()
 
   while (started)
     {
-      if ((client_sockfd = accept (server_sockfd,
-                                   (struct sockaddr *)&client_addr, &sin_size))
-          == -1)
+      client_sockfd =
+        accept (server_sockfd, (struct sockaddr *)&client_addr, &sin_size);
+      if (client_sockfd == -1)
         {
           if (errno != EWOULDBLOCK && errno != EAGAIN)
             {
               // ToDo: add error handling
               LogPrint (eLogError, "SMTP: Accept error: ", strerror (errno));
             }
+            std::this_thread::sleep_for (std::chrono::seconds (1));
         }
       else
         {
-          LogPrint (eLogInfo, "SMTP: received connection from ",
+          LogPrint (eLogInfo, "SMTP: Received connection from ",
                     inet_ntoa (client_addr.sin_addr));
 
-          std::shared_ptr<SMTPsession> new_session
-              = std::make_shared<SMTPsession> (client_sockfd);
-          new_session->start ();
-          sessions.push_back (new_session);
+          s_handle ();
         }
-
-      // ToDo: Check and remove closed sessions
-      /*for (auto it = sessions.begin(); it != sessions.end(); it++) {
-        if (it.operator*()->stopped()) {
-          sessions.erase(it);
-        }
-      }*/
     }
 }
 
-SMTPsession::SMTPsession (int socket)
-    : started (false), session_thread (nullptr), client_sockfd (socket),
-      session_state (STATE_QUIT), rcpt_user_num (0), from_user (), rcpt_user ()
+void
+SMTP::s_handle ()
 {
-  memset (buf, 0, sizeof (buf));
-}
-
-SMTPsession::~SMTPsession ()
-{
-  LogPrint (eLogDebug, "SMTPsession: Destructor");
-  stop ();
-
-  session_thread->join ();
-  delete session_thread;
-  session_thread = nullptr;
+  processing = true;
+  s_process ();
 }
 
 void
-SMTPsession::start ()
+SMTP::s_finish ()
 {
-  started = true;
-  session_thread = new std::thread ([this] { run (); });
-}
-
-void
-SMTPsession::stop ()
-{
-  LogPrint (eLogDebug, "SMTPsession: stop");
-  started = false;
+  LogPrint (eLogDebug, "SMTPsession: Finish session");
+  processing = false;
   close (client_sockfd);
 }
 
 void
-SMTPsession::run ()
+SMTP::s_process ()
 {
-  LogPrint (eLogDebug, "SMTPsession: run: Prepare buffer");
+  LogPrint (eLogDebug, "SMTPsession: s_process: Prepare buffer");
   ssize_t len;
 
   reply (reply_2XX[CODE_220]);
   session_state = STATE_INIT;
 
-  while (started)
+  while (processing)
     {
       memset (buf, 0, sizeof (buf));
       len = recv (client_sockfd, buf, sizeof (buf), 0);
       if (len > 0)
         {
           std::string str_buf (buf);
-          LogPrint (eLogDebug, "SMTPsession: run: Request stream: ",
+          LogPrint (eLogDebug, "SMTPsession: s_process: Request stream: ",
                     str_buf.substr (0, str_buf.size () - 2));
           respond (buf);
         }
@@ -183,17 +171,18 @@ SMTPsession::run ()
         {
           // ToDo: add error handling
           // The server exit permanently
-          LogPrint (eLogError, "SMTPsession: run: Can't recieve data, exit");
+          LogPrint (eLogError,
+            "SMTPsession: s_process: Can't recieve data, exit");
           started = false;
           break;
         }
     }
-  LogPrint (eLogInfo, "SMTPsession: run: socket closed by client");
-  stop ();
+  LogPrint (eLogInfo, "SMTPsession: s_process: socket closed by client");
+  s_finish ();
 }
 
 void
-SMTPsession::respond (char *request)
+SMTP::respond (char *request)
 {
   char output[1024];
   memset (output, 0, sizeof (output));
@@ -258,7 +247,7 @@ SMTPsession::respond (char *request)
 }
 
 void
-SMTPsession::reply (const char *data)
+SMTP::reply (const char *data)
 {
   if (data != nullptr)
     {
@@ -271,7 +260,7 @@ SMTPsession::reply (const char *data)
 
 /// SMTP
 void
-SMTPsession::HELO ()
+SMTP::HELO ()
 {
   if (session_state == STATE_INIT)
     {
@@ -287,7 +276,7 @@ SMTPsession::HELO ()
 }
 
 void
-SMTPsession::EHLO ()
+SMTP::EHLO ()
 {
   if (session_state == STATE_INIT)
     {
@@ -308,7 +297,7 @@ SMTPsession::EHLO ()
 }
 
 void
-SMTPsession::MAIL (char *request)
+SMTP::MAIL (char *request)
 {
   if (strncmp (request, "MAIL FROM:", 10) == 0)
     {
@@ -360,7 +349,7 @@ SMTPsession::MAIL (char *request)
 }
 
 void
-SMTPsession::RCPT (char *request)
+SMTP::RCPT (char *request)
 {
   if (strncmp (request, "RCPT TO:", 8) == 0)
     {
@@ -412,7 +401,7 @@ SMTPsession::RCPT (char *request)
 }
 
 void
-SMTPsession::DATA ()
+SMTP::DATA ()
 {
   if (session_state == STATE_RCPT)
     {
@@ -447,35 +436,35 @@ SMTPsession::DATA ()
 }
 
 void
-SMTPsession::RSET ()
+SMTP::RSET ()
 {
   session_state = STATE_INIT;
   reply (reply_2XX[CODE_250]);
 }
 
 void
-SMTPsession::VRFY ()
+SMTP::VRFY ()
 {
   reply (reply_2XX[CODE_252]);
 }
 
 void
-SMTPsession::NOOP ()
+SMTP::NOOP ()
 {
   reply (reply_2XX[CODE_250]);
 }
 
 void
-SMTPsession::QUIT ()
+SMTP::QUIT ()
 {
   session_state = STATE_QUIT;
   reply (reply_2XX[CODE_221]);
-  stop ();
+  s_finish ();
 }
 
 /// Extension
 void
-SMTPsession::AUTH (char *request)
+SMTP::AUTH (char *request)
 {
   // ToDo: looks like we can keep pass hash in identity file
   //   for now ignored
@@ -498,19 +487,19 @@ SMTPsession::AUTH (char *request)
 }
 
 void
-SMTPsession::EXPN ()
+SMTP::EXPN ()
 {
   reply (reply_2XX[CODE_252]);
 }
 
 void
-SMTPsession::HELP ()
+SMTP::HELP ()
 {
   reply (reply_2XX[CODE_214]);
 }
 
 bool
-SMTPsession::check_identity (const std::string &name)
+SMTP::check_identity (const std::string &name)
 {
   LogPrint (eLogDebug, "SMTPsession: check_identity: name:",
             name.substr (0, name.size () - 2));
@@ -520,7 +509,7 @@ SMTPsession::check_identity (const std::string &name)
 }
 
 bool
-SMTPsession::check_recipient (const std::string &name)
+SMTP::check_recipient (const std::string &name)
 {
   LogPrint (eLogDebug, "SMTPsession: check_recipient: name:",
             name.substr (0, name.size () - 2));

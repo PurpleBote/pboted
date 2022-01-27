@@ -13,6 +13,7 @@
 #include <poll.h>
 #include <string>
 #include <sys/socket.h>
+#include <sys/types.h>
 
 #include "Email.h"
 
@@ -100,7 +101,12 @@ const char templates[][100] = {
   { "%d %s" }  // 1
 };
 
-class POP3session;
+/// POP3 session states
+#define STATE_QUIT 0        // Only after quit
+#define STATE_USER 1        // After TCP connection
+#define STATE_PASS 2        // After successful USER
+#define STATE_TRANSACTION 3 // After successful PASS
+#define STATE_UPDATE 4      // After disconnect from TRANSACTION
 
 class POP3
 {
@@ -114,39 +120,10 @@ public:
 private:
   void run ();
 
-  int server_sockfd, client_sockfd;
-  socklen_t sin_size;
-  struct sockaddr_in server_addr, client_addr;
+  void s_handle ();
+  void s_process ();
+  void s_finish ();
 
-  bool started;
-  std::thread *pop3_thread;
-  std::vector<std::shared_ptr<POP3session> > sessions;
-};
-
-/// POP3 session states
-#define STATE_QUIT 0        // Only after quit
-#define STATE_USER 1        // After TCP connection
-#define STATE_PASS 2        // After successful USER
-#define STATE_TRANSACTION 3 // After successful PASS
-#define STATE_UPDATE 4      // After disconnect from TRANSACTION
-
-class POP3session
-{
-public:
-  POP3session (int socket);
-  ~POP3session ();
-
-  void start ();
-  void stop ();
-
-  bool
-  stopped () const
-  {
-    return !started;
-  }
-
-private:
-  void run ();
   void respond (char *request);
   void reply (const char *data);
 
@@ -170,10 +147,13 @@ private:
   static bool check_user (const std::string &user);
   static bool check_pass (const std::string &pass);
 
-  bool started;
-  std::thread *session_thread;
+  bool started, processing;
+  std::thread *pop3_thread;
+  int server_sockfd, client_sockfd;
+  socklen_t sin_size;
+  struct sockaddr_in server_addr, client_addr;
 
-  int client_sockfd;
+  /// Session
   int session_state;
   char buf[BUF_SIZE];
 
