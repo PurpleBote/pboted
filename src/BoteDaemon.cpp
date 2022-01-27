@@ -197,37 +197,44 @@ bool Daemon_Singleton::stop() {
   LogPrint(eLogInfo, "Daemon: Start shutting down");
 
   if (d.SMTPserver) {
-    LogPrint(eLogInfo, "Daemon: Stopping SMTP Server");
+    LogPrint(eLogInfo, "Daemon: Stopping SMTP server");
     d.SMTPserver->stop();
     d.SMTPserver = nullptr;
+    LogPrint(eLogInfo, "Daemon: SMTP server stopped");
   }
 
   if (d.POP3server) {
-    LogPrint(eLogInfo, "Daemon: Stopping POP3 Server");
+    LogPrint(eLogInfo, "Daemon: Stopping POP3 server");
     d.POP3server->stop();
     d.POP3server = nullptr;
+    LogPrint(eLogInfo, "Daemon: POP3 server stopped");
   }
 
   if (isDaemon) {
     LogPrint(eLogInfo, "Daemon: Stopping control socket");
     d.control_server->stop();
+    LogPrint(eLogInfo, "Daemon: Control socket stopped");
   }
 
   LogPrint(eLogInfo, "Daemon: Stopping Email worker");
   pbote::kademlia::email_worker.stop();
+  LogPrint(eLogInfo, "Daemon: Email worker stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopping DHT worker");
   pbote::kademlia::DHT_worker.stop();
+  LogPrint(eLogInfo, "Daemon: DHT worker stopped");
 
-  LogPrint(eLogInfo, "Daemon: Stopping relay peers worker");
+  LogPrint(eLogInfo, "Daemon: Stopping relay worker");
   pbote::relay::relay_peers_worker.stop();
+  LogPrint(eLogInfo, "Daemon: Relay worker stopped");
 
-  // Looks like m_recvQueue->GetNext() hold stopping
-  //LogPrint(eLogInfo, "Daemon: stopping packet handler");
-  //pbote::packet::packet_handler.stop();
+  LogPrint(eLogInfo, "Daemon: Stopping packet handler");
+  pbote::packet::packet_handler.stop();
+  LogPrint(eLogInfo, "Daemon: Packet handler stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopping network worker");
   pbote::network::network_worker.stop();
+  LogPrint(eLogInfo, "Daemon: Network worker stopped");
 
   pbote::log::Logger().Stop();
 
