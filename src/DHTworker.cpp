@@ -24,22 +24,25 @@ DHTworker::DHTworker ()
     : started_(false),
       m_worker_thread_(nullptr),
       local_node_(nullptr)
-{
-  local_node_ =
-    std::make_shared<Node>(context.getLocalDestination()->ToBase64());
-}
+{}
 
 DHTworker::~DHTworker ()
 {
   stop ();
+
+  if (m_worker_thread_)
+    {
+      m_worker_thread_->join();
+      delete m_worker_thread_;
+      m_worker_thread_ = nullptr;
+    }
 }
 
 void
 DHTworker::start ()
 {
-  std::string loglevel;
-  pbote::config::GetOption("loglevel", loglevel);
-
+  local_node_ =
+    std::make_shared<Node>(context.getLocalDestination()->ToBase64());
   if (isStarted())
     return;
 
@@ -57,19 +60,12 @@ DHTworker::start ()
 void
 DHTworker::stop ()
 {
-  LogPrint(eLogWarning, "DHT: stopping");
   if (!isStarted())
     return;
 
   started_ = false;
-  if (m_worker_thread_)
-    {
-      m_worker_thread_->join();
-      delete m_worker_thread_;
-      m_worker_thread_ = nullptr;
-    }
 
-  LogPrint(eLogWarning, "DHT: stopped");
+  LogPrint(eLogWarning, "DHT: Stopped");
 }
 
 bool
@@ -1450,11 +1446,12 @@ DHTworker::receiveFindClosePeers (const sp_comm_packet &packet)
 void
 DHTworker::run ()
 {
-  while (started_) {
-    writeNodes ();
-    dht_storage_.update();
-    std::this_thread::sleep_for(std::chrono::seconds(60));
-  }
+  while (started_)
+    {
+      writeNodes ();
+      dht_storage_.update ();
+      std::this_thread::sleep_for (std::chrono::seconds (60));
+    }
 }
 
 std::vector<std::string>
@@ -1481,6 +1478,7 @@ DHTworker::readNodes ()
 bool
 DHTworker::loadNodes ()
 {
+  size_t counter = 0, dup = 0;
   std::vector<std::string> nodes_list = readNodes();
   std::vector<sp_node> nodes;
 
@@ -1492,33 +1490,38 @@ DHTworker::loadNodes ()
 
   if (!nodes.empty())
     {
-      size_t counter = 0, dup = 0;
+      
       for (const auto &node: nodes)
         {
           LogPrint(eLogDebug,
                    "DHT: loadNodes: Node: ", node->short_name ());
           auto t_hash = node->GetIdentHash();
           bool result =
-            m_nodes_.insert(std::pair<HashKey,
-                            sp_node>(t_hash,
-                                                   node)).second;
+            m_nodes_.insert(std::pair<HashKey, sp_node>(t_hash, node)).second;
+
           if (result)
             counter++;
           else
             dup++;
         }
-      
-      if (counter == 0)
-        LogPrint(eLogInfo, "DHT: loadNodes: Can't load nodes, try bootstrap");
-      else
-        {
-          LogPrint(eLogInfo, "DHT: loadNodes: Nodes loaded: ", counter,
-                   ", duplicated: ", dup);
-          return true;
-        }
+    }
+
+  if (counter > 0)
+    {
+      LogPrint(eLogInfo,
+        "DHT: loadNodes: Nodes loaded: ", counter, ", duplicated: ", dup);
+
+      /// Now we need lock all loaded nodes for initial check in
+      /// first running of closestNodesLookupTask
+      for (auto node : m_nodes_)
+        node.second->noResponse ();
+
+      return true;
     }
 
   // Only if we have no nodes in storage
+  LogPrint(eLogInfo, "DHT: loadNodes: Can't load nodes, try bootstrap");
+
   std::vector<std::string> bootstrap_addresses;
   pbote::config::GetOption("bootstrap.address", bootstrap_addresses);
 
