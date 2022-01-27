@@ -13,6 +13,7 @@
 #include <poll.h>
 #include <string>
 #include <sys/socket.h>
+#include <sys/types.h>
 
 #include "Email.h"
 
@@ -110,7 +111,43 @@ const char reply_5XX[][100] = {
     "implemented\r\n" } // 11
 };
 
-class SMTPsession;
+/// SMTP
+#define STATE_QUIT 0 // Only after quit
+#define STATE_INIT 1 // After TCP connection
+#define STATE_HELO 2 // After HELO command
+#define STATE_MAIL 3 // After MAIL command
+#define STATE_RCPT 4 // After RCPT command
+#define STATE_DATA 5 // After DATA command
+/// Extension
+#define STATE_EHLO 10 // After HELO command
+#define STATE_STLS 11 // After STARTTLS command
+#define STATE_AUTH 12 // After AUTH command
+
+/*struct Session
+{
+  bool processing;
+  //std::thread *session_thread;
+
+  int client_sockfd;
+  int session_state;
+  char buf[BUF_SIZE];
+
+  int rcpt_user_num;
+  char from_user[512];
+  char rcpt_user[MAX_RCPT_USR][512];
+  pbote::Email mail;
+
+  Session::Session(int socket)
+    : processing (false),
+      client_sockfd (socket),
+      session_state (STATE_QUIT),
+      rcpt_user_num (0),
+      from_user (),
+      rcpt_user ()
+  {
+    memset (buf, 0, sizeof (buf));
+  }
+};*/
 
 class SMTP
 {
@@ -124,44 +161,10 @@ public:
 private:
   void run ();
 
-  int server_sockfd, client_sockfd;
-  socklen_t sin_size;
-  struct sockaddr_in server_addr, client_addr;
+  void s_handle ();
+  void s_process ();
+  void s_finish ();
 
-  bool started;
-  std::thread *smtp_thread;
-  std::vector<std::shared_ptr<SMTPsession> > sessions;
-};
-
-/// SMTP
-#define STATE_QUIT 0 // Only after quit
-#define STATE_INIT 1 // After TCP connection
-#define STATE_HELO 2 // After HELO command
-#define STATE_MAIL 3 // After MAIL command
-#define STATE_RCPT 4 // After RCPT command
-#define STATE_DATA 5 // After DATA command
-/// Extension
-#define STATE_EHLO 10 // After HELO command
-#define STATE_STLS 11 // After STARTTLS command
-#define STATE_AUTH 12 // After AUTH command
-
-class SMTPsession
-{
-public:
-  SMTPsession (int socket);
-  ~SMTPsession ();
-
-  void start ();
-  void stop ();
-
-  bool
-  stopped () const
-  {
-    return !started;
-  }
-
-private:
-  void run ();
   void respond (char *request);
   void reply (const char *data);
 
@@ -184,10 +187,14 @@ private:
   static bool check_identity (const std::string &name);
   static bool check_recipient (const std::string &name);
 
-  bool started;
-  std::thread *session_thread;
+  bool started, processing;
+  std::thread *smtp_thread;
 
-  int client_sockfd;
+  int server_sockfd, client_sockfd;
+  socklen_t sin_size;
+  struct sockaddr_in server_addr, client_addr;
+
+  /// Session
   int session_state;
   char buf[BUF_SIZE];
 
