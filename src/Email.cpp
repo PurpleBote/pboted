@@ -38,7 +38,7 @@ Email::Email()
       empty_(true),
       skip_(false),
       deleted_(false) {
-  compose();
+  //compose();
 }
 
 Email::Email(const std::vector<uint8_t> &data, bool from_net)
