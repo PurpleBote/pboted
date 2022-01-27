@@ -74,8 +74,10 @@ UDPReceiver::~UDPReceiver ()
 {
   delete m_RecvThread;
   m_RecvThread = nullptr;
+
   freeaddrinfo (f_addrinfo);
   close (f_socket);
+
   m_recvQueue = nullptr;
 }
 
@@ -218,8 +220,10 @@ UDPSender::~UDPSender ()
 {
   delete m_SendThread;
   m_SendThread = nullptr;
+
   freeaddrinfo (f_addrinfo);
   close (f_socket);
+  
   m_sendQueue = nullptr;
 }
 

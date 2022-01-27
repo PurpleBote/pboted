@@ -23,86 +23,127 @@ namespace kademlia
 
 EmailWorker email_worker;
 
-EmailWorker::EmailWorker()
-    : started_(false),
-      m_send_email_thread_(nullptr),
-      m_worker_thread_(nullptr) {}
+EmailWorker::EmailWorker ()
+  : started_(false),
+    m_send_thread_(nullptr),
+    m_worker_thread_(nullptr)
+  {}
 
-EmailWorker::~EmailWorker() {
+EmailWorker::~EmailWorker ()
+{
   stop();
-}
 
-void EmailWorker::start() {
-  if (!started_) {
-    started_ = true;
-    email_identities = context.getEmailIdentities();
-    if (email_identities.empty()) {
-      LogPrint(eLogError, "EmailWorker: have no identities for start");
-    } else {
-      LogPrint(eLogInfo, "EmailWorker: have ", email_identities.size(), " identities");
-      startCheckEmailTasks();
-      startSendEmailTask();
-    }
-    m_worker_thread_ = new std::thread([this] { run(); });
-  }
-}
+  if (m_worker_thread_)
+    {
+      m_worker_thread_->join ();
 
-void EmailWorker::stop() {
-  LogPrint(eLogWarning, "EmailWorker: stopping");
-  if (started_) {
-    started_ = false;
-    stopCheckEmailTasks();
-    stopSendEmailTask();
-
-    if (m_worker_thread_) {
-      m_worker_thread_->join();
       delete m_worker_thread_;
       m_worker_thread_ = nullptr;
     }
-  }
-  LogPrint(eLogWarning, "EmailWorker: stopped");
 }
 
-void EmailWorker::startCheckEmailTasks() {
-  if (started_) {
-    for (const auto &email_identity: email_identities) {
-      // ToDo: move to object?
-      LogPrint(eLogInfo, "EmailWorker: start startCheckEmailTasks for identity ", email_identity->publicName);
-      auto new_thread = std::make_shared<std::thread>([this, email_identity] { checkEmailTask(email_identity); });
-      m_check_email_threads_.push_back(new_thread);
+void
+EmailWorker::start ()
+{
+  if (started_ && m_worker_thread_)
+    return;
+
+  if (context.get_identities_count () == 0)
+    LogPrint(eLogError, "EmailWorker: Have no Bote identities for start");
+  else
+    {
+      startSendEmailTask();
+      startCheckEmailTasks();
     }
-  }
+
+  started_ = true;
+  m_worker_thread_ = new std::thread([this] { run(); });
 }
 
-bool EmailWorker::stopCheckEmailTasks() {
-  LogPrint(eLogInfo, "EmailWorker: stop checkEmailTask");
-  for (const auto& thread: m_check_email_threads_) {
-    thread->join();
+void
+EmailWorker::stop ()
+{
+  if (!started_)
+    return;
+
+  started_ = false;
+  stopSendEmailTask();
+  stopCheckEmailTasks();
+
+  LogPrint(eLogWarning, "EmailWorker: Stopped");
+}
+
+void
+EmailWorker::startCheckEmailTasks()
+{
+  if (!started_ || !context.get_identities_count ())
+    return;
+
+  auto email_identities = context.getEmailIdentities ();
+  // ToDo: move to object?
+  for (const auto &identity: email_identities)
+    {
+      bool thread_exist = check_thread_exist (identity->publicName);
+      if (thread_exist)
+        continue;
+
+      auto new_thread =
+        std::make_shared<std::thread>([this, identity] { checkEmailTask (identity); });
+
+      LogPrint(eLogInfo, "EmailWorker: Start check task for ",
+        identity->publicName);
+      m_check_threads_[identity->publicName] = std::move(new_thread);
+    }
+}
+
+bool
+EmailWorker::stopCheckEmailTasks ()
+{
+  LogPrint(eLogInfo, "EmailWorker: Stopping check tasks");
+
+  while (!m_check_threads_.empty ())
+  {
+    auto it = m_check_threads_.begin ();
+
+    it->second->join ();
+    m_check_threads_.erase(it->first);
+    LogPrint(eLogInfo, "EmailWorker: Task for ", it->first, " stopped");
   }
-  LogPrint(eLogInfo, "EmailWorker: checkEmailTask stopped");
+
+  LogPrint(eLogInfo, "EmailWorker: Check tasks stopped");
   return true;
 }
 
-void EmailWorker::startSendEmailTask() {
-  if (started_) {
-    LogPrint(eLogInfo, "EmailWorker: start sendEmailTask");
-    m_send_email_thread_ = new std::thread([this] { sendEmailTask(); });
-  }
+void
+EmailWorker::startSendEmailTask ()
+{
+  if (!started_ || !context.get_identities_count ())
+    return;
+
+  LogPrint(eLogInfo, "EmailWorker: Start send task");
+  m_send_thread_ = new std::thread([this] { sendEmailTask(); });
 }
 
-bool EmailWorker::stopSendEmailTask() {
-  LogPrint(eLogInfo, "EmailWorker: stop sendEmailTask");
+bool
+EmailWorker::stopSendEmailTask ()
+{
+  LogPrint(eLogInfo, "EmailWorker: Stopping send task");
 
-  if (m_send_email_thread_ && !started_) {
-    m_send_email_thread_->join();
-    delete m_send_email_thread_;
-    m_send_email_thread_ = nullptr;
+  if (m_send_thread_ && !started_)
+  {
+    m_send_thread_->join();
+
+    delete m_send_thread_;
+    m_send_thread_ = nullptr;
   }
-  LogPrint(eLogInfo, "EmailWorker: sendEmailTask stopped");
+
+  LogPrint(eLogInfo, "EmailWorker: Send task stopped");
   return true;
 }
 
-std::vector<std::shared_ptr<pbote::Email>> EmailWorker::check_inbox() {
+std::vector<std::shared_ptr<pbote::Email>>
+EmailWorker::check_inbox ()
+{
   LogPrint(eLogDebug, "EmailWorker: check_inbox: start");
 
   // outbox - plain text packet
@@ -112,7 +153,9 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::check_inbox() {
   auto result = pbote::fs::ReadDir(outboxPath, mails_path);
 
   std::vector<std::shared_ptr<pbote::Email>> emails;
-  if (result) {
+
+  if (result)
+  {
     for (const auto &mail_path: mails_path) {
       // read mime packet
       std::ifstream file(mail_path, std::ios::binary);
@@ -145,117 +188,144 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::check_inbox() {
   return emails;
 }
 
-void EmailWorker::run() {
-  while (started_) {
-    // ToDo: run checkEmailTask for new loaded identities
-    auto new_identities = context.getEmailIdentities();
-    if (!new_identities.empty()) {
-      email_identities = new_identities;
-      LogPrint(eLogInfo, "EmailWorker: update identities, now: ", email_identities.size());
-    } else {
-      LogPrint(eLogWarning, "EmailWorker: have no identities for start");
+void
+EmailWorker::run ()
+{
+  while (started_)
+  {
+    size_t id_count = context.get_identities_count ();
+
+    if (id_count)
+    {
+      LogPrint (eLogInfo, "EmailWorker: Update identities, now: ", id_count);
+      startCheckEmailTasks ();
+
+      if (!m_send_thread_)
+      {
+        LogPrint (eLogDebug, "EmailWorker: Send task not run, try to start");
+        startSendEmailTask ();
+      }
+    }
+    else
+    {
+      LogPrint (eLogWarning, "EmailWorker: Have no identities for start");
+      stopSendEmailTask ();
+      stopCheckEmailTasks ();
     }
 
-    if (m_check_email_threads_.empty() && started_ && !new_identities.empty()) {
-      LogPrint(eLogDebug, "EmailWorker: checkEmailTask not run, try to start");
-      startCheckEmailTasks();
-    }
-
-    if (!m_send_email_thread_ && started_ && !new_identities.empty()) {
-      LogPrint(eLogDebug, "EmailWorker: sendEmailTask not run, try to start");
-      startSendEmailTask();
-    }
-
-    std::this_thread::sleep_for(std::chrono::seconds(60));
+    std::this_thread::sleep_for (std::chrono::seconds (60));
   }
 }
 
-void EmailWorker::checkEmailTask(const std::shared_ptr<pbote::BoteIdentityFull> &email_identity) {
-  while (started_) {
+void
+EmailWorker::checkEmailTask (const sp_id_full &email_identity)
+{
+  bool first_complete = false;
+  std::string id_name = email_identity->publicName;
+  while (started_)
+  {
+    // ToDo: read interval parameter from config
+    if (first_complete)
+      std::this_thread::sleep_for(std::chrono::seconds(CHECK_EMAIL_INTERVAL));
+    first_complete = true;
+
     auto index_packets = retrieveIndex(email_identity);
 
     auto local_index_packet = DHT_worker.getIndex(email_identity->identity.GetIdentHash());
-    if (!local_index_packet.empty()) {
-      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
-               email_identity->publicName,
-               ": got ", local_index_packet.size(),
-               " local index packet(s) for identity");
 
-      /// from_net is true, because we save it as is
-      pbote::IndexPacket parsed_local_index_packet;
-      bool parsed = parsed_local_index_packet.fromBuffer(local_index_packet, true);
+    if (!local_index_packet.empty())
+      {
+        LogPrint(eLogDebug, "EmailWorker: Check task: ", id_name, ": got ",
+          local_index_packet.size(), " local index");
 
-      if (parsed && parsed_local_index_packet.data.size() == parsed_local_index_packet.nump) {
-        index_packets.push_back(parsed_local_index_packet);
+        /// from_net is true, because we save it as is
+        pbote::IndexPacket parsed_local_index_packet;
+        bool parsed =
+          parsed_local_index_packet.fromBuffer(local_index_packet, true);
+
+        if (parsed &&
+            parsed_local_index_packet.data.size() == parsed_local_index_packet.nump)
+          {
+            index_packets.push_back(parsed_local_index_packet);
+          }
       }
-    } else {
-      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
-               email_identity->publicName,
-               ": can't find local index packets for identity");
-    }
-    LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
-             email_identity->publicName,
-             ": index count: ", index_packets.size());
+    else
+      {
+        LogPrint(eLogDebug,
+          "EmailWorker: Check task: ", id_name, ": Can't find local index");
+      }
+
+    LogPrint(eLogDebug, "EmailWorker: Check task: ", id_name,
+      ": Index count: ", index_packets.size());
 
     auto enc_mail_packets = retrieveEmailPacket(index_packets);
-    LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ",
-             email_identity->publicName,
-             ": mail count: ", enc_mail_packets.size());
 
-    if (!enc_mail_packets.empty()) {
-      auto emails = processEmail(email_identity, enc_mail_packets);
+    LogPrint(eLogDebug, "EmailWorker: Check task: ", id_name,
+             ": Mail count: ", enc_mail_packets.size());
 
-      LogPrint(eLogInfo, "EmailWorker: checkEmailTask: ",
-               email_identity->publicName,
-               ": email(s) processed: ", emails.size());
-
-      // ToDo: check mail signature
-      for (auto mail: emails) {
-        mail.save("inbox");
-
-        pbote::EmailDeleteRequestPacket delete_email_packet;
-
-        auto email_packet = mail.getDecrypted();
-        memcpy(delete_email_packet.DA, email_packet.DA, 32);
-        auto enc_email_packet = mail.getEncrypted();
-        memcpy(delete_email_packet.key, enc_email_packet.key, 32);
-
-        i2p::data::Tag<32> email_dht_key(enc_email_packet.key);
-        i2p::data::Tag<32> email_del_auth(email_packet.DA);
-
-        // We need to remove all received email packets
-        // ToDo: check status of responses
-        DHT_worker.deleteEmail(email_dht_key, DataE, delete_email_packet);
-
-        // Delete index packets
-        // ToDo: add multipart email support
-        DHT_worker.deleteIndexEntry(email_identity->identity.GetIdentHash(), email_dht_key, email_del_auth);
-      }
-    } else {
-      LogPrint(eLogDebug, "EmailWorker: checkEmailTask: ", email_identity->publicName, ": have no emails for process");
+    if (enc_mail_packets.empty())
+    {
+      LogPrint(eLogDebug, "EmailWorker: Check task: ", id_name,
+        ": Have no mail for process");
+      LogPrint(eLogInfo, "EmailWorker: Check task: ", id_name, ": complete");
+      continue;
     }
+
+    auto emails = processEmail(email_identity, enc_mail_packets);
+
+    LogPrint(eLogInfo, "EmailWorker: Check task: ", id_name,
+             ": email(s) processed: ", emails.size());
+
+    // ToDo: check mail signature
+    for (auto mail: emails)
+    {
+      mail.save("inbox");
+
+      pbote::EmailDeleteRequestPacket delete_email_packet;
+
+      auto email_packet = mail.getDecrypted();
+      memcpy(delete_email_packet.DA, email_packet.DA, 32);
+      auto enc_email_packet = mail.getEncrypted();
+      memcpy(delete_email_packet.key, enc_email_packet.key, 32);
+
+      i2p::data::Tag<32> email_dht_key(enc_email_packet.key);
+      i2p::data::Tag<32> email_del_auth(email_packet.DA);
+
+      // We need to remove all received email packets
+      // ToDo: check status of responses
+      DHT_worker.deleteEmail(email_dht_key, DataE, delete_email_packet);
+
+      // Delete index packets
+      // ToDo: add multipart email support
+      DHT_worker.deleteIndexEntry(email_identity->identity.GetIdentHash(),
+                                  email_dht_key, email_del_auth);
+    }
+
 
     // ToDo: check sent emails status
     //   if nodes sent empty response - mark as deleted (delivered)
 
-    LogPrint(eLogInfo, "EmailWorker: checkEmailTask: ",
-             email_identity->publicName, ": Round complete");
-    // ToDo: read interval parameter from config
-    std::this_thread::sleep_for(std::chrono::seconds(CHECK_EMAIL_INTERVAL));
+    LogPrint(eLogInfo, "EmailWorker: Check task:  ", id_name, ": complete");
   }
 }
 
-void EmailWorker::incompleteEmailTask() {
+void
+EmailWorker::incompleteEmailTask ()
+{
   // ToDo: need to implement for multipart mail packets
 }
 
-void EmailWorker::sendEmailTask() {
+void
+EmailWorker::sendEmailTask ()
+{
   while (started_) {
-    // compress packet with ZLIB
     // ToDo: don't forget, for tests sent uncompressed
+    // ToDo: slice big packet after compress
+
+    /// Compress packet with ZLIB
+
     //for (auto packet : emailPackets)
     //  lzmaCompress(packet.data, packet.data);
-    // ToDo: slice big packet after compress
 
     std::vector<std::string> nodes;
     auto outbox = checkOutbox();
@@ -294,16 +364,27 @@ void EmailWorker::sendEmailTask() {
         // Get FROM identity
         auto from_name = email->field("From");
         auto identity_name = from_name.substr(0, from_name.find(' '));
-        auto identity = pbote::context.identityByName(identity_name);
+        sp_id_full identity = pbote::context.identityByName(identity_name);
+
         // ToDo: sign email
-        if (!identity) {
-          if (!email_identities.empty()) {
-            LogPrint(eLogWarning, "EmailWorker: sendEmailTask: Can't find identity with name: ", identity_name,
-                     ", we can use any other for encrypt data.");
+
+        if (!identity)
+        {
+          if (context.get_identities_count ())
+          {
+            auto email_identities = context.getEmailIdentities ();
+            LogPrint(eLogWarning, "EmailWorker: sendEmailTask: Can't find identity with name: ",
+              identity_name);
+
             identity = email_identities[0];
-          } else {
+            LogPrint(eLogWarning, "EmailWorker: sendEmailTask: Try to use ",
+              identity->publicName," just for encrypt data");
+          }
+          else
+          {
             LogPrint(eLogError, "EmailWorker: sendEmailTask: Have no identities, stopping send task");
             stopSendEmailTask();
+            return;
           }
         }
 
@@ -458,7 +539,9 @@ void EmailWorker::sendEmailTask() {
   }
 }
 
-std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr<pbote::BoteIdentityFull> &identity) {
+std::vector<pbote::IndexPacket>
+EmailWorker::retrieveIndex(const sp_id_full &identity)
+{
   auto identity_hash = identity->identity.GetIdentHash();
   LogPrint(eLogDebug, "EmailWorker: retrieveIndex: Try to find index for: ", identity_hash.ToBase64());
   // Use findAll rather than findOne because some peers might have an incomplete set of
@@ -530,7 +613,9 @@ std::vector<pbote::IndexPacket> EmailWorker::retrieveIndex(const std::shared_ptr
   return res;
 }
 
-std::vector<pbote::EmailEncryptedPacket> EmailWorker::retrieveEmailPacket(const std::vector<pbote::IndexPacket> &index_packets) {
+std::vector<pbote::EmailEncryptedPacket>
+EmailWorker::retrieveEmailPacket(const std::vector<pbote::IndexPacket> &index_packets)
+{
   std::vector<std::shared_ptr<pbote::CommunicationPacket>> responses;
   std::vector<pbote::EmailEncryptedPacket> local_email_packets;
 
@@ -626,7 +711,9 @@ std::vector<pbote::EmailEncryptedPacket> EmailWorker::retrieveEmailPacket(const 
   return res;
 }
 
-std::vector<pbote::EmailUnencryptedPacket> EmailWorker::loadLocalIncompletePacket() {
+std::vector<pbote::EmailUnencryptedPacket>
+EmailWorker::loadLocalIncompletePacket ()
+{
   // ToDo: TBD
   // ToDo: move to ?
   /*std::string indexPacketPath = pbote::fs::DataDirPath("incomplete");
@@ -651,7 +738,9 @@ std::vector<pbote::EmailUnencryptedPacket> EmailWorker::loadLocalIncompletePacke
   return {};
 }
 
-std::vector<std::shared_ptr<pbote::Email>> EmailWorker::checkOutbox() {
+std::vector<std::shared_ptr<pbote::Email>>
+EmailWorker::checkOutbox ()
+{
   LogPrint(eLogDebug, "EmailWorker: checkOutbox: start");
 
   // outbox - plain text packet
@@ -793,8 +882,10 @@ std::vector<std::shared_ptr<pbote::Email>> EmailWorker::checkOutbox() {
   return emails;
 }
 
-std::vector<pbote::Email> EmailWorker::processEmail(const std::shared_ptr<pbote::BoteIdentityFull>& identity,
-                                                    const std::vector<pbote::EmailEncryptedPacket> &mail_packets) {
+std::vector<pbote::Email>
+EmailWorker::processEmail(const sp_id_full& identity,
+                          const std::vector<pbote::EmailEncryptedPacket> &mail_packets)
+{
   // ToDo: move to incompleteEmailTask?
   LogPrint(eLogDebug, "EmailWorker: processEmail: emails for process: ", mail_packets.size());
   std::vector<pbote::Email> emails;
@@ -820,6 +911,16 @@ std::vector<pbote::Email> EmailWorker::processEmail(const std::shared_ptr<pbote:
 
   LogPrint(eLogDebug, "EmailWorker: processEmail: processed emails: ", emails.size());
   return emails;
+}
+
+bool
+EmailWorker::check_thread_exist (const std::string &identity_name)
+{
+  auto it = m_check_threads_.find(identity_name);
+  if (it != m_check_threads_.end())
+    return true;
+
+  return false;
 }
 
 } // namespace kademlia

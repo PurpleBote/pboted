@@ -21,8 +21,12 @@
 namespace pbote {
 namespace kademlia {
 
-const int SEND_EMAIL_INTERVAL = 5 * 60;
-const int CHECK_EMAIL_INTERVAL = 5 * 60;
+#define SEND_EMAIL_INTERVAL (5 * 60)
+#define CHECK_EMAIL_INTERVAL (5 * 60)
+
+using sp_id_full = std::shared_ptr<pbote::BoteIdentityFull>;
+using thread_map = std::unordered_map<std::string, std::shared_ptr<std::thread>>;
+
 
 class EmailWorker {
 public:
@@ -45,29 +49,30 @@ private:
   void run();
 
   void
-  checkEmailTask(const std::shared_ptr<pbote::BoteIdentityFull> &identity);
+  checkEmailTask(const sp_id_full &identity);
   void incompleteEmailTask();
   void sendEmailTask();
 
   std::vector<pbote::IndexPacket>
-  retrieveIndex(const std::shared_ptr<pbote::BoteIdentityFull> &identity);
+  retrieveIndex(const sp_id_full &identity);
   std::vector<pbote::EmailEncryptedPacket>
   retrieveEmailPacket(const std::vector<pbote::IndexPacket> &index_packets);
 
-  static std::vector<pbote::EmailUnencryptedPacket> loadLocalIncompletePacket();
+  static std::vector<pbote::EmailUnencryptedPacket>
+  loadLocalIncompletePacket();
 
   static std::vector<std::shared_ptr<pbote::Email>> checkOutbox();
 
   std::vector<pbote::Email>
-  processEmail(const std::shared_ptr<pbote::BoteIdentityFull> &identity,
+  processEmail(const sp_id_full &identity,
                const std::vector<pbote::EmailEncryptedPacket> &mail_packets);
 
-  bool started_;
-  std::vector<std::shared_ptr<std::thread>> m_check_email_threads_;
-  std::thread *m_send_email_thread_;
-  std::thread *m_worker_thread_;
+  bool check_thread_exist (const std::string &identity_name);
 
-  std::vector<std::shared_ptr<pbote::BoteIdentityFull>> email_identities;
+  bool started_;
+  std::thread *m_send_thread_;
+  std::thread *m_worker_thread_;
+  thread_map m_check_threads_;
 };
 
 extern EmailWorker email_worker;
