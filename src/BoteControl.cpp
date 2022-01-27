@@ -62,33 +62,36 @@ BoteControl::BoteControl (const std::string &sock_path)
   handlers["node"] = &BoteControl::node;
 }
 
-BoteControl::~BoteControl () { stop (); }
+BoteControl::~BoteControl ()
+{
+  stop ();
+
+  if (m_thread)
+    {
+      m_thread->join ();
+      delete m_thread;
+      m_thread = nullptr;
+    }
+}
 
 void
 BoteControl::start ()
 {
-  if (!m_is_running)
-    {
-      m_is_running = true;
-      m_thread = new std::thread ([this] { run (); });
-    }
+  if (m_is_running)
+    return;
+
+  m_is_running = true;
+  m_thread = new std::thread ([this] { run (); });
 }
 
 void
 BoteControl::stop ()
 {
-  if (m_is_running)
-    {
-      m_is_running = false;
-      close ();
+  if (!m_is_running)
+    return;
 
-      if (m_thread)
-        {
-          m_thread->join ();
-          delete m_thread;
-          m_thread = nullptr;
-        }
-    }
+  m_is_running = false;
+  close ();
 }
 
 void
