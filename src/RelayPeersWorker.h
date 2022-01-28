@@ -29,11 +29,11 @@ namespace relay
 #define MAX_PEERS_TO_SEND 20
 
 /// Percentage of requests sent to a peer / responses received back
-#define PEER_MIN_REACHABILITY 80
-#define PEER_MAX_REACHABILITY 1000 // for tests
+#define PEER_MIN_REACHABILITY 20 // ~1 day
+#define PEER_MAX_REACHABILITY 25
 
-/// Time in minutes between updating peers if no high-reachability peers are
-/// known
+/// Time in minutes between updating peers if no high-reachability
+/// peers are known
 #define UPDATE_INTERVAL_SHORT (2 * 60)
 
 /// Time in minutes between updating peers if at least one high-reachability
@@ -103,6 +103,9 @@ private:
   size_t samples;
 };
 
+using sp_peer = std::shared_ptr<RelayPeer>;
+using hash_key = i2p::data::Tag<32>;
+
 class RelayPeersWorker
 {
 public:
@@ -116,18 +119,17 @@ public:
   bool addPeer (const std::string &peer);
   bool addPeer (const std::shared_ptr<i2p::data::IdentityEx> &identity,
                 int samples);
-  void addPeers (const std::vector<std::shared_ptr<RelayPeer> > &peers);
+  void addPeers (const std::vector<sp_peer> &peers);
 
-  std::shared_ptr<RelayPeer>
-  findPeer (const i2p::data::IdentHash &ident) const;
+  sp_peer findPeer (const hash_key &ident) const;
   static std::vector<std::string> readPeers ();
   void writePeers ();
   bool loadPeers ();
 
   void getRandomPeers ();
-  std::vector<std::shared_ptr<RelayPeer> > getGoodPeers ();
-  std::vector<std::shared_ptr<RelayPeer> > getGoodPeers (uint8_t num);
-  std::vector<std::shared_ptr<RelayPeer> > getAllPeers ();
+  std::vector<sp_peer> getGoodPeers ();
+  std::vector<sp_peer> getGoodPeers (uint8_t num);
+  std::vector<sp_peer> getAllPeers ();
   size_t getPeersCount ();
   size_t get_good_peer_count ();
 
@@ -145,7 +147,7 @@ private:
   std::thread *m_worker_thread_;
 
   mutable std::mutex m_peers_mutex_;
-  std::map<i2p::data::IdentHash, std::shared_ptr<RelayPeer> > m_peers_;
+  std::map<hash_key, sp_peer> m_peers_;
 
   unsigned long task_start_time;
 };
