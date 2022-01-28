@@ -18,54 +18,55 @@
 
 #include "Email.h"
 
-namespace pbote {
-namespace kademlia {
+namespace pbote
+{
+namespace kademlia
+{
 
 #define SEND_EMAIL_INTERVAL (5 * 60)
 #define CHECK_EMAIL_INTERVAL (5 * 60)
 
 using sp_id_full = std::shared_ptr<pbote::BoteIdentityFull>;
-using thread_map = std::unordered_map<std::string, std::shared_ptr<std::thread>>;
+using thread_map
+    = std::unordered_map<std::string, std::shared_ptr<std::thread> >;
 
-
-class EmailWorker {
+class EmailWorker
+{
 public:
-  EmailWorker();
-  ~EmailWorker();
+  EmailWorker ();
+  ~EmailWorker ();
 
-  void start();
-  void stop();
+  void start ();
+  void stop ();
 
-  void startCheckEmailTasks();
-  bool stopCheckEmailTasks();
-  void startIncompleteEmailTask();
-  bool stopIncompleteEmailTask();
-  void startSendEmailTask();
-  bool stopSendEmailTask();
+  void startCheckEmailTasks ();
+  bool stopCheckEmailTasks ();
+  void startIncompleteEmailTask ();
+  bool stopIncompleteEmailTask ();
+  void startSendEmailTask ();
+  bool stopSendEmailTask ();
 
-  std::vector<std::shared_ptr<pbote::Email>> check_inbox();
+  std::vector<std::shared_ptr<pbote::Email> > check_inbox ();
 
 private:
-  void run();
+  void run ();
 
-  void
-  checkEmailTask(const sp_id_full &identity);
-  void incompleteEmailTask();
-  void sendEmailTask();
+  void checkEmailTask (const sp_id_full &identity);
+  void incompleteEmailTask ();
+  void sendEmailTask ();
 
-  std::vector<pbote::IndexPacket>
-  retrieveIndex(const sp_id_full &identity);
+  std::vector<pbote::IndexPacket> retrieveIndex (const sp_id_full &identity);
   std::vector<pbote::EmailEncryptedPacket>
-  retrieveEmailPacket(const std::vector<pbote::IndexPacket> &index_packets);
+  retrieveEmailPacket (const std::vector<pbote::IndexPacket> &index_packets);
 
   static std::vector<pbote::EmailUnencryptedPacket>
-  loadLocalIncompletePacket();
+  loadLocalIncompletePacket ();
 
-  static std::vector<std::shared_ptr<pbote::Email>> checkOutbox();
+  static std::vector<std::shared_ptr<pbote::Email> > checkOutbox ();
 
   std::vector<pbote::Email>
-  processEmail(const sp_id_full &identity,
-               const std::vector<pbote::EmailEncryptedPacket> &mail_packets);
+  processEmail (const sp_id_full &identity,
+                const std::vector<pbote::EmailEncryptedPacket> &mail_packets);
 
   bool check_thread_exist (const std::string &identity_name);
 
