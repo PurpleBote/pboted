@@ -6,15 +6,15 @@
 
 pboted (Plus Bote Daemon) - is a standalone C++ implementation of I2P-Bote protocol.
 
-I2P-Bote is a server-less encrypted KademliaDHT-based email protocol.   
+I2P-Bote is a server-less encrypted KademliaDHT-based email protocol.  
 You can find more details in the [documentation](https://pboted.readthedocs.io/en/latest/bote/v5/version5/).
 
-Interaction with the I2P network occurs through the [SAMv3](https://geti2p.net/ru/docs/api/samv3) interface.    
+Interaction with the I2P network occurs through the [SAMv3](https://geti2p.net/ru/docs/api/samv3) interface.  
 Tested with [i2pd](https://github.com/PurpleI2P/i2pd) and [Java I2P](https://github.com/i2p/i2p.i2p).
 
 ## Alpha
 
-Please note that **pboted** version **0.7.X** is still in **alpha**.    
+Please note that **pboted** version **0.7.X** is still in **alpha**.  
 During this period, there may be significant changes in the application.
 
 Transition to **beta** planned in version **0.9.X**
@@ -38,8 +38,8 @@ Transition to **beta** planned in version **0.9.X**
 
 ## Resources
 
-* [Documentation](https://pboted.readthedocs.io/en/latest/)
-* [Tickets/Issues](https://github.com/polistern/pboted/issues)
+- [Documentation](https://pboted.readthedocs.io/en/latest/)
+- [Tickets/Issues](https://github.com/polistern/pboted/issues)
 
 ## Installing
 
@@ -71,5 +71,5 @@ This project is licensed under the BSD 3-clause license, which can be found in t
 
 ## Special thanks
 
-* [orignal](https://github.com/orignal) - for mentoring 
-* [R4SAS](https://github.com/r4sas) - for the help at the start 
+- [orignal](https://github.com/orignal) - for mentoring
+- [R4SAS](https://github.com/r4sas) - for the help at the start
