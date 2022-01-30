@@ -17,7 +17,7 @@
 #include "FileSystem.h"
 #include "Logging.h"
 #include "POP3.h"
-#include "RelayPeersWorker.h"
+#include "RelayWorker.h"
 #include "SMTP.h"
 #include "version.h"
 
@@ -128,14 +128,14 @@ int Daemon_Singleton::start() {
   LogPrint(eLogInfo, "Daemon: Starting network worker");
   pbote::network::network_worker.start();
 
-  LogPrint(eLogInfo, "Daemon: Starting packet handler");
-  pbote::packet::packet_handler.start();
-
-  LogPrint(eLogInfo, "Daemon: Starting relay peers");
-  pbote::relay::relay_peers_worker.start();
+  LogPrint(eLogInfo, "Daemon: Starting relay");
+  pbote::relay::relay_worker.start();
 
   LogPrint(eLogInfo, "Daemon: Starting DHT");
   pbote::kademlia::DHT_worker.start();
+
+  LogPrint(eLogInfo, "Daemon: Starting packet handler");
+  pbote::packet::packet_handler.start();
 
   LogPrint(eLogInfo, "Daemon: Starting Email");
   pbote::kademlia::email_worker.start();
@@ -225,7 +225,7 @@ bool Daemon_Singleton::stop() {
   LogPrint(eLogInfo, "Daemon: DHT worker stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopping relay worker");
-  pbote::relay::relay_peers_worker.stop();
+  pbote::relay::relay_worker.stop();
   LogPrint(eLogInfo, "Daemon: Relay worker stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopping packet handler");
