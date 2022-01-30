@@ -22,10 +22,7 @@ AddressBook::AddressBook (std::string path, std::string pass)
 {
 }
 
-AddressBook::~AddressBook ()
-{
-  save ();
-}
+AddressBook::~AddressBook () { save (); }
 
 void
 AddressBook::load ()
@@ -102,12 +99,14 @@ AddressBook::save ()
 }
 
 void
-AddressBook::add (std::string &alias, std::string &name, std::string &address)
+AddressBook::add (const std::string &alias, const std::string &name, const std::string &address)
 {
   Contact new_contact{};
+
   new_contact.alias = alias;
   new_contact.name = name;
   new_contact.dest = address;
+
   contacts.push_back (new_contact);
 }
 
@@ -115,8 +114,9 @@ bool
 AddressBook::name_exist (const std::string &name)
 {
   for (const auto &contact : contacts)
-    if (contact.name == name)
+    if (contact.name.compare (name) == 0)
       return true;
+
   return false;
 }
 
@@ -124,8 +124,9 @@ bool
 AddressBook::alias_exist (const std::string &alias)
 {
   for (const auto &contact : contacts)
-    if (contact.alias == alias)
+    if (contact.alias.compare (alias) == 0)
       return true;
+
   return false;
 }
 
@@ -133,46 +134,73 @@ std::string
 AddressBook::address_for_name (const std::string &name)
 {
   if (name_exist (name))
-    {
-      for (const auto &contact : contacts)
-        if (contact.name == name)
-          return contact.dest;
-    }
+    return {};
+
+  for (const auto &contact : contacts)
+    if (contact.name.compare (name) == 0)
+      return contact.dest;
+
   return {};
 }
 
 std::string
 AddressBook::address_for_alias (const std::string &alias)
 {
-  if (alias_exist (alias))
-    {
-      for (const auto &contact : contacts)
-        if (contact.alias == alias)
-          return contact.dest;
-    }
+  if (!alias_exist (alias))
+    return {};
+    
+  for (const auto &contact : contacts)
+    if (contact.alias.compare (alias) == 0)
+      return contact.dest;
+    
   return {};
 }
 
 void
 AddressBook::remove (const std::string &name)
 {
-  if (name_exist (name))
+  if (!name_exist (name))
+    return;
+  
+  auto itr = contacts.begin ();
+  while (itr != contacts.end ())
     {
-      for (auto i = contacts.begin (); i != contacts.end (); i++)
-        {
-          if (i->name == name)
-            contacts.erase (i);
-        }
+      if (itr->name.compare(name) == 0)
+      {
+        contacts.erase (itr);
+        break;
+      }
+      ++itr;
     }
 }
 
-// void AddressBook::setPassword() {}
+/* ToDo
+void
+AddressBook::setPassword ()
+{
+}
+*/
 
-// void AddressBook::changePassword() {}
+/* ToDo
+void
+AddressBook::changePassword ()
+{
+}
+*/
 
-// void AddressBook::encrypt() {}
+/* ToDo
+void
+AddressBook::encrypt ()
+{
+}
+*/
 
-// void AddressBook::decrypt() {}
+/* ToDo
+void
+AddressBook::decrypt ()
+{
+}
+*/
 
 std::vector<std::string>
 AddressBook::read ()

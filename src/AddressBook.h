@@ -31,14 +31,28 @@ public:
 class AddressBook
 {
 public:
+  /**
+   * @brief Construct a new Address Book object
+   * 
+   */
   AddressBook ();
+  /**
+   * @brief Construct a new Address Book object
+   * 
+   * @param path path to address book file
+   * @param pass keyword to decrypt file (optional)
+   */
   AddressBook (std::string path, std::string pass);
   ~AddressBook ();
 
+  /**
+   * @brief Load and perse aliases after reading from file
+   * 
+   */
   void load ();
   void save ();
 
-  void add (std::string &alias, std::string &name, std::string &address);
+  void add (const std::string &alias, const std::string &name, const std::string &address);
   bool name_exist (const std::string &name);
   bool alias_exist (const std::string &alias);
   std::string address_for_name (const std::string &name);

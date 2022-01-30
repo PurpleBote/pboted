@@ -11,7 +11,7 @@
 #include "DHTworker.h"
 #include "FileSystem.h"
 #include "Logging.h"
-#include "RelayPeersWorker.h"
+#include "RelayWorker.h"
 
 namespace bote
 {
@@ -282,10 +282,10 @@ BoteControl::peer (const std::string &cmd_id, std::ostringstream &results)
   results << "\"peers\": {";
   results << "\"count\": {";
   insert_param (results, "total",
-                (int)pbote::relay::relay_peers_worker.getPeersCount ());
+                (int)pbote::relay::relay_worker.getPeersCount ());
   results << ", ";
   insert_param (results, "good",
-                (int)pbote::relay::relay_peers_worker.get_good_peer_count ());
+                (int)pbote::relay::relay_worker.get_good_peer_count ());
   results << "}}";
 }
 

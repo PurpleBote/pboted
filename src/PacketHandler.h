@@ -22,53 +22,61 @@
 #include "Logging.h"
 #include "Packet.h"
 
-#define PBOTE_PROTOCOL_VERSION 4
-
 namespace pbote
 {
 namespace packet
 {
 
+using sp_comm_pac = std::shared_ptr<pbote::CommunicationPacket>;
+
 class IncomingRequest;
 
-typedef bool (IncomingRequest::*incomingPacketHandler)(const std::shared_ptr<pbote::CommunicationPacket> &packet);
-//typedef bool (OutgoingRequest::*outgoingPacketHandler)(const std::shared_ptr<pbote::CommunicationPacket> &packet);
+typedef bool (IncomingRequest::*incomingPacketHandler) (
+    const sp_comm_pac &packet);
+// typedef bool (OutgoingRequest::*outgoingPacketHandler)(const sp_comm_pac
+// &packet);
 
-class IncomingRequest {
- public:
-  IncomingRequest();
+class IncomingRequest
+{
+public:
+  IncomingRequest ();
 
-  bool handleNewPacket(const std::shared_ptr<PacketForQueue>& packet);
+  bool handleNewPacket (const std::shared_ptr<PacketForQueue> &packet);
 
- private:
-  bool receiveRelayRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  bool receiveRelayReturnRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  bool receiveFetchRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  bool receiveResponsePkt(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  bool receivePeerListRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
+private:
+  bool receiveRelayRequest (const sp_comm_pac &packet);
+  bool receiveRelayReturnRequest (const sp_comm_pac &packet);
+  bool receiveFetchRequest (const sp_comm_pac &packet);
+  bool receiveResponsePkt (const sp_comm_pac &packet);
+  bool receivePeerListRequest (const sp_comm_pac &packet);
   ///
-  bool receiveRetrieveRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  bool receiveDeletionQueryRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  bool receiveStoreRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  bool receiveEmailPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  bool receiveIndexPacketDeleteRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  bool receiveFindClosePeersRequest(const std::shared_ptr<pbote::CommunicationPacket>& packet);
+  bool receiveRetrieveRequest (const sp_comm_pac &packet);
+  bool receiveDeletionQueryRequest (const sp_comm_pac &packet);
+  bool receiveStoreRequest (const sp_comm_pac &packet);
+  bool receiveEmailPacketDeleteRequest (const sp_comm_pac &packet);
+  bool receiveIndexPacketDeleteRequest (const sp_comm_pac &packet);
+  bool receiveFindClosePeersRequest (const sp_comm_pac &packet);
 
   incomingPacketHandler i_handlers_[256];
 };
 
-class RequestHandler {
- public:
-  RequestHandler();
-  ~RequestHandler();
+class RequestHandler
+{
+public:
+  RequestHandler ();
+  ~RequestHandler ();
 
-  void start();
-  void stop();
+  void start ();
+  void stop ();
 
-  bool isRunning() const { return started_; };
+  bool
+  isRunning () const
+  {
+    return started_;
+  };
 
- private:
-  void run();
+private:
+  void run ();
 
   bool started_;
   std::thread *m_PHandlerThread;

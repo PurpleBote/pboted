@@ -6,8 +6,8 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTED_SRC_RELAYPEERSWORKER_H_
-#define PBOTED_SRC_RELAYPEERSWORKER_H_
+#ifndef PBOTED_SRC_RELAY_WORKER_H_
+#define PBOTED_SRC_RELAY_WORKER_H_
 
 #include <iostream>
 #include <random>
@@ -29,16 +29,19 @@ namespace relay
 #define MAX_PEERS_TO_SEND 20
 
 /// Percentage of requests sent to a peer / responses received back
-#define PEER_MIN_REACHABILITY 20 // ~1 day
-#define PEER_MAX_REACHABILITY 25
+#define PEER_MIN_REACHABILITY 16 //
+#define PEER_MAX_REACHABILITY 20 // ~1 day
 
+/// Time in minutes while we wait for responses
+#define RELAY_CHECK_TIMEOUT (2 * 60)
+  
 /// Time in minutes between updating peers if no high-reachability
 /// peers are known
-#define UPDATE_INTERVAL_SHORT (2 * 60)
+#define UPDATE_INTERVAL_SHORT 2
 
 /// Time in minutes between updating peers if at least one high-reachability
 /// peer is known
-#define UPDATE_INTERVAL_LONG (60 * 60)
+#define UPDATE_INTERVAL_LONG 60
 
 /// Default filename for peers file
 #define PEER_FILE_NAME "peers.txt"
@@ -46,20 +49,23 @@ namespace relay
 class RelayPeer : public i2p::data::IdentityEx
 {
 public:
-  RelayPeer () : samples (0) {}
+  RelayPeer ()
+    : samples_ (0) {}
 
-  RelayPeer (const std::string &new_destination) : samples (0)
+  RelayPeer (const std::string &new_destination)
+    : samples_ (0)
   {
     this->FromBase64 (new_destination);
   }
 
-  RelayPeer (const std::string &new_destination, size_t samples_)
-      : samples (samples_)
+  RelayPeer (const std::string &new_destination, size_t samples)
+      : samples_ (samples)
   {
     this->FromBase64 (new_destination);
   }
 
-  RelayPeer (const uint8_t *buf, int len) : samples (0)
+  RelayPeer (const uint8_t *buf, int len)
+    : samples_ (0)
   {
     this->FromBuffer (buf, len);
   }
@@ -73,44 +79,50 @@ public:
   void
   reachable (bool result)
   {
-    if (result && samples < PEER_MAX_REACHABILITY - 1)
-      samples += 2;
-    else if (result && samples < PEER_MAX_REACHABILITY)
-      samples++;
-    else if (!result && samples > 0)
-      samples--;
+    if (result && samples_ < PEER_MAX_REACHABILITY - 1)
+      samples_ += 2;
+    else if (result && samples_ < PEER_MAX_REACHABILITY)
+      samples_++;
+    else if (!result && samples_ > 0)
+      samples_--;
+  }
+
+  bool
+  reachable ()
+  {
+    return samples_ >= PEER_MIN_REACHABILITY;
   }
 
   void
-  setSamples (size_t s)
+  samples (size_t s)
   {
-    samples = s;
+    samples_ = s;
   }
 
   size_t
-  getReachability () const
+  samples () const
   {
-    return samples;
+    return samples_;
   }
 
   std::string
-  toString ()
+  str ()
   {
-    return this->ToBase64 () + " " + std::to_string (samples);
+    return this->ToBase64 () + " " + std::to_string (samples_);
   }
 
 private:
-  size_t samples;
+  size_t samples_;
 };
 
 using sp_peer = std::shared_ptr<RelayPeer>;
 using hash_key = i2p::data::Tag<32>;
 
-class RelayPeersWorker
+class RelayWorker
 {
 public:
-  RelayPeersWorker ();
-  ~RelayPeersWorker ();
+  RelayWorker ();
+  ~RelayWorker ();
 
   void start ();
   void stop ();
@@ -141,7 +153,11 @@ public:
 
 private:
   void run ();
-  bool checkPeersTask ();
+  bool check_peers ();
+
+  void set_start_time ();
+  void set_finish_time ();
+  std::chrono::seconds get_delay (bool exec_status);
 
   bool started_;
   std::thread *m_worker_thread_;
@@ -149,12 +165,12 @@ private:
   mutable std::mutex m_peers_mutex_;
   std::map<hash_key, sp_peer> m_peers_;
 
-  unsigned long task_start_time;
+  unsigned long exec_start_t, exec_finish_t;
 };
 
-extern RelayPeersWorker relay_peers_worker;
+extern RelayWorker relay_worker;
 
 } // relay
 } // pbote
 
-#endif // PBOTED_SRC_RELAYPEERSWORKER_H_
+#endif // PBOTED_SRC_RELAY_WORKER_H_

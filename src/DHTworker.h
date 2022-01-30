@@ -73,7 +73,7 @@ namespace kademlia
 
 /**
  * Terms:
- * peer - any I2P router endpoint with Bote, filled with RelayPeersWorker
+ * peer - any I2P router endpoint with Bote, filled with Relay Worker
  * node - I2P route endpoint close to KEY, filled with CloseNodesLookupTask
  * Both started filling up with bootstrap nodes!
  */
