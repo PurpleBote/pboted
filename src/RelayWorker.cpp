@@ -253,7 +253,7 @@ void
 RelayWorker::addPeers (const std::vector<sp_peer> &peers)
 {
   for (const auto &peer : peers)
-    addPeer (peer, peer->reachable ());
+    addPeer (peer, peer->samples ());
 }
 
 sp_peer
