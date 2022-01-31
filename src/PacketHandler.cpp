@@ -51,12 +51,11 @@ IncomingRequest::handleNewPacket (
   // ToDo: check if we got Response Packet?
   if (context.receive (packet))
     {
-      LogPrint (eLogDebug, "Packet: pass to batch packet with type ",
-                packet->type);
+      LogPrint (eLogDebug, "Packet: Pass packet ", packet->type, " to batch");
       return true;
     }
 
-  LogPrint (eLogDebug, "Packet: got non-batch packet with type ",
+  LogPrint (eLogDebug, "Packet: Non-batch packet with type ",
             packet->type);
 
   if (i_handlers_[packet->type])
@@ -110,7 +109,7 @@ IncomingRequest::receiveResponsePkt (const sp_comm_pac &packet)
   offset += 1;
 
   LogPrint (eLogWarning,
-            "Packet: receiveResponsePkt: status: ", unsigned (status),
+            "Packet: receiveResponsePkt: Status: ", unsigned (status),
             ", message: ", pbote::statusToString (status));
 
   std::memcpy (&dataLen, packet->payload.data () + offset, sizeof dataLen);
@@ -121,7 +120,7 @@ IncomingRequest::receiveResponsePkt (const sp_comm_pac &packet)
             (packet->payload.size () - offset), ", dataLen: ", dataLen);
 
   if ((packet->payload.size () - offset) != dataLen)
-    LogPrint (eLogWarning, "Packet: receiveResponsePkt: size mismatch: size: ",
+    LogPrint (eLogWarning, "Packet: receiveResponsePkt: Size mismatch: size: ",
               (packet->payload.size () - offset), ", dataLen: ", dataLen);
 
   if (dataLen == 0)
@@ -301,7 +300,7 @@ IncomingRequest::receiveIndexPacketDeleteRequest (const sp_comm_pac &packet)
 bool
 IncomingRequest::receiveFindClosePeersRequest (const sp_comm_pac &packet)
 {
-  LogPrint (eLogDebug, "PacketHandler: receiveFindClosePeersRequest");
+  LogPrint (eLogDebug, "Packet: receiveFindClosePeersRequest");
   if ((packet->ver == 4 || packet->ver == 5) && packet->type == type::CommF)
     {
       pbote::kademlia::DHT_worker.receiveFindClosePeers (packet);
@@ -322,6 +321,8 @@ RequestHandler::RequestHandler ()
 RequestHandler::~RequestHandler ()
 {
   stop ();
+
+  m_PHandlerThread->join ();
   delete m_PHandlerThread;
   m_PHandlerThread = nullptr;
 }
@@ -342,29 +343,29 @@ RequestHandler::start ()
 void
 RequestHandler::stop ()
 {
-  LogPrint (eLogWarning, "RequestHandler: stopping");
-  started_ = false;
-  if (m_PHandlerThread)
-    {
-      m_PHandlerThread->join ();
-      delete m_PHandlerThread;
-      m_PHandlerThread = nullptr;
-    }
-  LogPrint (eLogWarning, "RequestHandler: stopped");
+  if (started_)
+    started_ = false;
+
+  LogPrint (eLogInfo, "RequestHandler: Stopped");
 }
 
 void
 RequestHandler::run ()
 {
-  LogPrint (eLogInfo, "PacketHandler: run packet handler thread");
+  LogPrint (eLogInfo, "PacketHandler: Started");
   while (started_)
     {
-      auto queuePacket = m_recvQueue->GetNext ();
+      auto queuePacket =
+        m_recvQueue->GetNextWithTimeout (PACKET_RECEIVE_TIMEOUT);
+
+      if (!queuePacket)
+        continue;
+
       IncomingRequest newSession;
 
       if (!newSession.handleNewPacket (queuePacket))
         {
-          LogPrint (eLogWarning, "PacketHandler: parsing failed");
+          LogPrint (eLogWarning, "PacketHandler: Parsing failed");
 
           pbote::ResponsePacket response;
           response.status = pbote::StatusCode::INVALID_PACKET;

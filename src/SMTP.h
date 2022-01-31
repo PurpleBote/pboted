@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -25,6 +25,9 @@ namespace smtp
 #define MAX_CLIENTS 5
 #define MAX_RCPT_USR 1
 #define BUF_SIZE 10485760 // 10MB
+// Timeout in milliseconds
+#define SMTP_WAIT_TIMEOUT 200
+#define SMTP_COMMAND_LEN 4
 
 const char reply_info[][100]
     = { { "250-pboted.i2p is pleased to meet you\n" },
@@ -118,36 +121,10 @@ const char reply_5XX[][100] = {
 #define STATE_MAIL 3 // After MAIL command
 #define STATE_RCPT 4 // After RCPT command
 #define STATE_DATA 5 // After DATA command
-/// Extension
+/// Extensions
 #define STATE_EHLO 10 // After HELO command
 #define STATE_STLS 11 // After STARTTLS command
 #define STATE_AUTH 12 // After AUTH command
-
-/*struct Session
-{
-  bool processing;
-  //std::thread *session_thread;
-
-  int client_sockfd;
-  int session_state;
-  char buf[BUF_SIZE];
-
-  int rcpt_user_num;
-  char from_user[512];
-  char rcpt_user[MAX_RCPT_USR][512];
-  pbote::Email mail;
-
-  Session::Session(int socket)
-    : processing (false),
-      client_sockfd (socket),
-      session_state (STATE_QUIT),
-      rcpt_user_num (0),
-      from_user (),
-      rcpt_user ()
-  {
-    memset (buf, 0, sizeof (buf));
-  }
-};*/
 
 class SMTP
 {
@@ -161,9 +138,9 @@ public:
 private:
   void run ();
 
-  void s_handle ();
-  void s_process ();
-  void s_finish ();
+  void handle ();
+  void process ();
+  void finish ();
 
   void respond (char *request);
   void reply (const char *data);
@@ -179,13 +156,14 @@ private:
   void NOOP ();
   void QUIT ();
 
-  /// Extension
+  /// Extensions
   void AUTH (char *request);
   void EXPN ();
   void HELP ();
 
   static bool check_identity (const std::string &name);
   static bool check_recipient (const std::string &name);
+  void cmd_to_upper(char *request, int len = SMTP_COMMAND_LEN);
 
   bool started, processing;
   std::thread *smtp_thread;
@@ -201,6 +179,7 @@ private:
   int rcpt_user_num;
   char from_user[512];
   char rcpt_user[MAX_RCPT_USR][512];
+
   pbote::Email mail;
 };
 

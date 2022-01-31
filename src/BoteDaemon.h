@@ -62,7 +62,6 @@ public:
   int gracefulShutdownInterval; // in seconds
 };
 
-//#endif
 } // namespace util
 } // namespace pbote
 

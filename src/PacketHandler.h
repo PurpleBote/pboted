@@ -27,6 +27,9 @@ namespace pbote
 namespace packet
 {
 
+/// Timeout in msec
+#define PACKET_RECEIVE_TIMEOUT 500
+
 using sp_comm_pac = std::shared_ptr<pbote::CommunicationPacket>;
 
 class IncomingRequest;

@@ -25,6 +25,8 @@ namespace pop3
 #define MAX_CLIENTS 5
 #define MAX_RCPT_USR 1
 #define BUF_SIZE 10485760 // 10MB
+// Timeout in milliseconds
+#define POP3_WAIT_TIMEOUT 200
 
 const char capa_list[][100] =
 {
@@ -120,9 +122,9 @@ public:
 private:
   void run ();
 
-  void s_handle ();
-  void s_process ();
-  void s_finish ();
+  void handle ();
+  void process ();
+  void finish ();
 
   void respond (char *request);
   void reply (const char *data);
@@ -138,7 +140,7 @@ private:
   void RSET ();
   void QUIT ();
 
-  /// Extension RFC 2449
+  /// Extensions RFC 2449
   void CAPA ();
   void APOP (char *request);
   void TOP (char *request);
