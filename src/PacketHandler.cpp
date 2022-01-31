@@ -355,8 +355,8 @@ RequestHandler::run ()
   LogPrint (eLogInfo, "PacketHandler: Started");
   while (started_)
     {
-      auto queuePacket =
-        m_recvQueue->GetNextWithTimeout (PACKET_RECEIVE_TIMEOUT);
+      auto queuePacket
+        = m_recvQueue->GetNextWithTimeout (PACKET_RECEIVE_TIMEOUT);
 
       if (!queuePacket)
         continue;

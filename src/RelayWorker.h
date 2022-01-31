@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -109,6 +109,12 @@ public:
   str ()
   {
     return this->ToBase64 () + " " + std::to_string (samples_);
+  }
+
+  std::string
+  short_str ()
+  {
+    return this->GetIdentHash ().ToBase64 () + " " + std::to_string (samples_);
   }
 
 private:

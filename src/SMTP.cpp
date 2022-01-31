@@ -39,12 +39,13 @@ SMTP::SMTP (const std::string &address, int port)
 {
   std::memset (&server_addr, 0, sizeof (server_addr));
 
-  server_addr.sin_family = AF_UNSPEC; /// IPv4 or IPv6
+  //server_addr.sin_family = AF_UNSPEC; /// IPv4 or IPv6
+  server_addr.sin_family = AF_INET;
   server_addr.sin_port = htons (port);
   server_addr.sin_addr.s_addr = inet_addr (address.c_str ());
   bzero (&(server_addr.sin_zero), 8);
 
-  if ((server_sockfd = socket (AF_UNSPEC, SOCK_STREAM, IPPROTO_TCP)) == -1)
+  if ((server_sockfd = socket (AF_INET, SOCK_STREAM, 0)) == -1)
     {
       // ToDo: add error handling
       LogPrint (eLogError, "SMTP: Socket create error: ", strerror (errno));

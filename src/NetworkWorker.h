@@ -31,7 +31,7 @@ namespace network
 {
 
 /// Timeout in msec
-#define UDP_RECEIVE_TIMEOUT 500
+#define UDP_SEND_TIMEOUT 500
 
 #define MAX_DATAGRAM_SIZE 32768
 

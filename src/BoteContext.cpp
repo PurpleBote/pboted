@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -24,7 +24,8 @@ BoteContext::BoteContext()
       m_recvQueue(std::make_shared<pbote::util::Queue<std::shared_ptr<PacketForQueue>>>()),
       m_sendQueue(std::make_shared<pbote::util::Queue<std::shared_ptr<PacketForQueue>>>()),
       localDestination(std::make_shared<i2p::data::IdentityEx>()),
-      local_keys_(std::make_shared<i2p::data::PrivateKeys>()) {
+      local_keys_(std::make_shared<i2p::data::PrivateKeys>())
+{
   start_time_ = std::chrono::system_clock::now().time_since_epoch().count();
   //identities_storage_.init();
   std::chrono::high_resolution_clock::duration
@@ -48,14 +49,14 @@ void BoteContext::init() {
   pbote::config::GetOption("sam.tcp", routerPortTCP);
   pbote::config::GetOption("sam.udp", routerPortUDP);
 
-  LogPrint(eLogInfo, "Context: config loaded");
+  LogPrint(eLogInfo, "Context: Config loaded");
 
-  std::string localDestinationPath = pbote::fs::DataDirPath("destination.key");
+  std::string localDestinationPath = pbote::fs::DataDirPath(DEFAULT_KEY_FILE_NAME);
   int size = readLocalIdentity(localDestinationPath);
   if (size > 0) {
     keys_loaded_ = true;
     LogPrint(eLogInfo, "Context: Local destination loaded successfully");
-    LogPrint(eLogDebug, "Context: localDestination: ", local_keys_->ToBase64());
+    //LogPrint(eLogDebug, "Context: localDestination: ", local_keys_->ToBase64());
   } else {
     keys_loaded_ = false;
     LogPrint(eLogWarning, "Context: Can't find local destination, try to create");
@@ -82,7 +83,7 @@ void BoteContext::send(const std::shared_ptr<PacketBatch<pbote::CommunicationPac
     send(packet.second);
     count++;
   }
-  LogPrint(eLogDebug, "Context: send ", count, " packets from batch ", batch->owner);
+  LogPrint(eLogDebug, "Context: Send ", count, " packets from batch ", batch->owner);
 }
 
 bool BoteContext::receive(const std::shared_ptr<pbote::CommunicationPacket>& packet) {
@@ -92,8 +93,8 @@ bool BoteContext::receive(const std::shared_ptr<pbote::CommunicationPacket>& pac
     {
       batch->addResponse(packet);
       LogPrint(eLogDebug,
-               "Context: response received for batch ", batch->owner,
-               ", remain responses count: ", batch->remain_responses);
+               "Context: Response for batch ", batch->owner,
+               ", remain count: ", batch->remain_responses);
                
       return true;
     }
@@ -130,12 +131,13 @@ unsigned long BoteContext::get_uptime() {
 
 void BoteContext::save_new_keys(std::shared_ptr<i2p::data::PrivateKeys> localKeys) {
   local_keys_ = std::move(localKeys);
+
   if (!keys_loaded_)
-    saveLocalIdentity(pbote::fs::DataDirPath("destination.key"));
+    saveLocalIdentity(pbote::fs::DataDirPath(DEFAULT_KEY_FILE_NAME));
 }
 
 int BoteContext::readLocalIdentity(const std::string &path) {
-  LogPrint(eLogDebug, "Context: load destination from file ", path);
+  LogPrint(eLogDebug, "Context: Load destination from ", path);
   std::ifstream f(path, std::ios::binary);
   if (!f) return -1;
 
@@ -146,16 +148,16 @@ int BoteContext::readLocalIdentity(const std::string &path) {
   f.close();
   local_keys_->FromBuffer(bytes.data(), bytes.size());
   localDestination = std::make_shared<i2p::data::IdentityEx>(*local_keys_->GetPublic());
-  LogPrint(eLogDebug, "Context: localDestination.base64 ", localDestination->ToBase64());
+  LogPrint(eLogDebug, "Context: localDestination.base64 ", localDestination->ToBase64().substr (0, 15), "...");
   LogPrint(eLogDebug, "Context: localDestination.hash.base32 ", localDestination->GetIdentHash().ToBase32());
   return bytes.size();
 }
 
 void BoteContext::saveLocalIdentity(const std::string &path) {
-  LogPrint(eLogDebug, "Context: save destination to file ", path);
+  LogPrint(eLogDebug, "Context: Save destination to ", path);
   std::ofstream f(path, std::ofstream::binary | std::ofstream::out);
   if (!f.is_open()) {
-    LogPrint(eLogError, "Context: can't open file ", path);
+    LogPrint(eLogError, "Context: Can't open ", path);
     return;
   }
   size_t len = local_keys_->GetFullLen();
