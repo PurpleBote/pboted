@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -326,7 +326,7 @@ RelayWorker::loadPeers ()
 
           peer.samples ((size_t)std::stoi (peer_str));
           
-          LogPrint (eLogDebug, "Relay: peer: ", peer.str ());
+          LogPrint (eLogDebug, "Relay: peer: ", peer.short_str ());
           
           peers.push_back (std::make_shared<RelayPeer> (peer));
         }

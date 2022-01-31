@@ -31,9 +31,8 @@ UDPReceiver::UDPReceiver (const std::string &address, int port)
   {
   };
   memset (&hints, 0, sizeof (hints));
-  hints.ai_family = AF_UNSPEC; // IPv4 or IPv6
+  hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_DGRAM;
-  hints.ai_flags = AI_PASSIVE; // For wildcard IP address
   hints.ai_protocol = IPPROTO_UDP;
 
   errcode = getaddrinfo (address.c_str (), decimal_port, &hints, &f_addrinfo);
@@ -45,7 +44,7 @@ UDPReceiver::UDPReceiver (const std::string &address, int port)
               .c_str ());
     }
 
-  f_socket = socket (f_addrinfo->ai_family, f_addrinfo->ai_socktype,
+  f_socket = socket (f_addrinfo->ai_family, SOCK_DGRAM | SOCK_CLOEXEC,
                      f_addrinfo->ai_protocol);
   if (f_socket == -1)
     {
@@ -65,8 +64,6 @@ UDPReceiver::UDPReceiver (const std::string &address, int port)
            + ":" + decimal_port + "\", errcode=" + gai_strerror (errcode))
               .c_str ());
     }
-
-  freeaddrinfo (f_addrinfo);
 }
 
 UDPReceiver::~UDPReceiver ()
@@ -104,7 +101,7 @@ UDPReceiver::stop ()
 void
 UDPReceiver::run ()
 {
-  LogPrint (eLogInfo, "Network: UDPReceiver: Starting UDP receive thread");
+  LogPrint (eLogInfo, "Network: UDPReceiver: Started");
 
   while (m_IsRunning)
     handle_receive ();
@@ -180,10 +177,9 @@ UDPSender::UDPSender (const std::string &addr, int port)
   {
   };
   memset (&hints, 0, sizeof (hints));
-  hints.ai_family = AF_UNSPEC; // IPv4 or IPv6
+  hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_DGRAM;
-  hints.ai_flags = 0;
-  hints.ai_protocol = IPPROTO_UDP;
+  hints.ai_protocol = 0;
 
   errcode = getaddrinfo (addr.c_str (), decimal_port, &hints, &f_addrinfo);
   if (errcode != 0 || f_addrinfo == nullptr)
@@ -205,8 +201,6 @@ UDPSender::UDPSender (const std::string &addr, int port)
            + decimal_port)
               .c_str ());
     }
-
-  freeaddrinfo (f_addrinfo);
 }
 
 UDPSender::~UDPSender ()
@@ -244,7 +238,7 @@ UDPSender::stop ()
 void
 UDPSender::run ()
 {
-  LogPrint (eLogInfo, "Network: UDPSender: Starting UDP send thread");
+  LogPrint (eLogInfo, "Network: UDPSender: Started");
 
   while (m_IsRunning)
     send ();
@@ -253,7 +247,7 @@ UDPSender::run ()
 void
 UDPSender::send ()
 {
-  auto packet = m_sendQueue->GetNextWithTimeout (UDP_RECEIVE_TIMEOUT);
+  auto packet = m_sendQueue->GetNextWithTimeout (UDP_SEND_TIMEOUT);
 
   if (!packet)
     return;

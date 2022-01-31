@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -22,6 +22,8 @@
 #include "Identity.h"
 
 namespace pbote {
+
+#define DEFAULT_KEY_FILE_NAME "destination.key"
 
 using queue_type = std::shared_ptr<pbote::util::Queue<std::shared_ptr<PacketForQueue>>>;
 
