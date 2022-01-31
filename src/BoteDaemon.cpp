@@ -236,6 +236,8 @@ bool Daemon_Singleton::stop() {
   pbote::network::network_worker.stop();
   LogPrint(eLogInfo, "Daemon: Network worker stopped");
 
+  LogPrint(eLogInfo, "Daemon: Stopped");
+
   pbote::log::Logger().Stop();
 
   return true;

@@ -57,7 +57,7 @@ int DaemonLinux::start() {
 
     const std::string& d = pbote::fs::GetDataDir();
     if (chdir(d.c_str()) != 0) {
-      LogPrint(eLogError, "Daemon: could not chdir: ", strerror(errno));
+      LogPrint(eLogError, "Daemon: Could not chdir: ", strerror(errno));
       return EXIT_FAILURE;
     }
   }
@@ -68,13 +68,13 @@ int DaemonLinux::start() {
   pbote::config::GetOption("limits.openfiles", nfiles);
   getrlimit(RLIMIT_NOFILE, &limit);
   if (nfiles == 0) {
-    LogPrint(eLogInfo, "Daemon: using system limit in ", limit.rlim_cur," max open files");
+    LogPrint(eLogInfo, "Daemon: Using system limit in ", limit.rlim_cur," max open files");
   } else if (nfiles <= limit.rlim_max) {
     limit.rlim_cur = nfiles;
     if (setrlimit(RLIMIT_NOFILE, &limit) == 0) {
-      LogPrint(eLogInfo, "Daemon: set max number of open files to ", nfiles, " (system limit is ", limit.rlim_max, ")");
+      LogPrint(eLogInfo, "Daemon: Set max number of open files to ", nfiles, " (system limit is ", limit.rlim_max, ")");
     } else {
-      LogPrint(eLogError,"Daemon: can't set max number of open files: ", strerror(errno));
+      LogPrint(eLogError,"Daemon: Can't set max number of open files: ", strerror(errno));
     }
   } else {
     LogPrint(eLogError,"Daemon: limits.openfiles exceeds system limit: ", limit.rlim_max);
@@ -88,11 +88,11 @@ int DaemonLinux::start() {
     if (cfsize <= limit.rlim_max) {
       limit.rlim_cur = cfsize;
       if (setrlimit(RLIMIT_CORE, &limit) != 0) {
-        LogPrint(eLogError,"Daemon: can't set max size of coredump: ", strerror(errno));
+        LogPrint(eLogError,"Daemon: Can't set max size of coredump: ", strerror(errno));
       } else if (cfsize == 0) {
-        LogPrint(eLogInfo, "Daemon: coredumps disabled");
+        LogPrint(eLogInfo, "Daemon: Coredumps disabled");
       } else {
-        LogPrint(eLogInfo, "Daemon: set max size of core files to ", cfsize / 1024, "Kb");
+        LogPrint(eLogInfo, "Daemon: Set max size of core files to ", cfsize / 1024, "Kb");
       }
     } else {
       LogPrint(eLogError, "Daemon: limits.coresize exceeds system limit: ", limit.rlim_max);
@@ -108,7 +108,7 @@ int DaemonLinux::start() {
   if (!pidfile.empty()) {
     pidFH = open(pidfile.c_str(), O_RDWR | O_CREAT, 0600);
     if (pidFH < 0) {
-      LogPrint(eLogError, "Daemon: could not create pid file ", pidfile, ": ", strerror(errno));
+      LogPrint(eLogError, "Daemon: Could not create pidfile ", pidfile, ": ", strerror(errno));
       return EXIT_FAILURE;
     }
 
@@ -116,7 +116,7 @@ int DaemonLinux::start() {
     sprintf(pid, "%d\n", getpid());
     ftruncate(pidFH, 0);
     if (write(pidFH, pid, strlen(pid)) < 0) {
-      LogPrint(eLogError, "Daemon: could not write pidfile: ", strerror(errno));
+      LogPrint(eLogError, "Daemon: Could not write pidfile: ", strerror(errno));
       return EXIT_FAILURE;
     }
   }
@@ -138,6 +138,9 @@ int DaemonLinux::start() {
 }
 
 bool DaemonLinux::stop() {
+  if (running)
+    running = false;
+
   pbote::fs::Remove(pidfile);
 
   return Daemon_Singleton::stop();

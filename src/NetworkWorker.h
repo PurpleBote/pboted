@@ -1,13 +1,13 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef NETWORK_WORKER_H__
-#define NETWORK_WORKER_H__
+#ifndef PBOTED_SRC_NETWORK_WORKER_H__
+#define PBOTED_SRC_NETWORK_WORKER_H__
 
 #include <algorithm>
 #include <ctime>
@@ -25,44 +25,74 @@
 
 #include "i2psam.h"
 
-namespace pbote {
+namespace pbote
+{
+namespace network
+{
 
-const size_t MAX_DATAGRAM_SIZE = 32768;
+/// Timeout in msec
+#define UDP_RECEIVE_TIMEOUT 500
 
-namespace network {
+#define MAX_DATAGRAM_SIZE 32768
 
-const std::string SAM_NICKNAME = "pboted";
+#define SAM_DEFAULT_NICKNAME "pboted"
 
-class udp_client_server_runtime_error : public std::runtime_error {
- public:
-  udp_client_server_runtime_error(const char *w) : std::runtime_error(w) {}
+class udp_client_server_runtime_error : public std::runtime_error
+{
+public:
+  udp_client_server_runtime_error (const char *w) : std::runtime_error (w) {}
 };
 
-/**
- * Receive handle class
- */
-class UDPReceiver {
- public:
-  UDPReceiver(const std::string &address, int port);
-  ~UDPReceiver();
+class UDPReceiver
+{
+public:
+  UDPReceiver (const std::string &address, int port);
+  ~UDPReceiver ();
 
-  void start();
-  void stop();
+  void start ();
+  void stop ();
 
-  void setNickname(const std::string &nickname = SAM_NICKNAME) { m_nickname_ = nickname; };
-  void setQueue(const queue_type &recvQueue) { m_recvQueue = recvQueue; };
+  void
+  setNickname (const std::string &nickname = SAM_DEFAULT_NICKNAME)
+  {
+    m_nickname_ = nickname;
+  };
 
-  int get_socket() const { return f_socket; };
-  int get_port() const { return f_port; };
-  std::string get_addr() const { return f_addr; };
+  void
+  setQueue (const queue_type &recvQueue)
+  {
+    m_recvQueue = recvQueue;
+  };
 
-  bool isRunning() const { return m_IsRunning; };
+  int
+  get_socket () const
+  {
+    return f_socket;
+  };
 
- private:
-  void run();
-  long recv();
+  int
+  get_port () const
+  {
+    return f_port;
+  };
+
+  std::string
+  get_addr () const
+  {
+    return f_addr;
+  };
+
+  bool
+  isRunning () const
+  {
+    return m_IsRunning;
+  };
+
+private:
+  void run ();
+  long recv ();
   // int timed_recv(/*char *msg, size_t max_size,*/ int max_wait_ms);
-  void handle_receive();
+  void handle_receive ();
 
   bool m_IsRunning;
   std::thread *m_RecvThread;
@@ -76,31 +106,62 @@ class UDPReceiver {
   queue_type m_recvQueue;
 };
 
-/**
- * Send handle class
- */
-class UDPSender {
- public:
-  UDPSender(const std::string &addr, int port);
-  ~UDPSender();
+class UDPSender
+{
+public:
+  UDPSender (const std::string &addr, int port);
+  ~UDPSender ();
 
-  void start();
-  void stop();
+  void start ();
+  void stop ();
 
-  void setNickname(const std::string &nickname = SAM_NICKNAME) { m_nickname_ = nickname; };
-  void setSessionID(const std::string &sessionID) { m_sessionID_ = sessionID; };
-  void setQueue(const queue_type &sendQueue) { m_sendQueue = sendQueue; };
+  void
+  setNickname (const std::string &nickname = SAM_DEFAULT_NICKNAME)
+  {
+    m_nickname_ = nickname;
+  };
 
-  int get_socket() const { return f_socket; };
-  int get_port() const { return f_port; };
-  std::string get_addr() const { return f_addr; };
+  void
+  setSessionID (const std::string &sessionID)
+  {
+    m_sessionID_ = sessionID;
+  };
 
-  bool isRunning() const { return m_IsRunning; };
+  void
+  setQueue (const queue_type &sendQueue)
+  {
+    m_sendQueue = sendQueue;
+  };
 
- private:
-  void run();
-  void send();
-  void handle_send(/*const boost::system::error_code &ec,*/ std::size_t bytes_transferred);
+  int
+  get_socket () const
+  {
+    return f_socket;
+  };
+
+  int
+  get_port () const
+  {
+    return f_port;
+  };
+
+  std::string
+  get_addr () const
+  {
+    return f_addr;
+  };
+
+  bool
+  isRunning () const
+  {
+    return m_IsRunning;
+  };
+
+private:
+  void run ();
+  void send ();
+  void handle_send (
+      /*const boost::system::error_code &ec,*/ std::size_t bytes_transferred);
 
   bool m_IsRunning;
   std::thread *m_SendThread;
@@ -115,28 +176,26 @@ class UDPSender {
   queue_type m_sendQueue;
 };
 
-/**
- * Controller class
- * ToDo: Need some optimization
- */
-class NetworkWorker {
- public:
-  NetworkWorker();
-  ~NetworkWorker();
+// ToDo: Need some optimization
+class NetworkWorker
+{
+public:
+  NetworkWorker ();
+  ~NetworkWorker ();
 
-  void init();
-  void start();
-  void stop();
+  void init ();
+  void start ();
+  void stop ();
 
-  std::shared_ptr<i2p::data::PrivateKeys> createSAMSession();
-
-  void createRecvHandler();
-  void createSendHandler();
-
- private:
+private:
   /** prevent making copies */
-  NetworkWorker(const NetworkWorker &);
-  const NetworkWorker &operator=(const NetworkWorker &);
+  NetworkWorker (const NetworkWorker &);
+  const NetworkWorker &operator= (const NetworkWorker &);
+
+  std::shared_ptr<i2p::data::PrivateKeys> createSAMSession ();
+
+  void createRecvHandler ();
+  void createSendHandler ();
 
   std::string m_nickname_;
 
@@ -161,4 +220,4 @@ extern NetworkWorker network_worker;
 } // namespace network
 } // namespace pbote
 
-#endif // NETWORK_WORKER_H__
+#endif // PBOTED_SRC_NETWORK_WORKER_H__

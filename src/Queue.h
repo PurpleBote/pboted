@@ -1,14 +1,14 @@
 /**
- * Copyright (c) 2013-2016, The PurpleI2P Project
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2013-2016, The PurpleI2P Project
+ * Copyright (C) 2019-2022 polistern
  *
  * This file is part of pboted project and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef QUEUE_H__
-#define QUEUE_H__
+#ifndef PBOTED_SRC_QUEUE_H__
+#define PBOTED_SRC_QUEUE_H__
 
 #include <condition_variable>
 #include <cstring>
@@ -115,4 +115,4 @@ class Queue {
 } // namespace util
 } // namespace pbote
 
-#endif // QUEUE_H__
+#endif // PBOTED_SRC_QUEUE_H__
