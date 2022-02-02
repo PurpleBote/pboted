@@ -18,8 +18,8 @@ namespace network
 NetworkWorker network_worker;
 
 UDPReceiver::UDPReceiver (const std::string &address, int port)
-    : m_IsRunning (false), m_RecvThread (nullptr), f_port (port),
-      f_addr (address), m_recvQueue (nullptr)
+  : running_ (false), m_RecvThread (nullptr), f_port (port),
+    f_addr (address), m_recvQueue (nullptr)
 {
   // ToDo: restart on error
   int errcode;
@@ -27,9 +27,7 @@ UDPReceiver::UDPReceiver (const std::string &address, int port)
   snprintf (decimal_port, sizeof (decimal_port), "%d", f_port);
   decimal_port[sizeof (decimal_port) / sizeof (decimal_port[0]) - 1] = '\0';
 
-  struct addrinfo hints
-  {
-  };
+  struct addrinfo hints{};
   memset (&hints, 0, sizeof (hints));
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_DGRAM;
@@ -82,18 +80,18 @@ UDPReceiver::~UDPReceiver ()
 void
 UDPReceiver::start ()
 {
-  if (m_IsRunning)
+  if (running_)
     return;
 
-  m_IsRunning = true;
+  running_ = true;
   m_RecvThread = new std::thread ([this] { run (); });
 }
 
 void
 UDPReceiver::stop ()
 {
-  if (!m_IsRunning)
-    m_IsRunning = false;
+  if (!running_)
+    running_ = false;
 
   LogPrint (eLogInfo, "Network: UDPReceiver: Stopped");
 }
@@ -103,7 +101,7 @@ UDPReceiver::run ()
 {
   LogPrint (eLogInfo, "Network: UDPReceiver: Started");
 
-  while (m_IsRunning)
+  while (running_)
     handle_receive ();
 }
 
@@ -164,8 +162,8 @@ UDPReceiver::handle_receive ()
 ///////////////////////////////////////////////////////////////////////////////
 
 UDPSender::UDPSender (const std::string &addr, int port)
-    : m_IsRunning (false), m_SendThread (nullptr), f_port (port),
-      f_addr (addr), m_sendQueue (nullptr)
+  : running_ (false), m_SendThread (nullptr), f_port (port),
+    f_addr (addr), m_sendQueue (nullptr)
 {
   // ToDo: restart on error
   int errcode;
@@ -173,9 +171,7 @@ UDPSender::UDPSender (const std::string &addr, int port)
   snprintf (decimal_port, sizeof (decimal_port), "%d", f_port);
   decimal_port[sizeof (decimal_port) / sizeof (decimal_port[0]) - 1] = '\0';
 
-  struct addrinfo hints
-  {
-  };
+  struct addrinfo hints{};
   memset (&hints, 0, sizeof (hints));
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_DGRAM;
@@ -219,18 +215,18 @@ UDPSender::~UDPSender ()
 void
 UDPSender::start ()
 {
-  if (m_IsRunning)
+  if (running_)
     return;
 
-  m_IsRunning = true;
+  running_ = true;
   m_SendThread = new std::thread ([this] { run (); });
 }
 
 void
 UDPSender::stop ()
 {
-  if (m_IsRunning)
-    m_IsRunning = false;
+  if (running_)
+    running_ = false;
 
   LogPrint (eLogInfo, "Network: UDPSender: Stopped");
 }
@@ -240,7 +236,7 @@ UDPSender::run ()
 {
   LogPrint (eLogInfo, "Network: UDPSender: Started");
 
-  while (m_IsRunning)
+  while (running_)
     send ();
 }
 
@@ -274,11 +270,12 @@ UDPSender::handle_send (
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// ToDo: Need some optimization
 
 NetworkWorker::NetworkWorker ()
-    : listenPortUDP_ (0), routerPortTCP_ (0), routerPortUDP_ (0),
-      router_session_ (nullptr), m_RecvHandler (nullptr),
-      m_SendHandler (nullptr), m_recvQueue (nullptr), m_sendQueue (nullptr)
+  : listenPortUDP_ (0), routerPortTCP_ (0), routerPortUDP_ (0),
+    router_session_ (nullptr), m_RecvHandler (nullptr),
+    m_SendHandler (nullptr), m_recvQueue (nullptr), m_sendQueue (nullptr)
 {
 }
 
@@ -348,7 +345,7 @@ NetworkWorker::start ()
       if (!context.keys_loaded ())
         context.save_new_keys (key);
 
-      // Because we get sessionID after SAM initialization
+      /// Because we get sessionID after SAM initialization
       m_SendHandler->setSessionID (
           const_cast<std::string &> (router_session_->getSessionID ()));
       m_SendHandler->start ();
@@ -407,7 +404,7 @@ NetworkWorker::createSAMSession ()
   else
     LogPrint (eLogDebug, "Network: SAM session is OK");
 
-  LogPrint (eLogInfo, "Network: SAM session created; nickname: ", m_nickname_,
+  LogPrint (eLogInfo, "Network: SAM session created, nickname: ", m_nickname_,
             ", sessionID: ", router_session_->getSessionID ());
 
   return localKeys;

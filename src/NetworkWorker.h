@@ -6,8 +6,8 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTED_SRC_NETWORK_WORKER_H__
-#define PBOTED_SRC_NETWORK_WORKER_H__
+#ifndef PBOTED_SRC_NETWORK_WORKER_H_
+#define PBOTED_SRC_NETWORK_WORKER_H_
 
 #include <algorithm>
 #include <ctime>
@@ -83,9 +83,9 @@ public:
   };
 
   bool
-  isRunning () const
+  running () const
   {
-    return m_IsRunning;
+    return running_;
   };
 
 private:
@@ -94,7 +94,7 @@ private:
   // int timed_recv(/*char *msg, size_t max_size,*/ int max_wait_ms);
   void handle_receive ();
 
-  bool m_IsRunning;
+  bool running_;
   std::thread *m_RecvThread;
   std::string m_nickname_;
   int f_socket;
@@ -152,18 +152,17 @@ public:
   };
 
   bool
-  isRunning () const
+  running () const
   {
-    return m_IsRunning;
+    return running_;
   };
 
 private:
   void run ();
   void send ();
-  void handle_send (
-      /*const boost::system::error_code &ec,*/ std::size_t bytes_transferred);
+  void handle_send (std::size_t bytes_transferred);
 
-  bool m_IsRunning;
+  bool running_;
   std::thread *m_SendThread;
   std::string m_nickname_;
   std::string m_sessionID_;
@@ -176,7 +175,6 @@ private:
   queue_type m_sendQueue;
 };
 
-// ToDo: Need some optimization
 class NetworkWorker
 {
 public:
@@ -220,4 +218,4 @@ extern NetworkWorker network_worker;
 } // namespace network
 } // namespace pbote
 
-#endif // PBOTED_SRC_NETWORK_WORKER_H__
+#endif // PBOTED_SRC_NETWORK_WORKER_H_

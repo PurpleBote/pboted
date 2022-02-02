@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -24,7 +24,9 @@ namespace kademlia
 EmailWorker email_worker;
 
 EmailWorker::EmailWorker ()
-    : started_ (false), m_send_thread_ (nullptr), m_worker_thread_ (nullptr)
+  : started_ (false),
+    m_send_thread_ (nullptr),
+    m_worker_thread_ (nullptr)
 {
 }
 
@@ -143,8 +145,6 @@ EmailWorker::stopSendEmailTask ()
 std::vector<std::shared_ptr<pbote::Email> >
 EmailWorker::check_inbox ()
 {
-  LogPrint (eLogDebug, "EmailWorker: check_inbox: start");
-
   // outbox - plain text packet
   // ToDo: encrypt all local stored emails
   std::string outboxPath = pbote::fs::DataDirPath ("inbox");
@@ -169,13 +169,13 @@ EmailWorker::check_inbox ()
           if (mailPacket.length () > 0)
             {
               LogPrint (eLogDebug,
-                        "EmailWorker: check_inbox: file loaded: ", mail_path);
+                        "EmailWorker: check_inbox: File loaded: ", mail_path);
             }
           else
             {
               LogPrint (
                   eLogWarning,
-                  "EmailWorker: check_inbox: can't read file: ", mail_path);
+                  "EmailWorker: check_inbox: Can't read file: ", mail_path);
               continue;
             }
 
@@ -191,7 +191,7 @@ EmailWorker::check_inbox ()
         }
     }
 
-  LogPrint (eLogDebug, "EmailWorker: check_inbox: found ", emails.size (),
+  LogPrint (eLogDebug, "EmailWorker: check_inbox: Found ", emails.size (),
             " email(s).");
 
   return emails;
@@ -640,7 +640,7 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
   if (results.empty ())
     {
       LogPrint (eLogWarning,
-                "EmailWorker: retrieveIndex: can't find index for: ",
+                "EmailWorker: retrieveIndex: Can't find index for: ",
                 identity_hash.ToBase64 ());
       return {};
     }
@@ -654,13 +654,13 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
           // ToDo: looks like in case if we got request to ourself, for now we
           // just skip it
           LogPrint (eLogWarning,
-                    "EmailWorker: retrieveIndex: got non-response packet in "
+                    "EmailWorker: retrieveIndex: Got non-response packet in "
                     "batch, type: ",
                     response->type, ", ver: ", unsigned (response->ver));
           continue;
         }
 
-      LogPrint (eLogDebug, "EmailWorker: retrieveIndex: got response from: ",
+      LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Got response from: ",
                 response->from.substr (0, 15), "...");
       size_t offset = 0;
       uint8_t status;
@@ -675,15 +675,15 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
       if (status != StatusCode::OK)
         {
           LogPrint (eLogWarning,
-                    "EmailWorker: retrieveIndex: response status: ",
+                    "EmailWorker: retrieveIndex: Response status: ",
                     statusToString (status));
           continue;
         }
 
       if (dataLen < 4)
         {
-          LogPrint (eLogWarning, "EmailWorker: retrieveIndex: packet without "
-                                 "payload, skip parsing");
+          LogPrint (eLogWarning, "EmailWorker: retrieveIndex: Packet without "
+                                 "payload, parsing skipped");
           continue;
         }
 
@@ -693,7 +693,7 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
 
       if (DHT_worker.safe (data))
         LogPrint (eLogDebug,
-                  "EmailWorker: retrieveIndex: save index packet locally");
+                  "EmailWorker: retrieveIndex: Save index packet locally");
 
       pbote::IndexPacket index_packet;
       bool parsed = index_packet.fromBuffer (data, true);
@@ -707,13 +707,14 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
         }
       else
         LogPrint (eLogWarning,
-                  "EmailWorker: retrieveIndex: index packet without entries");
+                  "EmailWorker: retrieveIndex: Index packet without entries");
     }
-  LogPrint (eLogDebug, "EmailWorker: retrieveIndex: ", index_packets.size (),
-            " index packets parsed");
+  LogPrint (eLogDebug, "EmailWorker: retrieveIndex: index packets parsed:",
+            index_packets.size ());
 
   std::vector<pbote::IndexPacket> res;
   res.reserve (index_packets.size ());
+
   for (const auto &packet : index_packets)
     res.push_back (packet.second);
 
@@ -740,7 +741,7 @@ EmailWorker::retrieveEmailPacket (
           if (!local_email_packet.empty ())
             {
               LogPrint (eLogDebug,
-                        "EmailWorker: retrieveEmailPacket: got local "
+                        "EmailWorker: retrieveEmailPacket: Got local "
                         "encrypted email for key:",
                         hash.ToBase64 ());
               pbote::EmailEncryptedPacket parsed_local_email_packet;
@@ -756,7 +757,7 @@ EmailWorker::retrieveEmailPacket (
           else
             {
               LogPrint (eLogDebug,
-                        "EmailWorker: retrieveEmailPacket: can't find local "
+                        "EmailWorker: retrieveEmailPacket: Can't find local "
                         "encrypted email for key:",
                         hash.ToBase64 ());
             }
@@ -767,8 +768,8 @@ EmailWorker::retrieveEmailPacket (
         }
     }
 
-  LogPrint (eLogDebug, "EmailWorker: retrieveEmailPacket: ", responses.size (),
-            " response packets received");
+  LogPrint (eLogDebug, "EmailWorker: retrieveEmailPacket: Responses received",
+            responses.size ());
 
   std::map<i2p::data::Tag<32>, pbote::EmailEncryptedPacket> mail_packets;
   for (const auto &response : responses)
@@ -777,7 +778,7 @@ EmailWorker::retrieveEmailPacket (
         {
           // ToDo: looks like we got request to ourself, for now just skip it
           LogPrint (eLogWarning,
-                    "EmailWorker: retrieveIndex: got non-response packet in "
+                    "EmailWorker: retrieveIndex: Got non-response packet in "
                     "batch, type: ",
                     response->type, ", ver: ", unsigned (response->ver));
           continue;
@@ -796,28 +797,28 @@ EmailWorker::retrieveEmailPacket (
       if (status != StatusCode::OK)
         {
           LogPrint (eLogWarning,
-                    "EmailWorker: retrieveEmailPacket: response status: ",
+                    "EmailWorker: retrieveEmailPacket: Response status: ",
                     statusToString (status));
           continue;
         }
 
       if (dataLen == 0)
         {
-          LogPrint (eLogWarning, "EmailWorker: retrieveEmailPacket: packet "
-                                 "without payload, skip parsing");
+          LogPrint (eLogWarning, "EmailWorker: retrieveEmailPacket: Packet "
+                                 "without payload, parsing skipped");
           continue;
         }
 
       LogPrint (
           eLogDebug,
-          "EmailWorker: retrieveEmailPacket: got email packet, payload size: ",
+          "EmailWorker: retrieveEmailPacket: Got email packet, payload size: ",
           dataLen);
       std::vector<uint8_t> data
           = { response->payload.data () + offset,
               response->payload.data () + offset + dataLen };
 
       if (DHT_worker.safe (data))
-        LogPrint (eLogDebug, "EmailWorker: retrieveEmailPacket: save "
+        LogPrint (eLogDebug, "EmailWorker: retrieveEmailPacket: Save "
                              "encrypted email packet locally");
 
       pbote::EmailEncryptedPacket parsed_packet;
@@ -833,10 +834,10 @@ EmailWorker::retrieveEmailPacket (
       else
         LogPrint (
             eLogWarning,
-            "EmailWorker: retrieveEmailPacket: mail packet without entries");
+            "EmailWorker: retrieveEmailPacket: Mail packet without entries");
     }
   LogPrint (eLogDebug,
-            "EmailWorker: retrieveEmailPacket: parsed mail packets: ",
+            "EmailWorker: retrieveEmailPacket: Parsed mail packets: ",
             mail_packets.size ());
 
   for (auto local_packet : local_email_packets)
@@ -847,11 +848,12 @@ EmailWorker::retrieveEmailPacket (
               hash, local_packet));
     }
 
-  LogPrint (eLogDebug, "EmailWorker: retrieveEmailPacket: mail packets: ",
+  LogPrint (eLogDebug, "EmailWorker: retrieveEmailPacket: Mail packets: ",
             mail_packets.size ());
 
   std::vector<pbote::EmailEncryptedPacket> res;
   res.reserve (mail_packets.size ());
+
   for (const auto &packet : mail_packets)
     res.push_back (packet.second);
 
@@ -891,187 +893,187 @@ EmailWorker::loadLocalIncompletePacket ()
 std::vector<std::shared_ptr<pbote::Email> >
 EmailWorker::checkOutbox ()
 {
-  LogPrint (eLogDebug, "EmailWorker: checkOutbox: start");
-
   // outbox - plain text packet
   // ToDo: encrypt all local stored emails
   std::string outboxPath = pbote::fs::DataDirPath ("outbox");
   std::vector<std::string> mails_path;
   auto result = pbote::fs::ReadDir (outboxPath, mails_path);
 
-  std::vector<std::shared_ptr<pbote::Email> > emails;
-  if (result)
+  if (!result)
     {
-      for (const auto &mail_path : mails_path)
+      LogPrint (eLogDebug, "EmailWorker: checkOutbox: No emails in outbox ");
+      return {};
+    }
+
+  std::vector<std::shared_ptr<pbote::Email> > emails;
+
+  for (const auto &mail_path : mails_path)
+    {
+      // read mime packet
+      std::ifstream file (mail_path, std::ios::binary);
+      std::vector<uint8_t> bytes ((std::istreambuf_iterator<char> (file)),
+                                  (std::istreambuf_iterator<char> ()));
+      file.close ();
+
+      pbote::Email mailPacket;
+      mailPacket.fromMIME (bytes);
+      mailPacket.bytes ();
+
+      if (mailPacket.length () > 0)
         {
-          // read mime packet
-          std::ifstream file (mail_path, std::ios::binary);
-          std::vector<uint8_t> bytes ((std::istreambuf_iterator<char> (file)),
-                                      (std::istreambuf_iterator<char> ()));
-          file.close ();
+          LogPrint (eLogDebug,
+                    "EmailWorker: checkOutbox: file loaded: ", mail_path);
+        }
+      else
+        {
+          LogPrint (eLogWarning,
+                    "EmailWorker: checkOutbox: can't read file: ", mail_path);
+          continue;
+        }
 
-          pbote::Email mailPacket;
-          mailPacket.fromMIME (bytes);
-          mailPacket.bytes ();
+      mailPacket.filename (mail_path);
 
-          if (mailPacket.length () > 0)
+      // ToDo: need to simplify
+
+      /// Check if if FROM and TO fields have valid public names, else
+      /// Check if <name@domain> in AddressBook for replacement
+      /// if not found - log warning and skip
+      /// if replaced - save modified email to file to keep changes
+
+      std::string from_address = mailPacket.field ("From");
+      std::string to_address = mailPacket.field ("To");
+      if (from_address.empty () || to_address.empty ())
+        {
+          LogPrint (eLogWarning,
+                    "EmailWorker: checkOutbox: FROM or TO field are empty");
+          continue;
+        }
+
+      bool changed = false;
+      std::string et_char ("@"), less_char ("<"), more_char (">");
+      size_t from_less_pos = from_address.find (less_char);
+      size_t from_et_pos = from_address.find (et_char);
+      
+      if (from_less_pos != std::string::npos
+          && from_et_pos != std::string::npos)
+        {
+          LogPrint (eLogDebug,
+                    "EmailWorker: checkOutbox: try to replace FROM: ",
+                    from_address);
+
+          std::string old_from_address = from_address;
+          std::string pub_name = from_address.substr (0, from_less_pos - 1);
+          from_address.erase (0, from_less_pos + 1);
+          from_et_pos = from_address.find (et_char);
+          std::string alias_name = from_address.substr (0, from_et_pos);
+
+          auto pub_from_identity = context.identityByName (pub_name);
+          auto alias_from_identity = context.identityByName (alias_name);
+          if (!pub_from_identity && !alias_from_identity)
             {
-              LogPrint (eLogDebug,
-                        "EmailWorker: checkOutbox: file loaded: ", mail_path);
+              LogPrint (eLogWarning,
+                        "EmailWorker: checkOutbox: can't find address for name:",
+                        pub_name, ", alias: ", alias_name);
+              continue;
+            }
+          std::string new_from;
+          if (pub_from_identity)
+            {
+              std::string pub_str = pub_from_identity->full_key.substr (0, 86);
+              new_from.append (pub_from_identity->publicName + " <"
+                               + pub_str + ">");
+            }
+          else if (alias_from_identity)
+            {
+              std::string alias_str
+                = alias_from_identity->full_key.substr (0, 86);
+              new_from.append (alias_from_identity->publicName + " <"
+                               + alias_str + ">");
             }
           else
             {
-              LogPrint (
-                  eLogWarning,
-                  "EmailWorker: checkOutbox: can't read file: ", mail_path);
+              LogPrint (eLogError,
+                        "EmailWorker: checkOutbox: unknown error, name:",
+                        pub_name, ", alias: ", alias_name);
+              continue;
+            }
+          LogPrint (eLogDebug,
+                    "EmailWorker: checkOutbox: FROM replaced, old: ",
+                    old_from_address, ", new: ", new_from);
+          mailPacket.setField ("From", new_from);
+          changed = true;
+        }
+
+      // Now replace TO
+      size_t to_less_pos = to_address.find (less_char);
+      size_t to_et_pos = to_address.find (et_char);
+      size_t to_more_pos = to_address.find (more_char);
+      if (to_less_pos != std::string::npos
+          && to_et_pos != std::string::npos)
+        {
+          LogPrint (eLogDebug,
+                    "EmailWorker: checkOutbox: try to replace TO: ", to_address);
+
+          std::string old_to_address = to_address;
+          std::string pub_name = to_address.substr (0, to_less_pos - 1);
+          to_address.erase (0, to_less_pos + 1);
+          //to_et_pos = to_address.find (et_char);
+          //std::string alias_name = to_address.substr (0, to_et_pos);
+          to_more_pos = to_address.find (more_char);
+          std::string alias_name = to_address.substr (0, to_more_pos);
+
+          LogPrint (eLogDebug,
+                    "EmailWorker: checkOutbox: pub_name  : ", pub_name);
+          LogPrint (eLogDebug,
+                    "EmailWorker: checkOutbox: alias_name: ", alias_name);
+
+          auto pub_to_address = context.address_for_name (pub_name);
+          auto alias_to_address = context.address_for_alias (alias_name);
+
+          if (pub_to_address.empty () && alias_to_address.empty ())
+            {
+              LogPrint (eLogWarning,
+                        "EmailWorker: checkOutbox: can't find address for ",
+                        to_address);
               continue;
             }
 
-          mailPacket.filename (mail_path);
-
-          // ToDo: need to simplify
-
-          /// Check if if FROM and TO fields have valid public names, else
-          /// Check if <name@domain> in AddressBook for replacement
-          /// if not found - log warning and skip
-          /// if replaced - save modified email to file to keep changes
-
-          std::string from_address = mailPacket.field ("From");
-          std::string to_address = mailPacket.field ("To");
-          if (from_address.empty () || to_address.empty ())
+          std::string new_to;
+          if (!pub_to_address.empty ())
             {
-              LogPrint (
-                  eLogWarning,
-                  "EmailWorker: checkOutbox: FROM or TO field are empty");
+              new_to.append (pub_name + " <" + pub_to_address + ">");
+            }
+          else if (!alias_to_address.empty ())
+            {
+              new_to.append (alias_name + " <" + alias_to_address + ">");
+            }
+          else
+            {
+              LogPrint (eLogError,
+                        "EmailWorker: checkOutbox: unknown error, name:",
+                        pub_name, ", alias: ", alias_name);
               continue;
             }
+          LogPrint (eLogDebug,
+                    "EmailWorker: checkOutbox: TO replaced, old: ",
+                    old_to_address, ", new: ", new_to);
+          mailPacket.setField ("To", new_to);
+          changed = true;
+        }
 
-          bool changed = false;
-          std::string et_char ("@"), less_char ("<");
-          size_t from_less_pos = from_address.find (less_char);
-          size_t from_et_pos = from_address.find (et_char);
-          if (from_less_pos != std::string::npos
-              && from_et_pos != std::string::npos)
-            {
-              LogPrint (eLogDebug,
-                        "EmailWorker: checkOutbox: try to replace FROM: ",
-                        from_address);
+      if (changed)
+        mailPacket.save ("");
 
-              std::string old_from_address = from_address;
-              std::string pub_name
-                  = from_address.substr (0, from_less_pos - 1);
-              from_address.erase (0, from_less_pos + 1);
-              from_et_pos = from_address.find (et_char);
-              std::string alias_name = from_address.substr (0, from_et_pos);
+      mailPacket.compose ();
 
-              auto pub_from_identity = context.identityByName (pub_name);
-              auto alias_from_identity = context.identityByName (alias_name);
-              if (!pub_from_identity && !alias_from_identity)
-                {
-                  LogPrint (
-                      eLogWarning,
-                      "EmailWorker: checkOutbox: can't find address for name:",
-                      pub_name, ", alias: ", alias_name);
-                  continue;
-                }
-              std::string new_from;
-              if (pub_from_identity)
-                {
-                  std::string pub_str
-                      = pub_from_identity->full_key.substr (0, 86);
-                  new_from.append (pub_from_identity->publicName + " <"
-                                   + pub_str + ">");
-                }
-              else if (alias_from_identity)
-                {
-                  std::string alias_str
-                      = alias_from_identity->full_key.substr (0, 86);
-                  new_from.append (alias_from_identity->publicName + " <"
-                                   + alias_str + ">");
-                }
-              else
-                {
-                  LogPrint (eLogError,
-                            "EmailWorker: checkOutbox: unknown error, name:",
-                            pub_name, ", alias: ", alias_name);
-                  continue;
-                }
-              LogPrint (eLogDebug,
-                        "EmailWorker: checkOutbox: FROM replaced, old: ",
-                        old_from_address, ", new: ", new_from);
-              mailPacket.setField ("From", new_from);
-              changed = true;
-            }
+      // ToDo: compress to gzip for 25519 address (pboted)
+      mailPacket.compress (pbote::Email::CompressionAlgorithm::UNCOMPRESSED);
 
-          // Now replace TO
-          size_t to_less_pos = to_address.find (less_char);
-          size_t to_et_pos = to_address.find (et_char);
-          if (to_less_pos != std::string::npos
-              && to_et_pos != std::string::npos)
-            {
-              LogPrint (
-                  eLogDebug,
-                  "EmailWorker: checkOutbox: try to replace TO: ", to_address);
-
-              std::string old_to_address = to_address;
-              std::string pub_name = to_address.substr (0, to_less_pos - 1);
-              to_address.erase (0, to_less_pos + 1);
-              to_et_pos = to_address.find (et_char);
-              std::string alias_name = to_address.substr (0, to_et_pos);
-
-              auto pub_to_address = context.address_for_name (pub_name);
-              auto alias_to_address = context.address_for_alias (alias_name);
-
-              if (pub_to_address.empty () && alias_to_address.empty ())
-                {
-                  LogPrint (
-                      eLogWarning,
-                      "EmailWorker: checkOutbox: can't find address for ",
-                      to_address);
-                  continue;
-                }
-
-              std::string new_to;
-              if (!pub_to_address.empty ())
-                {
-                  new_to.append (pub_name + " <" + pub_to_address + ">");
-                }
-              else if (!alias_to_address.empty ())
-                {
-                  new_to.append (alias_name + " <" + pub_to_address + ">");
-                }
-              else
-                {
-                  LogPrint (eLogError,
-                            "EmailWorker: checkOutbox: unknown error, name:",
-                            pub_name, ", alias: ", alias_name);
-                  continue;
-                }
-              LogPrint (eLogDebug,
-                        "EmailWorker: checkOutbox: TO replaced, old: ",
-                        old_to_address, ", new: ", new_to);
-              mailPacket.setField ("To", new_to);
-              changed = true;
-            }
-
-          if (changed)
-            mailPacket.save ("");
-
-          mailPacket.compose ();
-
-          // ToDo: compress to gzip for 25519 address (pboted)
-          mailPacket.compress (
-              pbote::Email::CompressionAlgorithm::UNCOMPRESSED);
-
-          if (!mailPacket.empty ())
-            {
-              emails.push_back (std::make_shared<pbote::Email> (mailPacket));
-            }
+      if (!mailPacket.empty ())
+        {
+          emails.push_back (std::make_shared<pbote::Email> (mailPacket));
         }
     }
-
-  LogPrint (eLogDebug, "EmailWorker: checkOutbox: found ", emails.size (),
-            " email(s) for send.");
 
   return emails;
 }
@@ -1082,7 +1084,7 @@ EmailWorker::processEmail (
     const std::vector<pbote::EmailEncryptedPacket> &mail_packets)
 {
   // ToDo: move to incompleteEmailTask?
-  LogPrint (eLogDebug, "EmailWorker: processEmail: emails for process: ",
+  LogPrint (eLogDebug, "EmailWorker: processEmail: Emails for process: ",
             mail_packets.size ());
   std::vector<pbote::Email> emails;
 
@@ -1112,7 +1114,8 @@ EmailWorker::processEmail (
     }
 
   LogPrint (eLogDebug,
-            "EmailWorker: processEmail: processed emails: ", emails.size ());
+            "EmailWorker: processEmail: Emails processed: ", emails.size ());
+
   return emails;
 }
 

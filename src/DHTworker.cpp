@@ -414,13 +414,17 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
   LogPrint (eLogDebug, "DHT: deleteEmail: Start for type: ", type,
             ", hash: ", hash.ToBase64 ());
 
+  if (dht_storage_.deleteEmail (hash))
+    {
+      LogPrint (eLogDebug, "DHT: deleteEmail: Removed local packet, hash: ",
+        hash.ToBase64 ());
+    }
+
   auto batch
       = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
   batch->owner = "DHTworker::deleteEmail";
 
   std::vector<sp_node> closestNodes = closestNodesLookupTask (hash);
-
-  // ToDo: add remove locally
 
   LogPrint (eLogDebug,
             "DHT: deleteEmail: Closest nodes: ", closestNodes.size ());
@@ -495,13 +499,19 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
   LogPrint (eLogDebug, "DHT: deleteIndexEntry: Start for key: ",
             email_dht_key.ToBase64 (), ", hash: ", del_auth.ToBase64 ());
 
+  // ToDo: Need to check if we need to remove part
+  if (dht_storage_.deleteIndex (index_dht_key))
+    {
+      LogPrint (eLogDebug,
+        "DHT: deleteIndexEntry: Removed local packet, hash: ",
+        index_dht_key.ToBase64 ());
+    }
+
   auto batch
       = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
   batch->owner = "DHTworker::deleteIndexEntry";
 
   std::vector<sp_node> closestNodes = closestNodesLookupTask (index_dht_key);
-
-  // ToDo: add remove locally
 
   LogPrint (eLogDebug,
             "DHT: deleteIndexEntry: Closest nodes: ", closestNodes.size ());
@@ -1186,8 +1196,8 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
 
   std::memcpy (&key, packet->payload.data (), 32);
   offset += 32;
-  std::memcpy (&delAuth, packet->payload.data () + offset, 32); // offset +=
-                                                                // 32;
+  std::memcpy (&delAuth, packet->payload.data () + offset, 32);
+  // offset += 32;
 
   HashKey t_key (key);
   LogPrint (eLogDebug,
@@ -1366,6 +1376,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
               // Delete "old" and write "new" packet, if not empty
               bool deleted = dht_storage_.deleteIndex (t_key);
               int saved = STORE_FILE_NOT_STORED;
+
               if (!index_packet.data.empty ())
                 saved = dht_storage_.safe (index_packet.toByte ());
 
