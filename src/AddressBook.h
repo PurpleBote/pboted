@@ -1,13 +1,13 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTED_ADDRESS_BOOK_H__
-#define PBOTED_ADDRESS_BOOK_H__
+#ifndef PBOTED_SRC_ADDRESS_BOOK_H_
+#define PBOTED_SRC_ADDRESS_BOOK_H_
 
 #include <map>
 #include <string>
@@ -46,13 +46,15 @@ public:
   ~AddressBook ();
 
   /**
-   * @brief Load and perse aliases after reading from file
+   * @brief Load and parse aliases after reading from file
    * 
    */
   void load ();
   void save ();
 
-  void add (const std::string &alias, const std::string &name, const std::string &address);
+  void add (const std::string &alias,
+            const std::string &name,
+            const std::string &address);
   bool name_exist (const std::string &name);
   bool alias_exist (const std::string &alias);
   std::string address_for_name (const std::string &name);
@@ -81,4 +83,4 @@ private:
 
 } // namespace pbote
 
-#endif // PBOTED_ADDRESS_BOOK_H__
+#endif // PBOTED_SRC_ADDRESS_BOOK_H_
