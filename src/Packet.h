@@ -6,8 +6,8 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTE_PACKET_H__
-#define PBOTE_PACKET_H__
+#ifndef PBOTED_SRC_PACKET_H_
+#define PBOTED_SRC_PACKET_H_
 
 #include <algorithm>
 #include <chrono>
@@ -259,8 +259,7 @@ public:
       {
         LogPrint (
             eLogWarning,
-            "Packet: EmailEncryptedPacket: fromBuffer: payload is too short: ",
-            len);
+            "Packet: E: fromBuffer: Payload is too short: ", len);
         return {};
       }
 
@@ -275,8 +274,7 @@ public:
       {
         LogPrint (
             eLogWarning,
-            "Packet: EmailEncryptedPacket: fromBuffer: wrong packet type: ",
-            type);
+            "Packet: E: fromBuffer: Wrong packet type: ", type);
         return false;
       }
 
@@ -284,7 +282,7 @@ public:
       {
         LogPrint (
             eLogWarning,
-            "Packet: EmailEncryptedPacket: fromBuffer: wrong packet version: ",
+            "Packet: E: fromBuffer: wrong packet version: ",
             unsigned (ver));
         return false;
       }
@@ -309,39 +307,32 @@ public:
         length = ntohs (length);
       }
 
-    LogPrint (eLogDebug,
-              "Packet: EmailEncryptedPacket: fromBuffer: packet.stored_time: ",
+    LogPrint (eLogDebug, "Packet: E: fromBuffer: packet.stored_time: ",
               stored_time);
-    LogPrint (eLogDebug,
-              "Packet: EmailEncryptedPacket: fromBuffer: packet.alg: ",
-              unsigned (alg));
-    LogPrint (
-        eLogDebug,
-        "Packet: EmailEncryptedPacket: fromBuffer: packet.length: ", length);
+    LogPrint (eLogDebug, "Packet: E: fromBuffer: packet.alg: ", unsigned (alg));
+    LogPrint (eLogDebug, "Packet: E: fromBuffer: packet.length: ", length);
 
     i2p::data::Tag<32> ver_hash (key);
     uint8_t data_hash[32];
     SHA256 (data_for_verify.data (), data_for_verify.size (), data_hash);
     i2p::data::Tag<32> cur_hash (data_hash);
 
-    LogPrint (eLogDebug,
-              "Packet: EmailEncryptedPacket: fromBuffer: ver_hash: ",
+    LogPrint (eLogDebug, "Packet: E: fromBuffer: ver_hash: ",
               ver_hash.ToBase64 ());
-    LogPrint (eLogDebug,
-              "Packet: EmailEncryptedPacket: fromBuffer: cur_hash: ",
+    LogPrint (eLogDebug, "Packet: E: fromBuffer: cur_hash: ",
               cur_hash.ToBase64 ());
 
     if (ver_hash != cur_hash)
       {
-        LogPrint (eLogError,
-                  "Packet: EmailEncryptedPacket: fromBuffer: hash mismatch");
+        LogPrint (eLogError, "Packet: E: fromBuffer: hash mismatch");
         return false;
       }
 
-    LogPrint (eLogDebug, "Packet: EmailEncryptedPacket: fromBuffer: alg: ",
-              unsigned (alg), ", length: ", length);
+    LogPrint (eLogDebug, "Packet: E: fromBuffer: alg: ", unsigned (alg),
+              ", length: ", length);
     std::vector<uint8_t> data (buf + offset, buf + offset + length);
     edata = data;
+
     return true;
   }
 
@@ -439,7 +430,8 @@ public:
     operator== (const Entry &rhs)
     {
       return memcmp (this->key, rhs.key, 32) != 0
-             && memcmp (this->dv, rhs.dv, 32) != 0 && (this->time == rhs.time);
+             && memcmp (this->dv, rhs.dv, 32) != 0
+             && (this->time == rhs.time);
     }
   };
 
@@ -453,8 +445,7 @@ public:
     /// because type[1] + ver[1] + DH[32] + nump[4] == 38 byte
     if (buf.size () < 38)
       {
-        LogPrint (eLogWarning,
-                  "Packet: IndexPacket: fromBuffer: payload is too short");
+        LogPrint (eLogWarning, "Packet: I: fromBuffer: Payload is too short");
         return false;
       }
     uint16_t offset = 0;
@@ -467,38 +458,36 @@ public:
     offset += 32;
 
     std::memcpy (&nump, buf.data () + offset, 4);
-    LogPrint (eLogDebug, "Packet: IndexPacket: fromBuffer: nump raw: ", nump,
+    
+    LogPrint (eLogDebug, "Packet: I: fromBuffer: nump raw: ", nump,
               ", ntohl: ", ntohl (nump),
               ", from_net: ", from_net ? "true" : "false");
+    
     if (from_net)
       nump = ntohl (nump);
 
     offset += 4;
 
-    LogPrint (eLogDebug, "Packet: IndexPacket: fromBuffer: nump: ", nump,
+    LogPrint (eLogDebug, "Packet: I: fromBuffer: nump: ", nump,
               ", type: ", type, ", version: ", unsigned (ver));
 
     if (type != (uint8_t)'I')
       {
-        LogPrint (
-            eLogWarning,
-            "Packet: IndexPacket: fromBuffer: wrong packet type: ", type);
+        LogPrint (eLogWarning, "Packet: I: fromBuffer: Wrong type: ", type);
         return false;
       }
 
     if (ver != (uint8_t)4)
       {
         LogPrint (eLogWarning,
-                  "Packet: IndexPacket: fromBuffer: wrong packet version: ",
-                  unsigned (ver));
+                  "Packet: I: fromBuffer: Wrong version: ", unsigned (ver));
         return false;
       }
 
     // Check if payload length enough to parse all entries
     if (buf.size () < (38 + (68 * nump)))
       {
-        LogPrint (eLogWarning,
-                  "Packet: IndexPacket: fromBuffer: incomplete packet!");
+        LogPrint (eLogWarning, "Packet: I: fromBuffer: Incomplete packet");
         return false;
       }
 
@@ -508,19 +497,20 @@ public:
         std::memcpy (&entry.key, buf.data () + offset, 32);
         offset += 32;
         i2p::data::Tag<32> key (entry.key);
-        LogPrint (eLogDebug, "Packet: IndexPacket: fromBuffer: mail key: ",
+        LogPrint (eLogDebug, "Packet: I: fromBuffer: mail key: ",
                   key.ToBase64 ());
 
         std::memcpy (&entry.dv, buf.data () + offset, 32);
         offset += 32;
         i2p::data::Tag<32> dv (entry.dv);
-        LogPrint (eLogDebug, "Packet: IndexPacket: fromBuffer: mail dvr: ",
+        LogPrint (eLogDebug, "Packet: I: fromBuffer: mail dvr: ",
                   dv.ToBase64 ());
 
         std::memcpy (&entry.time, buf.data () + offset, 4);
         offset += 4;
         data.push_back (entry);
       }
+
     return true;
   }
 
@@ -773,6 +763,7 @@ public:
       return true;
 
     data = std::vector<uint8_t> (buf + offset, buf + offset + length);
+
     return true;
   }
 
@@ -1006,70 +997,67 @@ ToHex (const std::string &s, bool upper_case)
 inline std::shared_ptr<CommunicationPacket>
 parseCommPacket (const std::shared_ptr<PacketForQueue> &packet)
 {
-  if (!packet->payload.empty ())
+  if (packet->payload.empty ())
     {
-      std::array<std::uint8_t, 4> payloadPrefix = {};
-
-      if (packet->payload.size () > 4)
-        payloadPrefix = { packet->payload[0], packet->payload[1],
-                          packet->payload[2], packet->payload[3] };
-
-      if (payloadPrefix != COMM_PREFIX)
-        {
-          LogPrint (eLogWarning, "Packet: bad prefix");
-          return nullptr;
-        }
-
-      /// just for init empty packet for memcpy
-      CleanCommunicationPacket data (CommA);
-      memcpy (&data, packet->payload.data (), COMM_DATA_LEN);
-
-      bool goodType = std::find (std::begin (PACKET_TYPE),
-                                 std::end (PACKET_TYPE), data.type)
-                      != std::end (PACKET_TYPE);
-      if (!goodType)
-        {
-          LogPrint (eLogWarning, "Packet: bad type");
-          return nullptr;
-        }
-
-      bool goodVersion = std::find (std::begin (BOTE_VERSION),
-                                    std::end (BOTE_VERSION), data.ver)
-                         != std::end (BOTE_VERSION);
-      if (!goodVersion)
-        {
-          LogPrint (eLogWarning, "Packet: bad version");
-          return nullptr;
-        }
-
-      /// 38 cause prefix[4] + type[1] + ver[1] +  cid[32]
-      long clean_payload_size = (long)packet->payload.size () - 38;
-      if (clean_payload_size < 0)
-        {
-          LogPrint (eLogWarning, "Packet: payload too short");
-          return nullptr;
-        }
-
-      CommunicationPacket res (data.type);
-      res.ver = data.ver;
-      memcpy (res.cid, data.cid, 32);
-
-      res.from = std::move (packet->destination);
-      std::vector<uint8_t> v_payload (packet->payload.begin ()
-                                          + (long)packet->payload.size ()
-                                          - clean_payload_size,
-                                      packet->payload.end ());
-      res.payload = v_payload;
-
-      return std::make_shared<CommunicationPacket> (res);
-    }
-  else
-    {
-      LogPrint (eLogWarning, "Packet: have no payload");
+      LogPrint (eLogWarning, "Packet: Have no payload");
       return nullptr;
     }
+  
+  std::array<std::uint8_t, 4> payloadPrefix = {};
+
+  if (packet->payload.size () > 4)
+    payloadPrefix = { packet->payload[0], packet->payload[1],
+                      packet->payload[2], packet->payload[3] };
+
+  if (payloadPrefix != COMM_PREFIX)
+    {
+      LogPrint (eLogWarning, "Packet: Bad prefix");
+      return nullptr;
+    }
+
+  /// Just for init empty packet for memcpy
+  CleanCommunicationPacket data (CommA);
+  memcpy (&data, packet->payload.data (), COMM_DATA_LEN);
+
+  auto found_type = std::find (std::begin (PACKET_TYPE),
+                               std::end (PACKET_TYPE), data.type);
+      
+  if (found_type == std::end (PACKET_TYPE))
+    {
+      LogPrint (eLogWarning, "Packet: Bad type");
+      return nullptr;
+    }
+
+  auto found_ver = std::find (std::begin (BOTE_VERSION),
+                              std::end (BOTE_VERSION), data.ver);
+
+  if (found_ver == std::end (BOTE_VERSION))
+    {
+      LogPrint (eLogWarning, "Packet: Bad version");
+      return nullptr;
+    }
+
+  long clean_payload_size = (long)packet->payload.size () - COMM_DATA_LEN;
+  if (clean_payload_size < 0)
+    {
+      LogPrint (eLogWarning, "Packet: Payload too short");
+      return nullptr;
+    }
+
+  CommunicationPacket res (data.type);
+  res.ver = data.ver;
+  memcpy (res.cid, data.cid, 32);
+
+  res.from = std::move (packet->destination);
+  std::vector<uint8_t> v_payload (packet->payload.begin ()
+                                  + (long)packet->payload.size ()
+                                  - clean_payload_size,
+                                  packet->payload.end ());
+  res.payload = v_payload;
+
+  return std::make_shared<CommunicationPacket> (res);
 }
 
 } // namespace pbote
 
-#endif // PBOTE_PACKET_H__
+#endif // PBOTED_SRC_PACKET_H_

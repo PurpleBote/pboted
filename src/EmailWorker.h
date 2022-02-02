@@ -1,13 +1,13 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTE_EMAILWORKER_H__
-#define PBOTE_EMAILWORKER_H__
+#ifndef PBOTED_SRC_EMAIL_WORKER_H_
+#define PBOTED_SRC_EMAIL_WORKER_H_
 
 #include <algorithm>
 #include <cstdint>
@@ -81,4 +81,4 @@ extern EmailWorker email_worker;
 } // namespace kademlia
 } // namespace pbote
 
-#endif // PBOTE_EMAILWORKER_H__
+#endif // PBOTED_SRC_EMAIL_WORKER_H_

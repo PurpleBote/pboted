@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -99,7 +99,9 @@ AddressBook::save ()
 }
 
 void
-AddressBook::add (const std::string &alias, const std::string &name, const std::string &address)
+AddressBook::add (const std::string &alias,
+                  const std::string &name,
+                  const std::string &address)
 {
   Contact new_contact{};
 
@@ -113,9 +115,16 @@ AddressBook::add (const std::string &alias, const std::string &name, const std::
 bool
 AddressBook::name_exist (const std::string &name)
 {
+  LogPrint (eLogDebug, "AddressBook: name_exist: name : ", name);
+
   for (const auto &contact : contacts)
-    if (contact.name.compare (name) == 0)
-      return true;
+    {
+      LogPrint (eLogDebug,
+        "AddressBook: name_exist: contact.name : ", contact.name);
+
+      if (contact.name.compare (name) == 0)
+        return true;
+    }
 
   return false;
 }
@@ -123,9 +132,16 @@ AddressBook::name_exist (const std::string &name)
 bool
 AddressBook::alias_exist (const std::string &alias)
 {
+  LogPrint (eLogDebug, "AddressBook: alias_exist: alias : ", alias);
+
   for (const auto &contact : contacts)
-    if (contact.alias.compare (alias) == 0)
-      return true;
+    {
+      LogPrint (eLogDebug,
+        "AddressBook: alias_exist: contact.alias : ", contact.alias);
+
+      if (contact.alias.compare (alias) == 0)
+        return true;
+    }
 
   return false;
 }
