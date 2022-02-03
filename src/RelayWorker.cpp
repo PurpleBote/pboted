@@ -112,7 +112,9 @@ RelayWorker::check_peers ()
       LogPrint (eLogWarning, "Relay: No responses");
       /// Rollback samples, if have no responses at all
       /// Usually in network error case
-      peer->rollback ();
+      for (const auto &peer : m_peers_)
+        peer.second->rollback ();
+
       return false;
     }
   
