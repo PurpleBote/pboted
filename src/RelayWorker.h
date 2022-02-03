@@ -87,6 +87,12 @@ public:
       samples_--;
   }
 
+  void
+  rollback ()
+  {
+    samples_++;
+  }
+
   bool
   reachable ()
   {
