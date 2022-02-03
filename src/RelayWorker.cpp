@@ -78,7 +78,6 @@ bool
 RelayWorker::check_peers ()
 {
   LogPrint (eLogDebug, "Relay: Start new round");
-  bool task_status = false;
 
   auto batch
       = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
@@ -111,10 +110,12 @@ RelayWorker::check_peers ()
   if (responses.empty ())
     {
       LogPrint (eLogWarning, "Relay: No responses");
+      /// Rollback samples, if have no responses at all
+      /// Usually in network error case
+      peer->rollback ();
       return false;
     }
   
-  task_status = true;
   for (const auto &response : responses)
     {
       if (response->type != type::CommN)
@@ -157,37 +158,40 @@ RelayWorker::check_peers ()
       // ToDo: looks like it can be too slow, need to think how to optimized it
       LogPrint (eLogDebug, "Relay: type: ", response->type,
                 ", ver: ", unsigned (response->ver));
+
       if (unsigned (data[1]) == 5
           && (data[0] == (uint8_t)'L' || data[0] == (uint8_t)'P'))
         {
-          if (receivePeerListV5 (data.data (), dataLen))
+          if (!receivePeerListV5 (data.data (), dataLen))
             {
-              /// Increment peer metric back, if we have response
-              for (const auto &m_peer : m_peers_)
+              LogPrint (eLogWarning, "Relay: Can't parse packet");
+              continue;
+            }
+          /// Increment peer metric back, if we have response
+          for (const auto &m_peer : m_peers_)
+            {
+              if (m_peer.second->ToBase64 () == response->from)
                 {
-                  if (m_peer.second->ToBase64 () == response->from)
-                    {
-                      LogPrint (
-                          eLogDebug, "Relay: Got response, mark reachable");
-                      m_peer.second->reachable (true);
-                    }
+                  LogPrint (eLogDebug, "Relay: Got response, mark reachable");
+                  m_peer.second->reachable (true);
                 }
             }
         }
       else if (unsigned (data[1]) == 4
                && (data[0] == (uint8_t)'L' || data[0] == (uint8_t)'P'))
         {
-          if (receivePeerListV4 (data.data (), dataLen))
+          if (!receivePeerListV4 (data.data (), dataLen))
             {
+              LogPrint (eLogWarning, "Relay: Can't parse packet");
+              continue;
+            }
               /// Increment peer metric back, if we have response
-              for (const auto &m_peer : m_peers_)
+          for (const auto &m_peer : m_peers_)
+            {
+              if (m_peer.second->ToBase64 () == response->from)
                 {
-                  if (m_peer.second->ToBase64 () == response->from)
-                    {
-                      LogPrint (
-                          eLogDebug, "Relay: Got response, mark reachable");
-                      m_peer.second->reachable (true);
-                    }
+                  LogPrint (eLogDebug, "Relay: Got response, mark reachable");
+                  m_peer.second->reachable (true);
                 }
             }
         }
@@ -200,7 +204,7 @@ RelayWorker::check_peers ()
   context.removeBatch (batch);
   writePeers ();
 
-  return task_status;
+  return true;
 }
 
 bool
