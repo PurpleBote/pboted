@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022 polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -15,172 +15,254 @@
 
 #include "Cryptography.h"
 
-namespace pbote {
+namespace pbote
+{
 
-ECDHP256Encryptor::ECDHP256Encryptor(const byte *pubkey) {
-  std::chrono::high_resolution_clock::duration
-      d = std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now();
-  unsigned seed2 = d.count();
-  rbe.seed(seed2);
+ECDHP256Encryptor::ECDHP256Encryptor (const byte *pubkey)
+{
+  auto clock_now1 = std::chrono::high_resolution_clock::now ();
+  auto clock_now2 = std::chrono::high_resolution_clock::now ();
+  std::chrono::high_resolution_clock::duration d = clock_now1 - clock_now2;
+  unsigned seed2 = d.count ();
+  rbe.seed (seed2);
 
-  ec_curve = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
-  ec_public_point = EC_POINT_new(ec_curve);
-  ec_ephemeral_key = create_key();
+  ec_curve = EC_GROUP_new_by_curve_name (NID_X9_62_prime256v1);
+  ec_public_point = EC_POINT_new (ec_curve);
+  ec_ephemeral_key = create_key ();
 
-  BIGNUM *bn_public_key = BN_bin2bn(pubkey, EPH_KEY_LEN, nullptr);
-  EC_POINT_bn2point(ec_curve, bn_public_key, ec_public_point, nullptr);
+  BIGNUM *bn_public_key = BN_bin2bn (pubkey, EPH_KEY_LEN, nullptr);
+  EC_POINT_bn2point (ec_curve, bn_public_key, ec_public_point, nullptr);
 }
 
-ECDHP256Encryptor::~ECDHP256Encryptor() {
-  if (ec_curve) EC_GROUP_free(ec_curve);
-  if (ec_public_point) EC_POINT_free(ec_public_point);
-  if (ec_ephemeral_key) EC_KEY_free(ec_ephemeral_key);
+ECDHP256Encryptor::~ECDHP256Encryptor ()
+{
+  if (ec_curve)
+    EC_GROUP_free (ec_curve);
+
+  if (ec_public_point)
+    EC_POINT_free (ec_public_point);
+
+  if (ec_ephemeral_key)
+    EC_KEY_free (ec_ephemeral_key);
 }
 
-std::vector<byte> ECDHP256Encryptor::Encrypt(const byte *data, int len) {
-  if (ec_curve && ec_public_point) {
-
-    // Get shared point
-    const EC_POINT* ec_eph_point = EC_KEY_get0_public_key(ec_ephemeral_key);
-    byte shared_key[EPH_KEY_LEN];
-    EC_POINT_point2oct(ec_curve, ec_eph_point, POINT_CONVERSION_COMPRESSED, shared_key, EPH_KEY_LEN, nullptr);
-    std::vector<byte> result(shared_key, shared_key + EPH_KEY_LEN);
-
-    // Create the shared secret
-    int secret_len;
-    byte *secret = get_secret(ec_ephemeral_key, ec_public_point, &secret_len);
-    if (secret_len < 0) {
-      LogPrint(eLogError, "Crypto: Encrypt: key compute error");
-      return {};
-    }
-    if (secret_len == 0) {
-      LogPrint(eLogError, "Crypto: Encrypt: secret len is 0");
-      return {};
-    }
-    LogPrint(eLogDebug, "Crypto: Encrypt: secret len: ", secret_len);
-
-    // Generate hash of shared secret
-    std::vector<byte> secret_hash(secret_len);
-    SHA256(secret, secret_len, secret_hash.data());
-    OPENSSL_free(secret);
-
-    i2p::data::Tag<32> secret_h(secret_hash.data());
-    LogPrint(eLogDebug, "Crypto: Encrypt: secret_hash: ", secret_h.ToBase64());
-
-    // Encrypt the data using the hash of the shared secret as an AES key
-    byte ivec[AES_BLOCK_SIZE];
-    std::generate(ivec, ivec + AES_BLOCK_SIZE, std::ref(rbe));
-    result.insert(result.end(), ivec, ivec + AES_BLOCK_SIZE);
-
-    AES_KEY encrypt_key;
-    int key_status = AES_set_encrypt_key(secret_hash.data(), 256, &encrypt_key);
-    if (key_status == -1) {
-      LogPrint(eLogError, "Crypto: Encrypt: AES key is null");
-      return {};
-    }
-    if (key_status == -2) {
-      LogPrint(eLogError, "Crypto: Encrypt: AES unsupported number of bits");
+std::vector<byte>
+ECDHP256Encryptor::Encrypt (const byte *data, int len)
+{
+  if (!ec_curve && !ec_public_point)
+    {
+      LogPrint (eLogError, "Crypto: Encrypt: Key or curve are not ready");
       return {};
     }
 
-    const int padding = len % 16;
-    LogPrint(eLogDebug, "Crypto: Encrypt: len: ", len, ", padding: ", padding);
-    std::vector<byte> encrypted(len + padding);
-    AES_cbc_encrypt(data, encrypted.data(), len, &encrypt_key, ivec, AES_ENCRYPT);
+  /// Get shared point
+  const EC_POINT* ec_eph_point = EC_KEY_get0_public_key (ec_ephemeral_key);
+  byte shared_key[EPH_KEY_LEN];
+  EC_POINT_point2oct (ec_curve, ec_eph_point, POINT_CONVERSION_COMPRESSED,
+                      shared_key, EPH_KEY_LEN, nullptr);
 
-    LogPrint(eLogDebug, "Crypto: Encrypt: encrypted size: ", encrypted.size());
-    result.insert(result.end(), encrypted.begin(), encrypted.end());
+  std::vector<byte> result (shared_key, shared_key + EPH_KEY_LEN);
 
-    return result;
-  }
-  return {};
+  /// Create the shared secret
+  int secret_len;
+  byte *secret = get_secret (ec_ephemeral_key, ec_public_point, &secret_len);
+
+  if (secret_len <= 0)
+    return {};
+
+  LogPrint (eLogDebug, "Crypto: Encrypt: Secret len: ", secret_len);
+
+  /// Generate hash of shared secret
+  std::vector<byte> secret_hash (secret_len);
+  SHA256 (secret, secret_len, secret_hash.data ());
+  OPENSSL_free (secret);
+
+  i2p::data::Tag<32> secret_h (secret_hash.data ());
+  LogPrint (eLogDebug, "Crypto: Encrypt: secret_hash: ", secret_h.ToBase64 ());
+
+  /// Encrypt the data using the hash of the shared secret as an AES key
+  byte ivec[AES_BLOCK_SIZE];
+  std::generate (ivec, ivec + AES_BLOCK_SIZE, std::ref (rbe));
+  result.insert (result.end (), ivec, ivec + AES_BLOCK_SIZE);
+
+  const int padding = len % 16;
+
+  LogPrint (eLogDebug, "Crypto: Encrypt: len: ", len, ", padding: ", padding);
+
+  std::vector<byte> pdata (data, data + len),
+    encrypted (len + padding);
+  aes_encrypt (secret_hash.data (), ivec, pdata, encrypted);
+
+  LogPrint (eLogDebug, "Crypto: Encrypt: Encrypted size: ", encrypted.size ());
+
+  result.insert (result.end (), encrypted.begin (), encrypted.end ());
+
+  return result;
 }
 
-ECDHP256Decryptor::ECDHP256Decryptor(const byte *priv) {
-  ec_curve = EC_GROUP_new_by_curve_name(NID_X9_62_prime256v1);
-  bn_private_key = BN_bin2bn(priv, 33, nullptr);
+ECDHP256Decryptor::ECDHP256Decryptor (const byte *priv)
+{
+  ec_curve = EC_GROUP_new_by_curve_name (NID_X9_62_prime256v1);
+  bn_private_key = BN_bin2bn (priv, 33, nullptr);
 }
 
-ECDHP256Decryptor::~ECDHP256Decryptor() {
-  if (ec_curve) EC_GROUP_free(ec_curve);
-  if (bn_private_key) BN_free(bn_private_key);
+ECDHP256Decryptor::~ECDHP256Decryptor ()
+{
+  if (ec_curve)
+    EC_GROUP_free (ec_curve);
+
+  if (bn_private_key)
+    BN_free (bn_private_key);
 }
 
-std::vector<byte> ECDHP256Decryptor::Decrypt(const byte *encrypted, int elen) {
-  if (ec_curve && bn_private_key) {
-    // convert BN to private key
-    EC_KEY *ec_private_key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-    if (1 != EC_KEY_set_private_key(ec_private_key, bn_private_key)) {
-      LogPrint(eLogError, "Crypto: Decrypt: fail to convert BN to private key");
+std::vector<byte>
+ECDHP256Decryptor::Decrypt (const byte *encrypted, int elen)
+{
+  if (!ec_curve && !bn_private_key)
+    {
+      LogPrint (eLogError, "Crypto: Decrypt: Key or curve are not ready");
       return {};
     }
 
-    // read the ephemeral public key - 33 byte
-    size_t offset = 0;
-    byte ephemeral_key[EPH_KEY_LEN];
-    memcpy(ephemeral_key, encrypted, EPH_KEY_LEN);
-    offset += EPH_KEY_LEN;
-
-    // decompress into an EC point
-    EC_POINT *ecp_eph_public_point = EC_POINT_new(ec_curve);
-    BIGNUM *bn_eph_key = BN_bin2bn(ephemeral_key, EPH_KEY_LEN, nullptr);
-    EC_POINT_bn2point(ec_curve, bn_eph_key, ecp_eph_public_point, nullptr);
-    EC_KEY *eph_ec_key = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
-
-    // make a public key from the public point
-    if (1 != EC_KEY_set_public_key(eph_ec_key, ecp_eph_public_point)) {
-      LogPrint(eLogError, "Crypto: Decrypt: fail to convert public key to point");
+  /// Convert BN to private key
+  EC_KEY *ec_private_key = EC_KEY_new_by_curve_name (NID_X9_62_prime256v1);
+  if (1 != EC_KEY_set_private_key (ec_private_key, bn_private_key))
+    {
+      LogPrint (eLogError, "Crypto: Decrypt: Fail to convert BN to private key");
       return {};
     }
 
-    // reconstruct the shared secret
-    int secret_len;
-    byte *secret = get_secret(ec_private_key, ecp_eph_public_point, &secret_len);
-    if (secret_len < 0) {
-      LogPrint(eLogError, "Crypto: Decrypt: key compute error");
-      return {};
-    }
-    if (secret_len == 0) {
-      LogPrint(eLogError, "Crypto: Decrypt: secret len is 0");
-      return {};
-    }
-    LogPrint(eLogDebug, "Crypto: Decrypt: secret len: ", secret_len);
+  /// Read the ephemeral public key - 33 byte
+  size_t offset = 0;
+  byte ephemeral_key[EPH_KEY_LEN];
+  memcpy (ephemeral_key, encrypted, EPH_KEY_LEN);
+  offset += EPH_KEY_LEN;
 
-    // generate hash of shared secret
-    std::vector<byte> secret_hash(secret_len);
-    SHA256(secret, secret_len, secret_hash.data());
-    OPENSSL_free(secret);
+  /// decompress into an EC point
+  EC_POINT *ecp_eph_public_point = EC_POINT_new (ec_curve);
+  BIGNUM *bn_eph_key = BN_bin2bn (ephemeral_key, EPH_KEY_LEN, nullptr);
+  EC_POINT_bn2point (ec_curve, bn_eph_key, ecp_eph_public_point, nullptr);
+  EC_KEY *eph_ec_key = EC_KEY_new_by_curve_name (NID_X9_62_prime256v1);
 
-    i2p::data::Tag<32> secret_h(secret_hash.data());
-    LogPrint(eLogDebug, "Crypto: Decrypt: secret_hash: ", secret_h.ToBase64());
-
-    // decrypt using the shared secret hash as AES key
-    byte ivec[AES_BLOCK_SIZE];
-    memcpy(ivec, encrypted + offset, AES_BLOCK_SIZE);
-    offset += AES_BLOCK_SIZE;
-
-    size_t dlen = elen - offset;
-    LogPrint(eLogDebug, "Crypto: Decrypt: elen: ", elen, ", dlen: ", dlen);
-
-    std::vector<byte> edata(encrypted + offset, encrypted + offset + dlen);
-
-    AES_KEY dkey;
-    int key_status = AES_set_decrypt_key(secret_hash.data(), 256, &dkey);
-    if (key_status == -1) {
-      LogPrint(eLogError, "Crypto: Decrypt: AES key is null");
-      return {};
-    }
-    if (key_status == -2) {
-      LogPrint(eLogError, "Crypto: Decrypt: AES unsupported number of bits");
+  /// Make public key from the public point
+  if (1 != EC_KEY_set_public_key (eph_ec_key, ecp_eph_public_point))
+    {
+      LogPrint (eLogError, "Crypto: Decrypt: Fail to convert public key to point");
       return {};
     }
 
-    std::vector<byte> decrypted(dlen);
-    AES_cbc_encrypt(edata.data(), decrypted.data(), dlen, &dkey, ivec, AES_DECRYPT);
+  /// Re-construct the shared secret
+  int secret_len;
+  byte *secret = get_secret (ec_private_key, ecp_eph_public_point, &secret_len);
+  if (secret_len <= 0)
+    return {};
 
-    return decrypted;
-  }
-  return {};
+  LogPrint (eLogDebug, "Crypto: Decrypt: Secret len: ", secret_len);
+
+  /// Get hash of shared secret
+  std::vector<byte> secret_hash (secret_len);
+  SHA256 (secret, secret_len, secret_hash.data ());
+  OPENSSL_free (secret);
+
+  i2p::data::Tag<32> secret_h (secret_hash.data ());
+  LogPrint (eLogDebug, "Crypto: Decrypt: Secret_hash: ", secret_h.ToBase64 ());
+
+  /// Decrypt using the shared secret hash as AES key
+  byte ivec[AES_BLOCK_SIZE];
+  memcpy(ivec, encrypted + offset, AES_BLOCK_SIZE);
+  offset += AES_BLOCK_SIZE;
+
+  size_t dlen = elen - offset;
+  LogPrint (eLogDebug, "Crypto: Decrypt: elen: ", elen, ", dlen: ", dlen);
+
+  std::vector<byte> edata (encrypted + offset, encrypted + offset + dlen),
+    decrypted (dlen);
+
+  aes_decrypt (secret_hash.data (), ivec, edata, decrypted);
+
+  return decrypted;
+}
+
+void
+aes_encrypt(const byte key[KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
+            const std::vector<byte>& pdata, std::vector<byte>& cdata)
+{
+  EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new(), ::EVP_CIPHER_CTX_free);
+  int rc = EVP_EncryptInit_ex(ctx.get(), EVP_aes_256_cbc(), NULL, key, iv);
+
+  if (rc != 1)
+    {
+      LogPrint (eLogError, "Crypto: aes_encrypt: EVP_EncryptInit_ex failed");
+      cdata = std::vector<byte>();
+      return;
+    }
+
+  /// Cipher text expands upto AES_BLOCK_SIZE
+  cdata.resize(pdata.size() + AES_BLOCK_SIZE);
+  int out_len1 = (int)cdata.size();
+
+  rc = EVP_EncryptUpdate(ctx.get(), (byte*)&cdata[0], &out_len1,
+                         (const byte*)&pdata[0], (int)pdata.size());
+    
+  if (rc != 1)
+    {
+      LogPrint (eLogError, "Crypto: aes_encrypt: EVP_EncryptUpdate failed");
+      cdata = std::vector<byte>();
+      return;
+    }
+  
+  int out_len2 = (int)cdata.size() - out_len1;
+  rc = EVP_EncryptFinal_ex(ctx.get(), (byte*)&cdata[0] + out_len1, &out_len2);
+
+  if (rc != 1)
+    {
+      LogPrint (eLogError, "Crypto: aes_encrypt: EVP_EncryptFinal_ex failed");
+      cdata = std::vector<byte>();
+      return;
+    }
+
+  /// Set cipher text size now that we know it
+  cdata.resize(out_len1 + out_len2);
+}
+
+void
+aes_decrypt(const byte key[KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
+            const std::vector<byte>& cdata, std::vector<byte>& pdata)
+{
+  EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new(), ::EVP_CIPHER_CTX_free);
+  int rc = EVP_DecryptInit_ex(ctx.get(), EVP_aes_256_cbc(), NULL, key, iv);
+
+  if (rc != 1)
+    {
+      LogPrint (eLogError, "Crypto: aes_decrypt: EVP_DecryptInit_ex failed");
+      throw std::runtime_error("EVP_DecryptInit_ex failed");
+    }
+
+  /// Cipher text expands upto AES_BLOCK_SIZE
+  pdata.resize(cdata.size() + AES_BLOCK_SIZE);
+  int out_len1 = (int)pdata.size();
+
+  rc = EVP_DecryptUpdate(ctx.get(), (byte*)&pdata[0], &out_len1,
+                         (const byte*)&cdata[0], (int)cdata.size());
+  if (rc != 1)
+    {
+      LogPrint (eLogError, "Crypto: aes_decrypt: EVP_DecryptUpdate failed");
+      pdata = std::vector<byte>();
+      return;
+    }
+  
+  int out_len2 = (int)pdata.size() - out_len1;
+  rc = EVP_DecryptFinal_ex(ctx.get(), (byte*)&pdata[0] + out_len1, &out_len2);
+  
+  if (rc != 1)
+    {
+      LogPrint (eLogError, "Crypto: aes_decrypt: EVP_DecryptFinal_ex failed");
+      pdata = std::vector<byte>();
+      return;
+    }
+
+  /// Set cipher text size now that we know it
+  pdata.resize(out_len1 + out_len2);
 }
 
 } // namespace pbote
