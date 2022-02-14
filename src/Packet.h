@@ -367,6 +367,17 @@ public:
 
     return result;
   }
+
+  bool
+  da_valid (const uint8_t dht_key[32], const uint8_t da[32])
+  {
+    /// Get hash of Delete Auth
+    uint8_t delHash[32]{};
+    SHA256 (da, 32, delHash);
+
+    return ((memcmp (delete_hash, delHash, 32) == 0) &&
+            (memcmp (key, dht_key, 32) == 0));
+  }
 };
 
 struct EmailUnencryptedPacket : public DataPacket
@@ -542,6 +553,34 @@ public:
       }
 
     return result;
+  }
+
+  bool
+  erase_entry (const uint8_t key[32], const uint8_t DA[32])
+  {
+    uint8_t delHash[32];
+    /// Get hash of Delete Auth
+    SHA256 (DA, 32, delHash);
+
+    i2p::data::Tag<32> da_h (DA), dh_h (delHash);
+
+    LogPrint (eLogDebug, "Packet: I: erase_entry: da_h: ", da_h.ToBase64 ());
+    LogPrint (eLogDebug, "Packet: I: erase_entry: dh_h: ", dh_h.ToBase64 ());
+
+    for (uint8_t i = 0; i < (uint8_t)data.size (); i++)
+      {
+        i2p::data::Tag<32> dv_h (data[i].dv);
+        LogPrint (eLogDebug, "Packet: I: erase_entry: dv_h: ", dv_h.ToBase64 ());
+        // if (memcmp (delHash, data[i].dv, 32) == 0)
+        if (dh_h == dv_h)
+          {
+            data.erase (data.begin () + i);
+            nump = data.size ();
+            return true;
+          }
+      }
+
+    return false;
   }
 };
 
@@ -902,6 +941,34 @@ public:
   uint8_t key[32]{};
   uint8_t DA[32]{};
 
+  bool
+  fromBuffer (uint8_t *buf, size_t len, bool from_net)
+  {
+    /// Because prefix[4] + type[1] + ver[1] + CID[32] == 38 byte
+    if (len < 38)
+      {
+        LogPrint (eLogWarning, "Packet: D: fromBuffer: Payload is too short");
+        return false;
+      }
+
+    /// Skipping prefix
+    uint16_t offset = 4;
+    /// Start basic part
+    std::memcpy (&type, buf + offset, 1);
+    offset += 1;
+    std::memcpy (&ver, buf + offset, 1);
+    offset += 1;
+    std::memcpy (&cid, buf + offset, 32);
+    offset += 32;
+    /// End basic part
+
+    std::memcpy (&key, buf + offset, 32);
+    offset += 32;
+    std::memcpy (&DA, buf + offset, 32);
+    // offset += 32;
+    return true;
+  }
+
   std::vector<uint8_t>
   toByte ()
   {
@@ -933,6 +1000,53 @@ public:
   uint8_t dht_key[32]{};
   uint8_t count{};
   std::vector<item> data;
+
+  bool
+  fromBuffer (uint8_t *buf, size_t len, bool from_net)
+  {
+    /// Because prefix[4] + type[1] + ver[1] + CID[32] == 38 byte
+    if (len < 38)
+      {
+        LogPrint (eLogWarning, "Packet: X: fromBuffer: Payload is too short");
+        return false;
+      }
+
+    /// Skipping prefix
+    uint16_t offset = 4;
+    /// Start basic part
+    std::memcpy (&type, buf + offset, 1);
+    offset += 1;
+    std::memcpy (&ver, buf + offset, 1);
+    offset += 1;
+    std::memcpy (&cid, buf + offset, 32);
+    offset += 32;
+    /// End basic part
+
+    std::memcpy (&dht_key, buf + offset, 32);
+    offset += 32;
+    std::memcpy (&count, buf + offset + offset, 1);
+    offset += 1;
+
+    for (uint32_t i = 0; i < count; i++)
+      {
+        pbote::IndexDeleteRequestPacket::item item = {};
+        std::memcpy (&item.key, buf + offset, 32);
+        offset += 32;
+        i2p::data::Tag<32> key (item.key);
+        LogPrint (eLogDebug, "Packet: X: fromBuffer: mail key: ",
+                  key.ToBase64 ());
+
+        std::memcpy (&item.da, buf + offset, 32);
+        offset += 32;
+        i2p::data::Tag<32> da (item.da);
+        LogPrint (eLogDebug, "Packet: X: fromBuffer: mail da: ",
+                  da.ToBase64 ());
+
+        data.push_back (item);
+      }
+
+    return true;
+  }
 
   std::vector<uint8_t>
   toByte ()

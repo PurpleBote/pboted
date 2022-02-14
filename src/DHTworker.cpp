@@ -921,7 +921,7 @@ DHTworker::receiveRetrieveRequest (const sp_comm_packet &packet)
   if (addNode (packet->from))
     {
       LogPrint (eLogDebug,
-                "DHT: receiveRetrieveRequest: Sender added to nodes list");
+                "DHT: receiveRetrieveRequest: Sender added to list");
     }
 
   uint16_t offset = 0;
@@ -1010,7 +1010,7 @@ DHTworker::receiveDeletionQuery (const sp_comm_packet &packet)
   if (addNode (packet->from))
     {
       LogPrint (eLogDebug,
-                "DHT: receiveDeletionQuery: Sender added to nodes list");
+                "DHT: receiveDeletionQuery: Sender added to list");
     }
 
   uint8_t key[32];
@@ -1061,32 +1061,26 @@ DHTworker::receiveDeletionQuery (const sp_comm_packet &packet)
 void
 DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
 {
-  LogPrint (eLogDebug, "DHT: receiveStoreRequest: request from: ",
+  LogPrint (eLogDebug, "DHT: StoreRequest: request from: ",
             packet->from.substr (0, 15), "...");
 
   if (packet->from == local_node_->ToBase64 ())
     {
-      LogPrint (eLogWarning,
-                "DHT: receiveStoreRequest: Self request, skipped");
+      LogPrint (eLogWarning, "DHT: StoreRequest: Self request, skipped");
       return;
     }
 
   if (addNode (packet->from))
-    {
-      LogPrint (eLogDebug,
-                "DHT: receiveStoreRequest: Sender added to nodes list");
-    }
+    LogPrint (eLogDebug, "DHT: StoreRequest: Sender added to list");
 
   uint16_t offset = 0;
   StoreRequestPacket new_packet;
 
   std::memcpy (&new_packet.cid, packet->cid, 32);
-
   std::memcpy (&new_packet.hc_length, packet->payload.data (), 2);
   new_packet.hc_length = ntohs (new_packet.hc_length);
   offset += 2;
-  LogPrint (eLogDebug,
-            "DHT: receiveStoreRequest: hc_length: ", new_packet.hc_length);
+  LogPrint (eLogDebug, "DHT: StoreRequest: hc_length: ", new_packet.hc_length);
 
   std::vector<uint8_t> hashCash
       = { packet->payload.data () + offset,
@@ -1096,41 +1090,38 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
   std::memcpy (&new_packet.length, packet->payload.data () + offset, 2);
   new_packet.length = ntohs (new_packet.length);
   offset += 2;
-  LogPrint (eLogDebug,
-            "DHT: receiveStoreRequest: Length: ", new_packet.length);
+  LogPrint (eLogDebug, "DHT: StoreRequest: Length: ", new_packet.length);
 
   new_packet.data = std::vector<uint8_t> (packet->payload.begin () + offset,
                                           packet->payload.begin () + offset
                                               + new_packet.length);
 
-  LogPrint (eLogDebug, "DHT: receiveStoreRequest: Got request for type: ",
+  LogPrint (eLogDebug, "DHT: StoreRequest: Got request for type: ",
             new_packet.data[0], ", ver: ", unsigned (new_packet.data[1]));
 
   pbote::ResponsePacket response;
   memcpy (response.cid, packet->cid, 32);
+  response.length = 0;
 
-  if ((new_packet.data[0] == (uint8_t)'I' || new_packet.data[0] == (uint8_t)'E'
-       || new_packet.data[0] == (uint8_t)'C')
-      && new_packet.data[1] == 4)
+  if ((new_packet.data[0] == (uint8_t)'I' ||
+       new_packet.data[0] == (uint8_t)'E' ||
+       new_packet.data[0] == (uint8_t)'C') &&
+      new_packet.data[1] == 4)
     {
       bool prev_status = true;
 
       if (dht_storage_.limit_reached (new_packet.data.size ()))
         {
-          LogPrint (eLogWarning,
-                    "DHT: receiveStoreRequest: Storage limit reached!");
+          LogPrint (eLogWarning, "DHT: StoreRequest: Storage limit reached!");
           response.status = pbote::StatusCode::NO_DISK_SPACE;
-          response.length = 0;
           prev_status = false;
         }
 
       // ToDo: Check if not enough HashCash provided
       // response.status = pbote::StatusCode::INSUFFICIENT_HASHCASH;
-      // response.length = 0;
 
       // ToDo: Check HashCash
       // response.status = pbote::StatusCode::INVALID_HASHCASH;
-      // response.length = 0;
 
       int save_status = 0;
 
@@ -1139,29 +1130,23 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
 
       if (prev_status && save_status == STORE_SUCCESS)
         {
-          LogPrint (eLogDebug, "DHT: receiveStoreRequest: Packet saved");
+          LogPrint (eLogDebug, "DHT: StoreRequest: Packet saved");
           response.status = pbote::StatusCode::OK;
-          response.length = 0;
         }
       else if (prev_status)
         {
-          LogPrint (
-              eLogWarning,
-              "DHT: receiveStoreRequest: Got error while try to save packet");
+          LogPrint (eLogWarning, "DHT: StoreRequest: Got error while on save");
           if (save_status == STORE_FILE_EXIST)
             response.status = pbote::StatusCode::DUPLICATED_DATA;
           else
             response.status = pbote::StatusCode::GENERAL_ERROR;
-          response.length = 0;
         }
     }
   else
     {
-      LogPrint (eLogWarning,
-                "DHT: receiveStoreRequest: Unsupported packet, type: ",
+      LogPrint (eLogWarning, "DHT: StoreRequest: Unsupported packet, type: ",
                 new_packet.data[0], ", ver: ", unsigned (new_packet.data[1]));
       response.status = pbote::StatusCode::INVALID_PACKET;
-      response.length = 0;
     }
 
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
@@ -1172,105 +1157,91 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
 void
 DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
 {
-  LogPrint (eLogDebug, "DHT: receiveEmailPacketDeleteRequest: request from: ",
+  LogPrint (eLogDebug, "DHT: EmailPacketDelete: request from: ",
             packet->from.substr (0, 15), "...");
 
   if (packet->from == local_node_->ToBase64 ())
     {
-      LogPrint (eLogWarning,
-                "DHT: receiveEmailPacketDeleteRequest: Self request, skipped");
+      LogPrint (eLogWarning, "DHT: EmailPacketDelete: Self request, skipped");
       return;
     }
 
   if (addNode (packet->from))
-    {
-      LogPrint (
-          eLogDebug,
-          "DHT: receiveEmailPacketDeleteRequest: Sender added to nodes list");
-    }
-
-  uint16_t offset = 0;
-  uint8_t key[32]{};
-  uint8_t delAuth[32]{};
-  uint8_t delHash[32]{};
-
-  std::memcpy (&key, packet->payload.data (), 32);
-  offset += 32;
-  std::memcpy (&delAuth, packet->payload.data () + offset, 32);
-  // offset += 32;
-
-  HashKey t_key (key);
-  LogPrint (eLogDebug,
-            "DHT: receiveEmailPacketDeleteRequest: Got request for key: ",
-            t_key.ToBase64 ());
+    LogPrint (eLogDebug, "DHT: EmailPacketDelete: Sender added to list");
 
   pbote::ResponsePacket response;
   memcpy (response.cid, packet->cid, 32);
+  response.length = 0;
 
-  // Get hash of Delete Auth
-  SHA256 (delAuth, 32, delHash);
-  auto email_packet = dht_storage_.getEmail (t_key);
-
-  // ToDo: re-think
-  if (email_packet.empty ())
+  pbote::EmailDeleteRequestPacket delete_packet{};
+  bool parsed = delete_packet.fromBuffer (packet->payload.data (),
+                            packet->payload.size (), true);
+  if (!parsed)
     {
-      LogPrint (eLogDebug,
-                "DHT: receiveEmailPacketDeleteRequest: Key not found: ",
+      LogPrint (eLogDebug, "DHT: EmailPacketDelete: Can't parse Email Delete");
+      response.status = pbote::StatusCode::INVALID_PACKET;
+      PacketForQueue q_packet (packet->from, response.toByte ().data (),
+                               response.toByte ().size ());
+      context.send (q_packet);
+      return;
+    }
+
+  HashKey t_key (delete_packet.key);
+  LogPrint (eLogDebug, "DHT: EmailPacketDelete: Got request for key: ",
+            t_key.ToBase64 ());
+
+  auto email_packet_data = dht_storage_.getEmail (t_key);
+
+  if (email_packet_data.empty ())
+    {
+      LogPrint (eLogDebug, "DHT: EmailPacketDelete: Key not found: ",
                 t_key.ToBase64 ());
       response.status = pbote::StatusCode::NO_DATA_FOUND;
-      response.length = 0;
+      PacketForQueue q_packet (packet->from, response.toByte ().data (),
+                               response.toByte ().size ());
+      context.send (q_packet);
+      return;
+    }
+
+  LogPrint (eLogDebug, "DHT: EmailPacketDelete: Found: ", t_key.ToBase64 ());
+
+  pbote::EmailEncryptedPacket email_packet{};
+  parsed = email_packet.fromBuffer (email_packet_data.data (),
+                                         email_packet_data.size (), true);
+
+  uint8_t delHash[32]{};
+  SHA256 (delete_packet.DA, 32, delHash);
+
+  HashKey da_h (delete_packet.DA),
+          dh_h (delHash),
+          dv_h (email_packet.delete_hash);
+  LogPrint (eLogDebug, "DHT: EmailPacketDelete: DA: ", da_h.ToBase64 ());
+  LogPrint (eLogDebug, "DHT: EmailPacketDelete: DH: ", dh_h.ToBase64 ());
+  LogPrint (eLogDebug, "DHT: EmailPacketDelete: DV: ", dv_h.ToBase64 ());
+
+  /// Compare hashes
+  //if (memcmp (delHash, email_delete_hash.data (), 32) != 0)
+  if (!email_packet.da_valid (delete_packet.key, delete_packet.DA))
+    {
+      LogPrint (eLogWarning, "DHT: EmailPacketDelete: DA hash mismatch");
+      response.status = pbote::StatusCode::INVALID_PACKET;
+      PacketForQueue q_packet (packet->from, response.toByte ().data (),
+                               response.toByte ().size ());
+      context.send (q_packet);
+      return;
+    }
+
+  LogPrint (eLogDebug, "DHT: EmailPacketDelete: DA hash match");
+
+  if (dht_storage_.deleteEmail (t_key))
+    {
+      LogPrint (eLogDebug, "DHT: EmailPacketDelete: Packet removed");
+      response.status = pbote::StatusCode::OK;
     }
   else
     {
-      LogPrint (eLogDebug, "DHT: receiveEmailPacketDeleteRequest: Found key: ",
-                t_key.ToBase64 ());
-
-      // Get Delete Auth hash from email packet
-      std::vector<uint8_t> email_delete_hash;
-      if (email_packet.size () < 70)
-        {
-          LogPrint (eLogDebug,
-                    "DHT: receiveEmailPacketDeleteRequest: Local packet is "
-                    "too short: ",
-                    t_key.ToBase64 ());
-          response.status = pbote::StatusCode::GENERAL_ERROR;
-          response.length = 0;
-        }
-      else
-        {
-          email_delete_hash.insert (email_delete_hash.end (),
-                                    email_packet.begin () + 38,
-                                    email_packet.begin () + 70);
-
-          // Compare hashes
-          if (memcmp (delHash, email_delete_hash.data (), 32) != 0)
-            {
-              LogPrint (eLogWarning, "DHT: receiveEmailPacketDeleteRequest: "
-                                     "Delete auth hashes mismatch");
-              response.status = pbote::StatusCode::INVALID_PACKET;
-              response.length = 0;
-            }
-          else
-            {
-              LogPrint (eLogDebug, "DHT: receiveEmailPacketDeleteRequest: "
-                                   "Delete auth hashes match");
-
-              if (dht_storage_.deleteEmail (t_key))
-                {
-                  LogPrint (eLogDebug, "DHT: receiveEmailPacketDeleteRequest: "
-                                       "Packet successfully removed");
-                  response.status = pbote::StatusCode::OK;
-                  response.length = 0;
-                }
-              else
-                {
-                  LogPrint (eLogDebug, "DHT: receiveEmailPacketDeleteRequest: "
-                                       "Can't remove packet");
-                  response.status = pbote::StatusCode::GENERAL_ERROR;
-                  response.length = 0;
-                }
-            }
-        }
+      LogPrint (eLogDebug, "DHT: EmailPacketDelete: Can't remove packet");
+      response.status = pbote::StatusCode::GENERAL_ERROR;
     }
 
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
@@ -1281,144 +1252,121 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
 void
 DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
 {
-  LogPrint (eLogDebug, "DHT: receiveIndexPacketDeleteRequest: Request from: ",
+  LogPrint (eLogDebug, "DHT: IndexPacketDelete: Request from: ",
             packet->from.substr (0, 15), "...");
 
   if (packet->from == local_node_->ToBase64 ())
     {
-      LogPrint (eLogWarning,
-                "DHT: receiveIndexPacketDeleteRequest: Self request, skipped");
+      LogPrint (eLogWarning, "DHT: IndexPacketDelete: Self request, skipped");
       return;
     }
 
   if (addNode (packet->from))
-    {
-      LogPrint (
-          eLogDebug,
-          "DHT: receiveIndexPacketDeleteRequest: Sender added to nodes list");
-    }
-
-  uint16_t offset = 0;
-  uint8_t dh[32];
-  uint8_t num;
-
-  std::memcpy (&dh, packet->payload.data (), 32);
-  offset += 32;
-  std::memcpy (&num, packet->payload.data () + offset, 1);
-  offset += 1;
+    LogPrint (eLogDebug, "DHT: IndexPacketDelete: Sender added to list");
 
   pbote::ResponsePacket response;
   memcpy (response.cid, packet->cid, 32);
   response.length = 0;
 
-  HashKey t_key (dh);
-  LogPrint (eLogDebug,
-            "DHT: receiveIndexPacketDeleteRequest: Got request for key: ",
+  pbote::IndexDeleteRequestPacket delete_packet {};
+  bool parsed = delete_packet.fromBuffer (packet->payload.data (),
+                                          packet->payload.size (), true);
+  if (!parsed)
+    {
+      LogPrint (eLogDebug, "DHT: IndexPacketDelete: Can't parse Index Delete");
+      response.status = pbote::StatusCode::INVALID_PACKET;
+      PacketForQueue q_packet (packet->from, response.toByte ().data (),
+                               response.toByte ().size ());
+      context.send (q_packet);
+      return;
+    }
+
+  HashKey t_key (delete_packet.dht_key);
+  LogPrint (eLogDebug, "DHT: IndexPacketDelete: Got request for key: ",
             t_key.ToBase64 ());
   auto data = dht_storage_.getIndex (t_key);
   if (data.empty ())
     {
-      LogPrint (eLogDebug,
-                "DHT: receiveIndexPacketDeleteRequest: Key not found: ",
+      LogPrint (eLogDebug, "DHT: IndexPacketDelete: Key not found: ",
                 t_key.ToBase64 ());
       response.status = pbote::StatusCode::NO_DATA_FOUND;
+      PacketForQueue q_packet (packet->from, response.toByte ().data (),
+                               response.toByte ().size ());
+      context.send (q_packet);
+      return;
+    }
+
+  LogPrint (eLogDebug, "DHT: IndexPacketDelete: Found ", t_key.ToBase64 ());
+
+  pbote::IndexPacket index_packet;
+  parsed = index_packet.fromBuffer (data, true);
+
+  if (!parsed)
+    {
+      LogPrint (eLogDebug, "DHT: IndexPacketDelete: Unparsable local : ",
+                t_key.ToBase64 ());
+      response.status = pbote::StatusCode::GENERAL_ERROR;
+      PacketForQueue q_packet (packet->from, response.toByte ().data (),
+                               response.toByte ().size ());
+      context.send (q_packet);
+      return;
+    }
+
+  bool erased = false;
+  for (auto item : delete_packet.data)
+    {
+      if (index_packet.erase_entry (item.key, item.da))
+        erased = true;
+    }
+
+  if (!erased)
+    {
+      LogPrint (eLogDebug, "DHT: IndexPacketDelete: No matching DA's");
+      response.status = pbote::StatusCode::INVALID_PACKET;
+      PacketForQueue q_packet (packet->from, response.toByte ().data (),
+                               response.toByte ().size ());
+      context.send (q_packet);
+      return;
+    }
+
+  LogPrint (eLogDebug, "DHT: IndexPacketDelete: There are matching DA's");
+
+  /// Delete "old" packet
+  bool deleted = dht_storage_.deleteIndex (t_key);
+  int saved = STORE_FILE_NOT_STORED;
+
+  /// Write "new" packet, if not empty
+  if (!index_packet.data.empty ())
+    saved = dht_storage_.safe (index_packet.toByte ());
+
+  /// Compare statuses and prepare response
+  if (deleted && saved == STORE_SUCCESS)
+    {
+      /// The cleaned packet has been saved
+      LogPrint (eLogDebug, "DHT: IndexPacketDelete: Packet replaced");
+      response.status = pbote::StatusCode::OK;
+    }
+  else if (!deleted && saved == STORE_SUCCESS)
+    {
+      /// In this case, we do not have a local packet
+      /// it looks like this will never happen
+      LogPrint (eLogDebug, "DHT: IndexPacketDelete: New packet saved");
+      response.status = pbote::StatusCode::OK;
+    }
+  else if (deleted && index_packet.data.empty ())
+    {
+      /// There are no more entries in the packet
+      LogPrint (eLogDebug, "DHT: IndexPacketDelete: Delete empty packet");
+      response.status = pbote::StatusCode::OK;
     }
   else
     {
-      LogPrint (eLogDebug, "DHT: receiveIndexPacketDeleteRequest: Found key: ",
-                t_key.ToBase64 ());
+      LogPrint (eLogError, "DHT: IndexPacketDelete: Can't save new packet");
 
-      pbote::IndexPacket index_packet;
-      bool parsed = index_packet.fromBuffer (data, true);
-
-      if (parsed)
-        {
-          bool equals = false;
-          for (uint8_t i = 0; i < num; i++)
-            {
-              uint8_t dht[32];
-              uint8_t delAuth[32];
-              uint8_t delHash[32];
-
-              std::memcpy (&dht, packet->payload.data () + offset, 32);
-              offset += 32;
-              std::memcpy (&delAuth, packet->payload.data () + offset, 32);
-              offset += 32;
-
-              // Get hash of Delete Auth
-              SHA256 (delAuth, 32, delHash);
-
-              // Compare hashes
-              for (uint8_t k = 0; k < (uint8_t)index_packet.data.size (); k++)
-                {
-                  if (memcmp (delHash, index_packet.data[k].dv, 32) == 0)
-                    {
-                      equals = true;
-                      index_packet.data.erase (index_packet.data.begin () + k);
-                      index_packet.nump = index_packet.data.size ();
-                      break;
-                    }
-                }
-
-              // Check result of compare
-              if (!equals)
-                {
-                  LogPrint (eLogWarning,
-                            "DHT: receiveIndexPacketDeleteRequest: Delete "
-                            "auth hashes mismatch");
-                  response.status = pbote::StatusCode::INVALID_PACKET;
-                }
-            }
-          if (equals)
-            {
-              LogPrint (eLogDebug, "DHT: receiveIndexPacketDeleteRequest: "
-                                   "Delete auth hashes match");
-              // Delete "old" and write "new" packet, if not empty
-              bool deleted = dht_storage_.deleteIndex (t_key);
-              int saved = STORE_FILE_NOT_STORED;
-
-              if (!index_packet.data.empty ())
-                saved = dht_storage_.safe (index_packet.toByte ());
-
-              if (deleted && saved == STORE_SUCCESS)
-                {
-                  LogPrint (
-                      eLogDebug,
-                      "DHT: receiveIndexPacketDeleteRequest: Packet replaced");
-                  response.status = pbote::StatusCode::OK;
-                }
-              else if (!deleted && saved == STORE_SUCCESS)
-                {
-                  LogPrint (eLogDebug, "DHT: receiveIndexPacketDeleteRequest: "
-                                       "New packet saved");
-                  response.status = pbote::StatusCode::OK;
-                }
-              else if (deleted && index_packet.data.empty ())
-                {
-                  LogPrint (eLogDebug, "DHT: receiveIndexPacketDeleteRequest: "
-                                       "Delete empty packet");
-                  response.status = pbote::StatusCode::OK;
-                }
-              else
-                {
-                  LogPrint (eLogError, "DHT: receiveIndexPacketDeleteRequest: "
-                                       "Can't save new packet");
-
-                  if (saved == STORE_FILE_EXIST)
-                    response.status = pbote::StatusCode::DUPLICATED_DATA;
-                  else
-                    response.status = pbote::StatusCode::GENERAL_ERROR;
-                }
-            }
-        }
+      if (saved == STORE_FILE_EXIST)
+        response.status = pbote::StatusCode::DUPLICATED_DATA;
       else
-        {
-          LogPrint (eLogDebug,
-                    "DHT: receiveIndexPacketDeleteRequest: Can't parse local "
-                    "packet for key: ",
-                    t_key.ToBase64 ());
-          response.status = pbote::StatusCode::GENERAL_ERROR;
-        }
+        response.status = pbote::StatusCode::GENERAL_ERROR;
     }
 
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
@@ -1442,7 +1390,7 @@ DHTworker::receiveFindClosePeers (const sp_comm_packet &packet)
   if (addNode (packet->from))
     {
       LogPrint (eLogDebug,
-                "DHT: receiveFindClosePeers: Sender added to nodes list");
+                "DHT: receiveFindClosePeers: Sender added to list");
     }
 
   uint8_t key[32];
