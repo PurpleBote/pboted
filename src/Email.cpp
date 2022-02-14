@@ -139,7 +139,11 @@ Email::fromMIME (const std::vector<uint8_t> &email_data)
 void
 Email::set_message_id ()
 {
-  std::string message_id = generate_uuid_v4 ();
+  std::string message_id = field ("Message-ID");
+  if (!message_id.empty ())
+    return;
+
+  message_id = generate_uuid_v4 ();
   message_id.append ("@bote.i2p");
   setField ("Message-ID", message_id);
 }
