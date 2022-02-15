@@ -295,9 +295,14 @@ EmailWorker::sendEmailTask ()
 
           // Get hash of Delete Auth
           SHA256 (packet.DA, 32, enc_packet.delete_hash);
-          i2p::data::Tag<32> del_hash (enc_packet.delete_hash);
+          i2p::data::Tag<32> del_hash (enc_packet.delete_hash),
+                             del_auth (packet.DA);
+
+          LogPrint (eLogDebug, "EmailWorker: Send: del_auth: ",
+                    del_auth.ToBase64 ());              
           LogPrint (eLogDebug, "EmailWorker: Send: del_hash: ",
                     del_hash.ToBase64 ());
+
           email->setField ("X-I2PBote-Delete-Auth-Hash", del_hash.ToBase64 ());
 
           // Create recipient
@@ -350,9 +355,9 @@ EmailWorker::sendEmailTask ()
             }
 
           /// Encrypt data
-          LogPrint (eLogDebug, "EmailWorker: Send: Encrypt data");
           LogPrint (eLogDebug, "EmailWorker: Send: packet.data.size: ",
                     packet.data.size ());
+
           auto packet_bytes = packet.toByte ();
           enc_packet.edata
               = identity->identity.GetPublicIdentity ()->Encrypt (
@@ -361,14 +366,12 @@ EmailWorker::sendEmailTask ()
           enc_packet.length = enc_packet.edata.size ();
           enc_packet.alg = identity->identity.GetKeyType ();
           enc_packet.stored_time = 0;
+
           LogPrint (eLogDebug, "EmailWorker: Send: enc_packet.edata.size(): ",
                     enc_packet.edata.size ());
 
           /// Get hash of data + length for DHT key
-          LogPrint (eLogDebug, "EmailWorker: Send: Get hash of "
-                               "data + length for DHT key");
           const size_t data_for_hash_len = 2 + enc_packet.edata.size ();
-
           std::vector<uint8_t> data_for_hash
               = { static_cast<uint8_t> (enc_packet.length >> 8),
                   static_cast<uint8_t> (enc_packet.length & 0xff) };
@@ -480,8 +483,7 @@ EmailWorker::sendEmailTask ()
 
           /// For now it's not checking from Java-Bote side
           store_index_packet.hashcash = email->getHashCash ();
-          store_index_packet.hc_length
-              = store_index_packet.hashcash.size ();
+          store_index_packet.hc_length = store_index_packet.hashcash.size ();
           LogPrint (eLogDebug, "EmailWorker: Send: store_index.hc_length: ",
               store_index_packet.hc_length);
 
@@ -1071,7 +1073,7 @@ EmailWorker::processEmail (
         {
           i2p::data::Tag<32> cur_hash (enc_mail.delete_hash);
           LogPrint (eLogWarning, "EmailWorker: processEmail: email ",
-                    cur_hash.ToBase32 (), " is unequal");
+                    cur_hash.ToBase64 (), " is unequal");
           continue;
         }
 

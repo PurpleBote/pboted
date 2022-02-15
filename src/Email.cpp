@@ -52,11 +52,11 @@ Email::Email (const std::vector<uint8_t> &data, bool from_net)
   : skip_(false),
     deleted_(false)
 {
-  LogPrint (eLogDebug, "Email: Email: payload size: ", data.size ());
+  LogPrint (eLogDebug, "Email: Payload size: ", data.size ());
   /// 72 because type[1] + ver[1] + mes_id[32] + DA[32] + fr_id[2] + fr_count[2] + length[2]
   if (data.size() < 72)
     {
-      LogPrint(eLogWarning, "Email: payload is too short");
+      LogPrint(eLogWarning, "Email: Payload is too short");
     }
 
   size_t offset = 0;
@@ -68,12 +68,12 @@ Email::Email (const std::vector<uint8_t> &data, bool from_net)
 
   if (packet.type != (uint8_t) 'U')
     {
-      LogPrint(eLogWarning, "Email: wrong packet type: ", packet.type);
+      LogPrint(eLogWarning, "Email: Wrong type: ", packet.type);
     }
 
   if (packet.ver != (uint8_t) 4)
     {
-      LogPrint(eLogWarning, "Email: wrong packet version: ", unsigned(packet.ver));
+      LogPrint(eLogWarning, "Email: Wrong version: ", unsigned(packet.ver));
     }
 
   std::memcpy (&packet.mes_id, data.data() + offset, 32);
@@ -331,8 +331,12 @@ Email::compose ()
   LogPrint (eLogDebug, "Email: compose: Message-ID bytes: ",
             get_message_id_bytes ().ToBase64 ());
 
+  // ToDo: Need to fix random engine
   context.random_cid (packet.DA, 32);
   context.random_cid (packet.DA, 32);
+
+  i2p::data::Tag<32> del_auth (packet.DA);
+  LogPrint (eLogDebug, "Email: compose: Message DA: ", del_auth.ToBase64 ());
 
   // ToDo
   packet.fr_id = 0;
