@@ -218,7 +218,7 @@ Email::getHashCash ()
 bool
 Email::verify (uint8_t *hash)
 {
-  uint8_t da_h[32]{};
+  uint8_t da_h[32]{0};
   SHA256 (packet.DA, 32, da_h);
   //* For debug
   i2p::data::Tag<32> ver_hash (hash), cur_da (packet.DA), cur_hash (da_h);
@@ -231,7 +231,7 @@ Email::verify (uint8_t *hash)
     LogPrint (eLogError, "Email: verify: Hashes mismatch");
   //*/
 
-  return memcmp(hash, packet.DA, 32) == 0;
+  return memcmp(hash, da_h, 32) == 0;
 }
 
 std::vector<uint8_t>
