@@ -229,7 +229,7 @@ Email::verify (uint8_t *hash)
     LogPrint (eLogError, "Email: verify: Hashes mismatch");
   //*/
 
-  return memcmp(hash, packet.DA, 32);
+  return memcmp(hash, packet.DA, 32) == 0;
 }
 
 std::vector<uint8_t>
