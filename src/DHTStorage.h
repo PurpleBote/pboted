@@ -9,6 +9,8 @@
 #ifndef PBOTE_SRC_DHTSTORAGE_H_
 #define PBOTE_SRC_DHTSTORAGE_H_
 
+#include <mutex>
+
 #include "FileSystem.h"
 #include "Packet.h"
 
@@ -83,6 +85,7 @@ class DHTStorage {
   size_t used;
   int update_counter;
 
+  std::mutex index_mutex, email_mutex, contact_mutex;
   std::vector<std::string> local_index_packets;
   std::vector<std::string> local_email_packets;
   std::vector<std::string> local_contact_packets;

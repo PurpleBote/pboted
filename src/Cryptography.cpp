@@ -197,7 +197,7 @@ aes_encrypt(const byte key[KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
       return;
     }
 
-  /// Cipher text expands upto AES_BLOCK_SIZE
+  /// Cipher data expands upto AES_BLOCK_SIZE
   cdata.resize(pdata.size() + AES_BLOCK_SIZE);
   int out_len1 = (int)cdata.size();
 
@@ -221,7 +221,7 @@ aes_encrypt(const byte key[KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
       return;
     }
 
-  /// Set cipher text size now that we know it
+  /// Set cipher data size now that we know it
   cdata.resize(out_len1 + out_len2);
 }
 
@@ -238,7 +238,7 @@ aes_decrypt(const byte key[KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
       throw std::runtime_error("EVP_DecryptInit_ex failed");
     }
 
-  /// Cipher text expands upto AES_BLOCK_SIZE
+  /// Plain data expands upto AES_BLOCK_SIZE
   pdata.resize(cdata.size() + AES_BLOCK_SIZE);
   int out_len1 = (int)pdata.size();
 
@@ -261,7 +261,7 @@ aes_decrypt(const byte key[KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
       return;
     }
 
-  /// Set cipher text size now that we know it
+  /// Set plain data size now that we know it
   pdata.resize(out_len1 + out_len2);
 }
 

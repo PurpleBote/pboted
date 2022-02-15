@@ -33,13 +33,21 @@ DHTStorage::update ()
   /// There is no need to check this too often
   if (update_counter > 20)
   {
+    index_mutex.lock ();
+    email_mutex.lock ();
+    contact_mutex.lock ();
+
     remove_old_packets ();
     update_counter = 0;
-
+    
     LogPrint (eLogDebug, "DHTStorage: update: ",
              " index: ", local_index_packets.size (),
              ", emails: ", local_email_packets.size (),
              ", contacts: ", local_contact_packets.size ());
+
+    index_mutex.unlock();
+    email_mutex.unlock();
+    contact_mutex.unlock();
   }
 
   update_counter++;
@@ -54,6 +62,10 @@ DHTStorage::safe(const std::vector<uint8_t>& data)
   memcpy(key, data.data () + 2, 32);
   i2p::data::Tag<32> dht_key (key);
 
+  index_mutex.lock ();
+  email_mutex.lock ();
+  contact_mutex.lock ();
+
   switch (dataType) {
     case ((uint8_t) 'I'):
       success = safeIndex (dht_key, data);
@@ -67,6 +79,10 @@ DHTStorage::safe(const std::vector<uint8_t>& data)
     default:
       break;
   }
+
+  index_mutex.unlock();
+  email_mutex.unlock();
+  contact_mutex.unlock();
 
   update ();
   return success;
@@ -380,6 +396,7 @@ DHTStorage::update_index(i2p::data::Tag<32> key, const std::vector<uint8_t>& dat
 void
 DHTStorage::loadLocalIndexPackets()
 {
+  index_mutex.lock ();
   local_index_packets = std::vector<std::string>();
   std::string indexPacketPath = pbote::fs::DataDirPath("DHTindex");
   std::vector<std::string> packets_path;
@@ -399,11 +416,13 @@ DHTStorage::loadLocalIndexPackets()
     {
       LogPrint(eLogWarning, "DHTStorage: loadLocalIndexPackets: have no index files");
     }
+  index_mutex.unlock ();
 }
 
 void
 DHTStorage::loadLocalEmailPackets()
 {
+  email_mutex.lock ();
   local_email_packets = std::vector<std::string>();
   std::string email_packet_path = pbote::fs::DataDirPath("DHTemail");
   std::vector<std::string> packets_path;
@@ -423,11 +442,13 @@ DHTStorage::loadLocalEmailPackets()
     {
       LogPrint(eLogWarning, "DHTStorage: loadLocalEmailPackets: have no mail files");
     }
+  email_mutex.unlock ();
 }
 
 void
 DHTStorage::loadLocalContactPackets()
 {
+  contact_mutex.lock ();
   local_contact_packets = std::vector<std::string>();
   std::string email_packet_path = pbote::fs::DataDirPath("DHTdirectory");
   std::vector<std::string> packets_path;
@@ -447,6 +468,7 @@ DHTStorage::loadLocalContactPackets()
     {
       LogPrint(eLogWarning, "DHTStorage: loadLocalContactPackets: have no contact files");
     }
+  contact_mutex.unlock ();
 }
 
 size_t
