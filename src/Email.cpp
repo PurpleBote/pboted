@@ -331,9 +331,13 @@ Email::compose ()
   LogPrint (eLogDebug, "Email: compose: Message-ID bytes: ",
             get_message_id_bytes ().ToBase64 ());
 
-  // ToDo: Need to fix random engine
-  context.random_cid (packet.DA, 32);
-  context.random_cid (packet.DA, 32);
+  uint8_t zero_array[32]{0};
+  if (memcmp(packet.DA, zero_array, 32) == 0)
+    {
+      // ToDo: Need to fix random engine
+      context.random_cid (packet.DA, 32);
+      context.random_cid (packet.DA, 32);
+    }
 
   i2p::data::Tag<32> del_auth (packet.DA);
   LogPrint (eLogDebug, "Email: compose: Message DA: ", del_auth.ToBase64 ());

@@ -243,11 +243,11 @@ struct EmailEncryptedPacket : public DataPacket
 public:
   EmailEncryptedPacket () : DataPacket (DataE) {}
 
-  uint8_t key[32]{};
-  int32_t stored_time{};
-  uint8_t delete_hash[32]{};
-  uint8_t alg{};
-  uint16_t length{};
+  uint8_t key[32]{0};
+  int32_t stored_time{0};
+  uint8_t delete_hash[32]{0};
+  uint8_t alg{0};
+  uint16_t length{0};
   std::vector<uint8_t> edata;
 
   bool
@@ -387,8 +387,8 @@ public:
       : DataPacket (DataU), fr_id (0), fr_count (0), length (0)
   {
   }
-  uint8_t mes_id[32]{};
-  uint8_t DA[32]{};
+  uint8_t mes_id[32]{0};
+  uint8_t DA[32]{0};
   uint16_t fr_id;
   uint16_t fr_count;
   uint16_t length;
@@ -446,7 +446,7 @@ public:
     }
   };
 
-  uint8_t hash[32]{};
+  uint8_t hash[32]{0};
   uint32_t nump;
   std::vector<Entry> data;
 
