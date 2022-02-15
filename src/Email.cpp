@@ -218,12 +218,14 @@ Email::getHashCash ()
 bool
 Email::verify (uint8_t *hash)
 {
+  uint8_t da_h[32]{};
+  SHA256 (packet.DA, 32, da_h);
   //* For debug
-  i2p::data::Tag<32> ver_hash (hash);
-  i2p::data::Tag<32> cur_hash (packet.DA);
+  i2p::data::Tag<32> ver_hash (hash), cur_da (packet.DA), cur_hash (da_h);
 
-  LogPrint(eLogDebug, "Email: verify: DA ver_hash: ", ver_hash.ToBase64());
-  LogPrint(eLogDebug, "Email: verify: DA cur_hash: ", cur_hash.ToBase64());
+  LogPrint(eLogDebug, "Email: verify: DV hash: ", ver_hash.ToBase64());
+  LogPrint(eLogDebug, "Email: verify: DA curr: ", cur_da.ToBase64());
+  LogPrint(eLogDebug, "Email: verify: DA hash: ", cur_hash.ToBase64());
 
   if (ver_hash != cur_hash)
     LogPrint (eLogError, "Email: verify: Hashes mismatch");
