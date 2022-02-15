@@ -502,7 +502,7 @@ public:
         return false;
       }
 
-    for (uint32_t i = 0; i < nump; i--)
+    for (uint32_t i = 0; i < nump; i++)
       {
         pbote::IndexPacket::Entry entry = {};
         std::memcpy (&entry.key, buf.data () + offset, 32);

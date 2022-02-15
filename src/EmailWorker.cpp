@@ -668,7 +668,7 @@ EmailWorker::retrieveEmailPacket (
         }
     }
 
-  LogPrint (eLogDebug, "EmailWorker: retrieveEmailPacket: Responses received",
+  LogPrint (eLogDebug, "EmailWorker: retrieveEmailPacket: Responses: ",
             responses.size ());
 
   std::map<i2p::data::Tag<32>, pbote::EmailEncryptedPacket> mail_packets;
