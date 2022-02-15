@@ -142,61 +142,6 @@ EmailWorker::stopSendEmailTask ()
   return true;
 }
 
-std::vector<std::shared_ptr<pbote::Email> >
-EmailWorker::check_inbox ()
-{
-  // outbox - plain text packet
-  // ToDo: encrypt all local stored emails
-  std::string outboxPath = pbote::fs::DataDirPath ("inbox");
-  std::vector<std::string> mails_path;
-  auto result = pbote::fs::ReadDir (outboxPath, mails_path);
-
-  std::vector<std::shared_ptr<pbote::Email> > emails;
-
-  if (result)
-    {
-      for (const auto &mail_path : mails_path)
-        {
-          // read mime packet
-          std::ifstream file (mail_path, std::ios::binary);
-          std::vector<uint8_t> bytes ((std::istreambuf_iterator<char> (file)),
-                                      (std::istreambuf_iterator<char> ()));
-          file.close ();
-
-          pbote::Email mailPacket;
-          mailPacket.fromMIME (bytes);
-
-          if (mailPacket.length () > 0)
-            {
-              LogPrint (eLogDebug,
-                        "EmailWorker: check_inbox: File loaded: ", mail_path);
-            }
-          else
-            {
-              LogPrint (
-                  eLogWarning,
-                  "EmailWorker: check_inbox: Can't read file: ", mail_path);
-              continue;
-            }
-
-          // ToDo: check signature and set header field
-
-          mailPacket.compose ();
-          mailPacket.filename (mail_path);
-
-          if (!mailPacket.empty ())
-            {
-              emails.push_back (std::make_shared<pbote::Email> (mailPacket));
-            }
-        }
-    }
-
-  LogPrint (eLogDebug, "EmailWorker: check_inbox: Found ", emails.size (),
-            " email(s).");
-
-  return emails;
-}
-
 void
 EmailWorker::run ()
 {
@@ -206,14 +151,12 @@ EmailWorker::run ()
 
       if (id_count)
         {
-          LogPrint (eLogInfo,
-                    "EmailWorker: Update identities, now: ", id_count);
+          LogPrint (eLogInfo, "EmailWorker: Identities now: ", id_count);
           startCheckEmailTasks ();
 
           if (!m_send_thread_)
             {
-              LogPrint (eLogDebug,
-                        "EmailWorker: Send task not run, try to start");
+              LogPrint (eLogDebug, "EmailWorker: Try to start send task");
               startSendEmailTask ();
             }
         }
@@ -306,11 +249,11 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
           i2p::data::Tag<32> email_dht_key (enc_email_packet.key);
           i2p::data::Tag<32> email_del_auth (email_packet.DA);
 
-          // We need to remove all received email packets
+          /// We need to remove packets for all received email from nodes
           // ToDo: check status of responses
           DHT_worker.deleteEmail (email_dht_key, DataE, delete_email_packet);
 
-          // Delete index packets
+          /// Delete index packets
           // ToDo: add multipart email support
           DHT_worker.deleteIndexEntry (
               email_identity->identity.GetIdentHash (), email_dht_key,
@@ -335,294 +278,250 @@ EmailWorker::sendEmailTask ()
 {
   while (started_)
     {
-      // ToDo: don't forget, for tests sent uncompressed
-      // ToDo: slice big packet after compress
-
-      /// Compress packet with ZLIB
-
-      // for (auto packet : emailPackets)
-      //  lzmaCompress(packet.data, packet.data);
+      // ToDo: read interval parameter from config
+      std::this_thread::sleep_for (std::chrono::seconds (SEND_EMAIL_INTERVAL));
 
       std::vector<std::string> nodes;
       auto outbox = checkOutbox ();
-      if (!outbox.empty ())
+      if (outbox.empty ())
+        continue;
+
+      /// Create Encrypted Email Packet
+      // ToDo: move to function
+      for (const auto &email : outbox)
         {
-          // Create Encrypted Email Packet
-          for (const auto &email : outbox)
+          pbote::EmailEncryptedPacket enc_packet;
+          auto packet = email->getDecrypted ();
+
+          // Get hash of Delete Auth
+          SHA256 (packet.DA, 32, enc_packet.delete_hash);
+          i2p::data::Tag<32> del_hash (enc_packet.delete_hash);
+          LogPrint (eLogDebug, "EmailWorker: Send: del_hash: ",
+                    del_hash.ToBase64 ());
+          email->setField ("X-I2PBote-Delete-Auth-Hash", del_hash.ToBase64 ());
+
+          // Create recipient
+          pbote::BoteIdentityPublic recipient_identity;
+          std::string to_address = email->getToAddresses ();
+          LogPrint (eLogDebug, "EmailWorker: Send: to_address: ", to_address);
+          /// Add zeros to beginning
+          // ToDo: check recipient identity
+          std::string cryptoPubKey = "A" + to_address.substr (0, 43);
+          std::string signingPubKey = "A" + to_address.substr (43, 43);
+          to_address = cryptoPubKey + signingPubKey;
+
+          if (recipient_identity.FromBase64 (to_address) == 0)
             {
-              // ToDo: move to function
-              pbote::EmailEncryptedPacket enc_packet;
-              auto packet = email->getDecrypted ();
-
-              // Get hash of Delete Auth
-              LogPrint (eLogDebug,
-                        "EmailWorker: sendEmailTask: Get hash of Delete Auth");
-              SHA256 (packet.DA, 32, enc_packet.delete_hash);
-              i2p::data::Tag<32> del_hash (enc_packet.delete_hash);
-              LogPrint (eLogDebug, "EmailWorker: sendEmailTask: del_hash: ",
-                        del_hash.ToBase64 ());
-              email->setField ("X-I2PBote-Delete-Auth-Hash",
-                               del_hash.ToBase64 ());
-
-              // Create recipient
-              pbote::BoteIdentityPublic recipient_identity;
-              std::string to_address = email->getToAddresses ();
-              LogPrint (eLogDebug, "EmailWorker: sendEmailTask: to_address: ",
-                        to_address);
-              // Add zeros to beginning
-              // ToDo: check recipient identity
-              std::string cryptoPubKey = "A" + to_address.substr (0, 43);
-              std::string signingPubKey = "A" + to_address.substr (43, 43);
-              to_address = cryptoPubKey + signingPubKey;
-
-              if (recipient_identity.FromBase64 (to_address) == 0)
-                {
-                  LogPrint (eLogWarning,
-                            "EmailWorker: sendEmailTask: Can't create "
-                            "identity from \"TO\" header, skip mail");
-                  email->skip (true);
-                  continue;
-                }
-
-              LogPrint (eLogDebug,
-                        "EmailWorker: sendEmailTask: email: recipient hash: ",
-                        recipient_identity.GetIdentHash ().ToBase64 ());
-
-              // Get FROM identity
-              auto from_name = email->field ("From");
-              auto identity_name = from_name.substr (0, from_name.find (' '));
-              sp_id_full identity
-                  = pbote::context.identityByName (identity_name);
-
-              // ToDo: sign email
-
-              if (!identity)
-                {
-                  if (context.get_identities_count ())
-                    {
-                      auto email_identities = context.getEmailIdentities ();
-                      LogPrint (eLogWarning,
-                                "EmailWorker: sendEmailTask: Can't find "
-                                "identity with name: ",
-                                identity_name);
-
-                      identity = email_identities[0];
-                      LogPrint (eLogWarning,
-                                "EmailWorker: sendEmailTask: Try to use ",
-                                identity->publicName,
-                                " just for encrypt data");
-                    }
-                  else
-                    {
-                      LogPrint (eLogError,
-                                "EmailWorker: sendEmailTask: Have no "
-                                "identities, stopping send task");
-                      stopSendEmailTask ();
-                      return;
-                    }
-                }
-
-              // Encrypt data
-              LogPrint (eLogDebug, "EmailWorker: sendEmailTask: Encrypt data");
-              LogPrint (eLogDebug,
-                        "EmailWorker: sendEmailTask: packet.data.size: ",
-                        packet.data.size ());
-              auto packet_bytes = packet.toByte ();
-              enc_packet.edata
-                  = identity->identity.GetPublicIdentity ()->Encrypt (
-                      packet_bytes.data (), packet_bytes.size (),
-                      recipient_identity.GetCryptoPublicKey ());
-              enc_packet.length = enc_packet.edata.size ();
-              enc_packet.alg = identity->identity.GetKeyType ();
-              enc_packet.stored_time = 0;
-              LogPrint (
-                  eLogDebug,
-                  "EmailWorker: sendEmailTask: enc_packet.edata.size(): ",
-                  enc_packet.edata.size ());
-
-              // Get hash of data + length for DHT key
-              LogPrint (eLogDebug, "EmailWorker: sendEmailTask: Get hash of "
-                                   "data + length for DHT key");
-              const size_t data_for_hash_len = 2 + enc_packet.edata.size ();
-
-              std::vector<uint8_t> data_for_hash
-                  = { static_cast<uint8_t> (enc_packet.length >> 8),
-                      static_cast<uint8_t> (enc_packet.length & 0xff) };
-              data_for_hash.insert (data_for_hash.end (),
-                                    enc_packet.edata.begin (),
-                                    enc_packet.edata.end ());
-
-              SHA256 (data_for_hash.data (), data_for_hash_len,
-                      enc_packet.key);
-
-              i2p::data::Tag<32> dht_key (enc_packet.key);
-              LogPrint (eLogDebug, "EmailWorker: sendEmailTask: dht_key : ",
-                        dht_key.ToBase64 ());
-              email->setField ("X-I2PBote-DHT-Key", dht_key.ToBase64 ());
-              LogPrint (eLogDebug,
-                        "EmailWorker: sendEmailTask: enc_packet.length : ",
-                        enc_packet.length);
-
-              email->setEncrypted (enc_packet);
+              LogPrint (eLogWarning, "EmailWorker: Send: Can't create "
+                        "identity from \"TO\" header, skip mail");
+              email->skip (true);
+              continue;
             }
 
-          // Store Encrypted Email Packet
-          for (const auto &email : outbox)
+          LogPrint (eLogDebug, "EmailWorker: Send: email: recipient hash: ",
+                    recipient_identity.GetIdentHash ().ToBase64 ());
+
+          /// Get FROM identity
+          auto from_name = email->field ("From");
+          auto identity_name = from_name.substr (0, from_name.find (' '));
+          sp_id_full identity = pbote::context.identityByName (identity_name);
+
+          // ToDo: sign email here
+
+          if (!identity)
             {
-              // ToDo: move to function
-              if (email->skip ())
+              if (context.get_identities_count ())
                 {
-                  continue;
-                }
+                  auto email_identities = context.getEmailIdentities ();
+                  LogPrint (eLogWarning, "EmailWorker: Send: Can't find "
+                            "identity with name: ", identity_name);
 
-              LogPrint (
-                  eLogDebug,
-                  "EmailWorker: sendEmailTask: Create Store Request packet");
-              pbote::StoreRequestPacket store_packet;
-
-              // For now, it's not checking from Java-Bote side
-              store_packet.hashcash = email->getHashCash ();
-              store_packet.hc_length = store_packet.hashcash.size ();
-              LogPrint (eLogDebug,
-                        "EmailWorker: sendEmailTask: store_packet.hc_length: ",
-                        store_packet.hc_length);
-
-              store_packet.length = email->getEncrypted ().toByte ().size ();
-              store_packet.data = email->getEncrypted ().toByte ();
-              LogPrint (eLogDebug,
-                        "EmailWorker: sendEmailTask: store_packet.length: ",
-                        store_packet.length);
-
-              // Send Store Request with Encrypted Email Packet to nodes
-              LogPrint (eLogDebug,
-                        "EmailWorker: sendEmailTask: Send Store Request with "
-                        "Encrypted Email Packet to nodes");
-              nodes = DHT_worker.store (
-                  i2p::data::Tag<32> (email->getEncrypted ().key),
-                  email->getEncrypted ().type, store_packet);
-
-              /// If have no OK store responses - mark message as skipped
-              if (nodes.empty ())
-                {
-                  email->skip (true);
-                  LogPrint (eLogWarning,
-                            "EmailWorker: sendEmailTask: email not sent");
+                  identity = email_identities[0];
+                  LogPrint (eLogWarning, "EmailWorker: Send: Try to use ",
+                            identity->publicName, " just for encrypt data");
                 }
               else
                 {
-                  DHT_worker.safe (email->getEncrypted ().toByte ());
-                  LogPrint (eLogDebug,
-                            "EmailWorker: sendEmailTask: Email send to ",
-                            nodes.size (), " node(s)");
+                  LogPrint (eLogError, "EmailWorker: Send: Have no "
+                            "identities, stopping send task");
+                  stopSendEmailTask ();
+                  return;
                 }
             }
 
-          // Create and store Index Packet
-          for (const auto &email : outbox)
+          /// Encrypt data
+          LogPrint (eLogDebug, "EmailWorker: Send: Encrypt data");
+          LogPrint (eLogDebug, "EmailWorker: Send: packet.data.size: ",
+                    packet.data.size ());
+          auto packet_bytes = packet.toByte ();
+          enc_packet.edata
+              = identity->identity.GetPublicIdentity ()->Encrypt (
+                  packet_bytes.data (), packet_bytes.size (),
+                  recipient_identity.GetCryptoPublicKey ());
+          enc_packet.length = enc_packet.edata.size ();
+          enc_packet.alg = identity->identity.GetKeyType ();
+          enc_packet.stored_time = 0;
+          LogPrint (eLogDebug, "EmailWorker: Send: enc_packet.edata.size(): ",
+                    enc_packet.edata.size ());
+
+          /// Get hash of data + length for DHT key
+          LogPrint (eLogDebug, "EmailWorker: Send: Get hash of "
+                               "data + length for DHT key");
+          const size_t data_for_hash_len = 2 + enc_packet.edata.size ();
+
+          std::vector<uint8_t> data_for_hash
+              = { static_cast<uint8_t> (enc_packet.length >> 8),
+                  static_cast<uint8_t> (enc_packet.length & 0xff) };
+          data_for_hash.insert (data_for_hash.end (),
+                                enc_packet.edata.begin (),
+                                enc_packet.edata.end ());
+
+          SHA256 (data_for_hash.data (), data_for_hash_len, enc_packet.key);
+
+          i2p::data::Tag<32> dht_key (enc_packet.key);
+          LogPrint (eLogDebug, "EmailWorker: Send: dht_key: ",
+                    dht_key.ToBase64 ());
+          email->setField ("X-I2PBote-DHT-Key", dht_key.ToBase64 ());
+          LogPrint (eLogDebug, "EmailWorker: Send: enc_packet.length : ",
+                    enc_packet.length);
+
+          email->setEncrypted (enc_packet);
+        }
+
+      /// Store Encrypted Email Packet
+      // ToDo: move to function
+      for (const auto &email : outbox)
+        {
+          if (email->skip ())
+            continue;
+
+          pbote::StoreRequestPacket store_packet;
+
+          /// For now, HashCash not checking from Java-Bote side
+          store_packet.hashcash = email->getHashCash ();
+          store_packet.hc_length = store_packet.hashcash.size ();
+          LogPrint (eLogDebug, "EmailWorker: Send: store_packet.hc_length: ",
+                    store_packet.hc_length);
+
+          store_packet.length = email->getEncrypted ().toByte ().size ();
+          store_packet.data = email->getEncrypted ().toByte ();
+          LogPrint (eLogDebug, "EmailWorker: Send: store_packet.length: ",
+                    store_packet.length);
+
+          /// Send Store Request with Encrypted Email Packet to nodes
+          nodes = DHT_worker.store (
+              i2p::data::Tag<32> (email->getEncrypted ().key),
+              email->getEncrypted ().type, store_packet);
+
+          /// If have no OK store responses - mark message as skipped
+          if (nodes.empty ())
             {
-              // ToDo: move to function
-              if (email->skip ())
-                {
-                  continue;
-                }
-
-              pbote::IndexPacket new_index_packet;
-
-              // Create recipient
-              // ToDo: re-use from previous step
-              pbote::BoteIdentityPublic recipient_identity;
-              std::string to_address = email->getToAddresses ();
-              LogPrint (eLogDebug, "EmailWorker: sendEmailTask: to_address: ",
-                        to_address);
-              // Add zeros to beginning
-              std::string cryptoPubKey = "A" + to_address.substr (0, 43);
-              std::string signingPubKey = "A" + to_address.substr (43, 43);
-              to_address = cryptoPubKey + signingPubKey;
-
-              if (recipient_identity.FromBase64 (to_address) == 0)
-                {
-                  LogPrint (eLogWarning,
-                            "EmailWorker: sendEmailTask: Can't create "
-                            "identity from \"TO\" header, skip mail");
-                  email->skip (true);
-                  continue;
-                }
-
-              LogPrint (eLogDebug,
-                        "EmailWorker: sendEmailTask: index recipient hash: ",
-                        recipient_identity.GetIdentHash ().ToBase64 ());
-
-              memcpy (new_index_packet.hash,
-                      recipient_identity.GetIdentHash ().data (), 32);
-
-              // ToDo: for test, need to rewrite
-              new_index_packet.nump = 1;
-              // for (const auto &email : encryptedEmailPackets) {
-              pbote::IndexPacket::Entry entry{};
-              memcpy (entry.key, email->getEncrypted ().key, 32);
-              memcpy (entry.dv, email->getEncrypted ().delete_hash, 32);
-
-              auto unix_timestamp = std::chrono::seconds (std::time (nullptr));
-              auto value = std::chrono::duration_cast<std::chrono::seconds> (
-                  unix_timestamp);
-              entry.time = value.count ();
-
-              new_index_packet.data.push_back (entry);
-              //}
-
-              pbote::StoreRequestPacket store_index_packet;
-
-              // For now it's not checking from Java-Bote side
-              store_index_packet.hashcash = email->getHashCash ();
-              store_index_packet.hc_length
-                  = store_index_packet.hashcash.size ();
-              LogPrint (
-                  eLogDebug,
-                  "EmailWorker: sendEmailTask: store_index_packet.hc_length: ",
-                  store_index_packet.hc_length);
-
-              auto index_packet = new_index_packet.toByte ();
-
-              store_index_packet.length = index_packet.size ();
-              store_index_packet.data = index_packet;
-
-              /// Send Store Request with Index Packet to nodes
-              nodes = DHT_worker.store (recipient_identity.GetIdentHash (),
-                                        new_index_packet.type,
-                                        store_index_packet);
-
-              /// If have no OK store responses - mark message as skipped
-              if (nodes.empty ())
-                {
-                  email->skip (true);
-                  LogPrint (eLogWarning,
-                            "EmailWorker: sendEmailTask: Index not sent");
-                }
-              else
-                {
-                  DHT_worker.safe (new_index_packet.toByte ());
-                  LogPrint (eLogDebug,
-                            "EmailWorker: sendEmailTask: Index send to ",
-                            nodes.size (), " node(s)");
-                }
+              email->skip (true);
+              LogPrint (eLogWarning, "EmailWorker: Send: email not sent");
             }
-
-          for (const auto &email : outbox)
+          else
             {
-              // ToDo: move to function
-              if (email->skip ())
-                {
-                  continue;
-                }
-              email->setField ("X-I2PBote-Deleted", "false");
-              // Write new metadata before move file to sent
-              email->save ("");
-              email->move ("sent");
+              DHT_worker.safe (email->getEncrypted ().toByte ());
+              LogPrint (eLogDebug, "EmailWorker: Send: Email sent to ",
+                        nodes.size (), " node(s)");
             }
         }
-      // ToDo: read interval parameter from config
-      LogPrint (eLogInfo, "EmailWorker: sendEmailTask: Round complete");
-      std::this_thread::sleep_for (std::chrono::seconds (SEND_EMAIL_INTERVAL));
+
+      /// Create and store Index Packet
+      // ToDo: move to function
+      for (const auto &email : outbox)
+        {
+          if (email->skip ())
+            continue;
+
+          pbote::IndexPacket new_index_packet;
+
+          // Create recipient
+          // ToDo: re-use from previous step
+          pbote::BoteIdentityPublic recipient_identity;
+          std::string to_address = email->getToAddresses ();
+          LogPrint (eLogDebug, "EmailWorker: Send: to_address: ", to_address);
+
+          // Add zeros to beginning
+          std::string cryptoPubKey = "A" + to_address.substr (0, 43);
+          std::string signingPubKey = "A" + to_address.substr (43, 43);
+          to_address = cryptoPubKey + signingPubKey;
+
+          if (recipient_identity.FromBase64 (to_address) == 0)
+            {
+              LogPrint (eLogWarning, "EmailWorker: Send: Can't create "
+                        "identity from \"TO\" header, skip mail");
+              email->skip (true);
+              continue;
+            }
+
+          LogPrint (eLogDebug, "EmailWorker: Send: index recipient hash: ",
+                    recipient_identity.GetIdentHash ().ToBase64 ());
+
+          memcpy (new_index_packet.hash,
+                  recipient_identity.GetIdentHash ().data (), 32);
+
+          // ToDo: for test, need to rewrite
+          new_index_packet.nump = 1;
+          // for (const auto &email : encryptedEmailPackets) {
+          pbote::IndexPacket::Entry entry{};
+          memcpy (entry.key, email->getEncrypted ().key, 32);
+          memcpy (entry.dv, email->getEncrypted ().delete_hash, 32);
+
+          auto unix_timestamp = std::chrono::seconds (std::time (nullptr));
+          auto value = std::chrono::duration_cast<std::chrono::seconds> (
+              unix_timestamp);
+          entry.time = value.count ();
+
+          new_index_packet.data.push_back (entry);
+          //}
+
+          pbote::StoreRequestPacket store_index_packet;
+
+          /// For now it's not checking from Java-Bote side
+          store_index_packet.hashcash = email->getHashCash ();
+          store_index_packet.hc_length
+              = store_index_packet.hashcash.size ();
+          LogPrint (eLogDebug, "EmailWorker: Send: store_index.hc_length: ",
+              store_index_packet.hc_length);
+
+          auto index_packet = new_index_packet.toByte ();
+
+          store_index_packet.length = index_packet.size ();
+          store_index_packet.data = index_packet;
+
+          /// Send Store Request with Index Packet to nodes
+          nodes = DHT_worker.store (recipient_identity.GetIdentHash (),
+                                    new_index_packet.type,
+                                    store_index_packet);
+
+          /// If have no OK store responses - mark message as skipped
+          if (nodes.empty ())
+            {
+              email->skip (true);
+              LogPrint (eLogWarning, "EmailWorker: Send: Index not sent");
+            }
+          else
+            {
+              DHT_worker.safe (new_index_packet.toByte ());
+              LogPrint (eLogDebug, "EmailWorker: Send: Index send to ",
+                        nodes.size (), " node(s)");
+            }
+        }
+
+      // ToDo: move to function
+      for (const auto &email : outbox)
+        {
+          if (email->skip ())
+            continue;
+
+          email->setField ("X-I2PBote-Deleted", "false");
+          /// Write new metadata before move file to sent
+          email->save ("");
+          email->move ("sent");
+        }
+
+      LogPrint (eLogInfo, "EmailWorker: Send: Round complete");
     }
 }
 
@@ -632,9 +531,10 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
   auto identity_hash = identity->identity.GetIdentHash ();
   LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Try to find index for: ",
             identity_hash.ToBase64 ());
-  // Use findAll rather than findOne because some peers might have an
-  // incomplete set of Email Packet keys, and because we want to send
-  // IndexPacketDeleteRequests to all of them.
+  /* Use findAll rather than findOne because some peers might have an
+   *  incomplete set of Email Packet keys, and because we want to send
+   *  IndexPacketDeleteRequests to all of them.
+   */
 
   auto results = DHT_worker.findAll (identity_hash, DataI);
   if (results.empty ())
@@ -646,7 +546,7 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
     }
 
   std::map<i2p::data::Tag<32>, pbote::IndexPacket> index_packets;
-  // retrieve index packets
+  /// Retrieve index packets
   for (const auto &response : results)
     {
       if (response->type != type::CommN)
@@ -674,8 +574,7 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
 
       if (status != StatusCode::OK)
         {
-          LogPrint (eLogWarning,
-                    "EmailWorker: retrieveIndex: Response status: ",
+          LogPrint (eLogWarning, "EmailWorker: retrieveIndex: Response status: ",
                     statusToString (status));
           continue;
         }
@@ -692,8 +591,7 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
                                      + dataLen);
 
       if (DHT_worker.safe (data))
-        LogPrint (eLogDebug,
-                  "EmailWorker: retrieveIndex: Save index packet locally");
+        LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Index packet saved");
 
       pbote::IndexPacket index_packet;
       bool parsed = index_packet.fromBuffer (data, true);
@@ -707,9 +605,9 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
         }
       else
         LogPrint (eLogWarning,
-                  "EmailWorker: retrieveIndex: Index packet without entries");
+                  "EmailWorker: retrieveIndex: Packet without entries");
     }
-  LogPrint (eLogDebug, "EmailWorker: retrieveIndex: index packets parsed:",
+  LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Index packets parsed:",
             index_packets.size ());
 
   std::vector<pbote::IndexPacket> res;
@@ -893,7 +791,7 @@ EmailWorker::loadLocalIncompletePacket ()
 std::vector<std::shared_ptr<pbote::Email> >
 EmailWorker::checkOutbox ()
 {
-  // outbox - plain text packet
+  /// outbox - plain text packet
   // ToDo: encrypt all local stored emails
   std::string outboxPath = pbote::fs::DataDirPath ("outbox");
   std::vector<std::string> mails_path;
@@ -909,7 +807,7 @@ EmailWorker::checkOutbox ()
 
   for (const auto &mail_path : mails_path)
     {
-      // read mime packet
+      /// Read mime packet
       std::ifstream file (mail_path, std::ios::binary);
       std::vector<uint8_t> bytes ((std::istreambuf_iterator<char> (file)),
                                   (std::istreambuf_iterator<char> ()));
@@ -933,12 +831,12 @@ EmailWorker::checkOutbox ()
 
       mailPacket.filename (mail_path);
 
+      /* Check if if FROM and TO fields have valid public names, else
+       * Check if <name@domain> in AddressBook for replacement
+       * if not found - log warning and skip
+       * if replaced - save modified email to file to keep changes
+       */
       // ToDo: need to simplify
-
-      /// Check if if FROM and TO fields have valid public names, else
-      /// Check if <name@domain> in AddressBook for replacement
-      /// if not found - log warning and skip
-      /// if replaced - save modified email to file to keep changes
 
       std::string from_address = mailPacket.field ("From");
       std::string to_address = mailPacket.field ("To");
@@ -954,11 +852,13 @@ EmailWorker::checkOutbox ()
       size_t from_less_pos = from_address.find (less_char);
       size_t from_et_pos = from_address.find (et_char);
       
+      /// Check if we got "@" and "<" it in order "alias <name@domain>"
       if (from_less_pos != std::string::npos
-          && from_et_pos != std::string::npos)
+          && from_et_pos != std::string::npos
+          && from_less_pos < from_et_pos)
         {
           LogPrint (eLogDebug,
-                    "EmailWorker: checkOutbox: try to replace FROM: ",
+                    "EmailWorker: checkOutbox: Try to replace FROM: ",
                     from_address);
 
           std::string old_from_address = from_address;
@@ -972,7 +872,7 @@ EmailWorker::checkOutbox ()
           if (!pub_from_identity && !alias_from_identity)
             {
               LogPrint (eLogWarning,
-                        "EmailWorker: checkOutbox: can't find address for name:",
+                        "EmailWorker: checkOutbox: Can't find address for name:",
                         pub_name, ", alias: ", alias_name);
               continue;
             }
@@ -993,7 +893,7 @@ EmailWorker::checkOutbox ()
           else
             {
               LogPrint (eLogError,
-                        "EmailWorker: checkOutbox: unknown error, name:",
+                        "EmailWorker: checkOutbox: Unknown error, name:",
                         pub_name, ", alias: ", alias_name);
               continue;
             }
@@ -1008,11 +908,13 @@ EmailWorker::checkOutbox ()
       size_t to_less_pos = to_address.find (less_char);
       size_t to_et_pos = to_address.find (et_char);
       size_t to_more_pos = to_address.find (more_char);
+      /// Check if we got "@" and "<" it in order "alias <name@domain>"
       if (to_less_pos != std::string::npos
-          && to_et_pos != std::string::npos)
+          && to_et_pos != std::string::npos
+          && to_less_pos < to_et_pos)
         {
           LogPrint (eLogDebug,
-                    "EmailWorker: checkOutbox: try to replace TO: ", to_address);
+                    "EmailWorker: checkOutbox: Try to replace TO: ", to_address);
 
           std::string old_to_address = to_address;
           std::string pub_name = to_address.substr (0, to_less_pos - 1);
@@ -1033,7 +935,7 @@ EmailWorker::checkOutbox ()
           if (pub_to_address.empty () && alias_to_address.empty ())
             {
               LogPrint (eLogWarning,
-                        "EmailWorker: checkOutbox: can't find address for ",
+                        "EmailWorker: checkOutbox: Can't find address for ",
                         to_address);
               continue;
             }
@@ -1050,7 +952,7 @@ EmailWorker::checkOutbox ()
           else
             {
               LogPrint (eLogError,
-                        "EmailWorker: checkOutbox: unknown error, name:",
+                        "EmailWorker: checkOutbox: Unknown error, name:",
                         pub_name, ", alias: ", alias_name);
               continue;
             }
@@ -1067,6 +969,8 @@ EmailWorker::checkOutbox ()
       mailPacket.compose ();
 
       // ToDo: compress to gzip for 25519 address (pboted)
+      // ToDo: don't forget, for tests sent uncompressed
+      // ToDo: slice big packet after compress
       mailPacket.compress (pbote::Email::CompressionAlgorithm::UNCOMPRESSED);
 
       if (!mailPacket.empty ())
@@ -1074,6 +978,60 @@ EmailWorker::checkOutbox ()
           emails.push_back (std::make_shared<pbote::Email> (mailPacket));
         }
     }
+
+  LogPrint (eLogDebug, "EmailWorker: checkOutbox: Got ", emails.size ()
+            , " email(s)");
+  return emails;
+}
+
+std::vector<std::shared_ptr<pbote::Email> >
+EmailWorker::check_inbox ()
+{
+  // ToDo: encrypt all local stored emails
+  std::string outboxPath = pbote::fs::DataDirPath ("inbox");
+  std::vector<std::string> mails_path;
+  auto result = pbote::fs::ReadDir (outboxPath, mails_path);
+
+  std::vector<std::shared_ptr<pbote::Email> > emails;
+
+  if (result)
+    {
+      for (const auto &mail_path : mails_path)
+        {
+          /// Read mime packet
+          std::ifstream file (mail_path, std::ios::binary);
+          std::vector<uint8_t> bytes ((std::istreambuf_iterator<char> (file)),
+                                      (std::istreambuf_iterator<char> ()));
+          file.close ();
+
+          pbote::Email mailPacket;
+          mailPacket.fromMIME (bytes);
+
+          if (mailPacket.length () > 0)
+            {
+              LogPrint (eLogDebug, "EmailWorker: check_inbox: File loaded: ",
+                        mail_path);
+            }
+          else
+            {
+              LogPrint (eLogWarning,
+                        "EmailWorker: check_inbox: Can't read file: ",
+                        mail_path);
+              continue;
+            }
+
+          // ToDo: check signature and set header field
+
+          mailPacket.compose ();
+          mailPacket.filename (mail_path);
+
+          if (!mailPacket.empty ())
+            emails.push_back (std::make_shared<pbote::Email> (mailPacket));
+        }
+    }
+
+  LogPrint (eLogDebug, "EmailWorker: check_inbox: Found ", emails.size (),
+            " email(s).");
 
   return emails;
 }
@@ -1091,26 +1049,36 @@ EmailWorker::processEmail (
   for (auto enc_mail : mail_packets)
     {
       std::vector<uint8_t> unencrypted_email_data;
-      if (!enc_mail.edata.empty ())
-        unencrypted_email_data = identity->identity.Decrypt (
-            enc_mail.edata.data (), enc_mail.edata.size ());
 
-      if (!unencrypted_email_data.empty ())
+      if (enc_mail.edata.empty ())
         {
-          pbote::Email temp_mail (unencrypted_email_data, true);
-          if (!temp_mail.verify (enc_mail.delete_hash))
-            {
-              i2p::data::Tag<32> cur_hash (enc_mail.delete_hash);
-              LogPrint (eLogError, "EmailWorker: processEmail: email ",
-                        cur_hash.ToBase32 (), " is unequal");
-              continue;
-            }
-          temp_mail.setEncrypted (enc_mail);
-          if (!temp_mail.empty ())
-            {
-              emails.push_back (temp_mail);
-            }
+          LogPrint (eLogWarning, "EmailWorker: processEmail: Packet is empty ");
+          continue;
         }
+
+      unencrypted_email_data = identity->identity.Decrypt (
+          enc_mail.edata.data (), enc_mail.edata.size ());
+
+      if (unencrypted_email_data.empty ())
+        {
+          LogPrint (eLogWarning, "EmailWorker: processEmail: Can't decrypt ");
+          continue;
+        }
+
+      pbote::Email temp_mail (unencrypted_email_data, true);
+
+      if (!temp_mail.verify (enc_mail.delete_hash))
+        {
+          i2p::data::Tag<32> cur_hash (enc_mail.delete_hash);
+          LogPrint (eLogWarning, "EmailWorker: processEmail: email ",
+                    cur_hash.ToBase32 (), " is unequal");
+          continue;
+        }
+
+      temp_mail.setEncrypted (enc_mail);
+
+      if (!temp_mail.empty ())
+        emails.push_back (temp_mail);
     }
 
   LogPrint (eLogDebug,
