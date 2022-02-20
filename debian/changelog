@@ -1,3 +1,15 @@
+pboted (0.7.8-1) unstable; urgency=medium
+
+  * updated to version 0.7.8
+
+ -- polistern <polistern@i2pmail.org>  Sun, 20 Feb 2022 16:00:00 +0000
+
+pboted (0.7.7-1) unstable; urgency=low
+
+  * updated to version 0.7.7
+
+ -- polistern <polistern@i2pmail.org>  Thu, 3 Feb 2022 10:00:00 +0000
+
 pboted (0.7.6-1) unstable; urgency=low
 
   * updated to version 0.7.6
