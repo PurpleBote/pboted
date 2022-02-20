@@ -16,7 +16,7 @@
 
 #define PBOTE_VERSION_MAJOR 0
 #define PBOTE_VERSION_MINOR 7
-#define PBOTE_VERSION_MICRO 7
+#define PBOTE_VERSION_MICRO 8
 
 #define PBOTE_VERSION                                                         \
   MAKE_VERSION (PBOTE_VERSION_MAJOR, PBOTE_VERSION_MINOR, PBOTE_VERSION_MICRO)
