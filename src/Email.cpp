@@ -45,13 +45,13 @@ Email::Email ()
     skip_ (false),
     deleted_ (false)
 {
-  //compose ();
 }
 
 Email::Email (const std::vector<uint8_t> &data, bool from_net)
   : skip_(false),
     deleted_(false)
 {
+  // ToDo: Move to function fromPacket
   LogPrint (eLogDebug, "Email: Payload size: ", data.size ());
   /// 72 because type[1] + ver[1] + mes_id[32] + DA[32] + fr_id[2] + fr_count[2] + length[2]
   if (data.size() < 72)
@@ -358,7 +358,7 @@ Email::compress (CompressionAlgorithm type)
 
   if (type == CompressionAlgorithm::LZMA)
     {
-      LogPrint (eLogDebug, "Email: compress: We not support compression LZMA, will be uncompressed");
+      LogPrint (eLogWarning, "Email: compress: We not support compression LZMA, will be uncompressed");
       type = CompressionAlgorithm::UNCOMPRESSED;
     }
 
@@ -382,7 +382,7 @@ Email::compress (CompressionAlgorithm type)
       return true;
     }
 
-  LogPrint (eLogDebug, "Email: compress: Unknown compress algorithm");
+  LogPrint (eLogWarning, "Email: compress: Unknown compress algorithm");
 
   return false;
 }
@@ -405,6 +405,7 @@ Email::decompress (std::vector<uint8_t> v_mail)
                       std::vector<uint8_t>(v_mail.data() + offset,
                                            v_mail.data() + v_mail.size()));
       packet.data = output;
+      return;
     }
 
   if (compress_alg == CompressionAlgorithm::ZLIB)
@@ -415,12 +416,14 @@ Email::decompress (std::vector<uint8_t> v_mail)
                       std::vector<uint8_t>(v_mail.data() + offset,
                                            v_mail.data() + v_mail.size()));
       packet.data = output;
+      return;
     }
 
   if (compress_alg == CompressionAlgorithm::UNCOMPRESSED)
     {
       LogPrint (eLogDebug, "Email: decompress: data uncompressed, save as is");
       packet.data = std::vector<uint8_t> (v_mail.begin () + 1, v_mail.end ());
+      return;
     }
 
   LogPrint(eLogWarning, "Email: decompress: Unknown compress algorithm, try to save as is");
