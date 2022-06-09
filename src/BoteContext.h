@@ -93,9 +93,9 @@ class BoteContext {
 
   pbote::AddressBook address_book_;
 
-  unsigned long start_time_;
-  unsigned long bytes_recv_;
-  unsigned long bytes_sent_;
+  uint64_t start_time_;
+  uint64_t bytes_recv_;
+  uint64_t bytes_sent_;
 
   queue_type m_recvQueue;
   queue_type m_sendQueue;
