@@ -27,5 +27,5 @@ But for now:
 - We indent using **two spaces**
 - We put spaces after list items and method parameters (`[1, 2, 3]`, not `[1,2,3]`), around operators (`x += 1`, not `x+=1`).
 
-Sincerely yours,
+Sincerely yours,  
 polistern

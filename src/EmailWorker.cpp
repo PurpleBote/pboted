@@ -225,7 +225,7 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
           LogPrint (eLogDebug, "EmailWorker: Check task: ", id_name,
                     ": Have no mail for process");
           LogPrint (eLogInfo, "EmailWorker: Check task: ", id_name,
-                    ": complete");
+                    ": Round complete");
           continue;
         }
 
@@ -609,7 +609,7 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
         LogPrint (eLogWarning,
                   "EmailWorker: retrieveIndex: Packet without entries");
     }
-  LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Index packets parsed:",
+  LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Index packets parsed: ",
             index_packets.size ());
 
   std::vector<pbote::IndexPacket> res;
@@ -642,7 +642,7 @@ EmailWorker::retrieveEmailPacket (
             {
               LogPrint (eLogDebug,
                         "EmailWorker: retrieveEmailPacket: Got local "
-                        "encrypted email for key:",
+                        "encrypted email for key: ",
                         hash.ToBase64 ());
               pbote::EmailEncryptedPacket parsed_local_email_packet;
               bool parsed = parsed_local_email_packet.fromBuffer (
@@ -658,7 +658,7 @@ EmailWorker::retrieveEmailPacket (
             {
               LogPrint (eLogDebug,
                         "EmailWorker: retrieveEmailPacket: Can't find local "
-                        "encrypted email for key:",
+                        "encrypted email for key: ",
                         hash.ToBase64 ());
             }
 
@@ -874,7 +874,7 @@ EmailWorker::checkOutbox ()
           if (!pub_from_identity && !alias_from_identity)
             {
               LogPrint (eLogWarning,
-                        "EmailWorker: checkOutbox: Can't find address for name:",
+                        "EmailWorker: checkOutbox: Can't find address for name: ",
                         pub_name, ", alias: ", alias_name);
               continue;
             }
@@ -895,7 +895,7 @@ EmailWorker::checkOutbox ()
           else
             {
               LogPrint (eLogError,
-                        "EmailWorker: checkOutbox: Unknown error, name:",
+                        "EmailWorker: checkOutbox: Unknown error, name: ",
                         pub_name, ", alias: ", alias_name);
               continue;
             }
@@ -954,7 +954,7 @@ EmailWorker::checkOutbox ()
           else
             {
               LogPrint (eLogError,
-                        "EmailWorker: checkOutbox: Unknown error, name:",
+                        "EmailWorker: checkOutbox: Unknown error, name: ",
                         pub_name, ", alias: ", alias_name);
               continue;
             }

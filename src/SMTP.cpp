@@ -510,7 +510,7 @@ SMTP::HELP ()
 bool
 SMTP::check_identity (const std::string &name)
 {
-  LogPrint (eLogDebug, "SMTPsession: check_identity: name:",
+  LogPrint (eLogDebug, "SMTPsession: check_identity: name: ",
             name.substr (0, name.size () - 2));
   if (pbote::context.identityByName (name))
     return true;
@@ -520,7 +520,7 @@ SMTP::check_identity (const std::string &name)
 bool
 SMTP::check_recipient (const std::string &name)
 {
-  LogPrint (eLogDebug, "SMTPsession: check_recipient: name:",
+  LogPrint (eLogDebug, "SMTPsession: check_recipient: name: ",
             name.substr (0, name.size () - 2));
   if (pbote::context.alias_exist (name))
     return true;

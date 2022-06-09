@@ -575,7 +575,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
       counter++;
     }
 
-  LogPrint (eLogDebug, "DHT: deleteIndexEntry: Got", batch->responseCount (),
+  LogPrint (eLogDebug, "DHT: deleteIndexEntry: Got ", batch->responseCount (),
             " responses for key ", email_dht_key.ToBase64 ());
 
   context.removeBatch (batch);
@@ -1112,7 +1112,7 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
 
       if (dht_storage_.limit_reached (new_packet.data.size ()))
         {
-          LogPrint (eLogWarning, "DHT: StoreRequest: Storage limit reached!");
+          LogPrint (eLogWarning, "DHT: StoreRequest: Storage limit reached");
           response.status = pbote::StatusCode::NO_DISK_SPACE;
           prev_status = false;
         }
@@ -1303,7 +1303,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
 
   if (!parsed)
     {
-      LogPrint (eLogDebug, "DHT: IndexPacketDelete: Unparsable local : ",
+      LogPrint (eLogDebug, "DHT: IndexPacketDelete: Unparsable local: ",
                 t_key.ToBase64 ());
       response.status = pbote::StatusCode::GENERAL_ERROR;
       PacketForQueue q_packet (packet->from, response.toByte ().data (),
