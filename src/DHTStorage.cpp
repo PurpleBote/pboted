@@ -94,16 +94,19 @@ DHTStorage::deleteIndex(i2p::data::Tag<32> key)
   if(exist(pbote::type::DataI, key)) {
     std::string packet_path = pbote::fs::DataDirPath("DHTindex", key.ToBase64() + ".dat");
 
-    int status = std::remove(packet_path.c_str());
+    bool status = pbote::fs::Remove(packet_path);
 
-    if (status == 0) {
-      LogPrint(eLogInfo, "DHTStorage: deleteIndex: File ", packet_path, " removed");
-      update_storage_usage();
-      return true;
-    } else {
-      LogPrint(eLogError, "DHTStorage: deleteIndex: Can't remove file ", packet_path);
-      return false;
-    }
+    if (status)
+      {
+        LogPrint(eLogInfo, "DHTStorage: deleteIndex: File ", packet_path, " removed");
+        update_storage_usage();
+        return true;
+      }
+    else
+      {
+        LogPrint(eLogError, "DHTStorage: deleteIndex: Can't remove file ", packet_path);
+        return false;
+      }
   }
   return false;
 }
@@ -115,9 +118,9 @@ DHTStorage::deleteEmail (i2p::data::Tag<32> key)
     {
       std::string packet_path = pbote::fs::DataDirPath("DHTemail", key.ToBase64() + ".dat");
 
-      int status = std::remove(packet_path.c_str());
+      bool status = pbote::fs::Remove(packet_path);
 
-      if (status == 0)
+      if (status)
         {
           LogPrint(eLogInfo, "DHTStorage: deleteEmail: File ", packet_path, " removed");
           update_storage_usage();
@@ -384,7 +387,7 @@ DHTStorage::update_index(i2p::data::Tag<32> key, const std::vector<uint8_t>& dat
     }
 
   LogPrint(eLogDebug, "DHTStorage: update_index: new entries: ",
-           new_packet.data.size(), ", duplicated :", duplicated,
+           new_packet.data.size(), ", duplicated: ", duplicated,
            ", added: ", added);
 
   if (duplicated == new_packet.data.size())
@@ -564,26 +567,28 @@ DHTStorage::remove_old_packets()
     {
       if (boost::filesystem::is_directory(entry))
         continue;
-      std::stringstream buffer;
-      buffer << entry.path();
-      paths.push_back (buffer.str ());
+
+      paths.push_back (entry.path ().string ());
     }
 
   for (auto& path : paths)
     {  
       //LogPrint(eLogDebug, "DHTStorage: remove_old_packets: checking file: ", path);
 
-      std::ifstream file(path.c_str (), std::ios::binary);
-      if (!file.is_open())
+      uint8_t * bytes = (uint8_t *) malloc(38);
+
+      std::ifstream file(path, std::ifstream::binary);
+      if (file.is_open())
+        { 
+          LogPrint(eLogDebug, "DHTStorage: remove_old_packets: opened file ", path);
+          file.read(reinterpret_cast<char*>(bytes), 38);
+          file.close();
+        }
+      else
         {
           LogPrint(eLogError, "DHTStorage: remove_old_packets: can't open file ", path);
           continue;
         }
-
-      uint8_t * bytes = (uint8_t *) malloc(38);
-
-      file.read(reinterpret_cast<char*>(bytes), 38);
-      file.close();
 
       uint8_t type;
       uint8_t version;
