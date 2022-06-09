@@ -103,7 +103,7 @@ Email::Email (const std::vector<uint8_t> &data, bool from_net)
   if (packet.fr_id >= packet.fr_count)
     {
       LogPrint(eLogError, "Email: Illegal values, fr_id: ", packet.fr_id,
-               ", fr_count:", packet.fr_count);
+               ", fr_count: ", packet.fr_count);
     }
 
   incomplete_ = packet.fr_id + 1 != packet.fr_count;
@@ -479,7 +479,7 @@ Email::lzmaDecompress (std::vector<uint8_t> &outBuf,
 
   unsigned outPos = 0, inPos = LZMA_PROPS_SIZE;
   ELzmaStatus status;
-  const unsigned long BUF_SIZE = 10240;
+  const size_t BUF_SIZE = 10240;
   outBuf.resize (25 * 1024 * 1024);
 
   while (outPos < outBuf.size ())
