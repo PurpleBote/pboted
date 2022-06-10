@@ -1,0 +1,37 @@
+#!/sbin/openrc-run
+
+pidfile="/var/run/pboted/pboted.pid"
+logfile="/var/log/pboted/pboted.log"
+mainconf="/etc/pboted/pboted.conf"
+
+name="pboted"
+command="/usr/sbin/pboted"
+command_args="--service --daemon --log=file --logfile=$logfile --conf=$mainconf --pidfile=$pidfile"
+description="i2p service written in C++"
+required_dirs="/var/lib/pboted"
+required_files="$mainconf"
+start_stop_daemon_args="--chuid pboted"
+
+depend() {
+  need mountall
+  use net
+  after bootmisc
+}
+
+start_pre() {
+  if [ -r /etc/default/pboted ]; then
+    . /etc/default/pboted
+  fi
+
+  if [ "x$I2PD_ENABLED" != "xyes" ]; then
+    ewarn "pboted disabled in /etc/default/pboted"
+    exit 1
+  fi
+
+  checkpath -f -o pboted:pboted $logfile
+  checkpath -f -o pboted:pboted $pidfile
+
+  if [ -n "$DAEMON_OPTS" ]; then
+    command_args="$command_args $DAEMON_OPTS"
+  fi
+}
