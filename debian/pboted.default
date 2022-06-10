@@ -1,0 +1,7 @@
+# Defaults for pboted initscript
+# Sourced by /etc/init.d/pboted
+# Installed at /etc/default/pboted by the maintainer scripts
+PBOTED_ENABLED="yes"
+
+# Additional options that are passed to the Daemon.
+DAEMON_OPTS=""

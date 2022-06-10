@@ -1,0 +1,76 @@
+.TH "PBOTED" "1" "June 10, 2022"
+
+.SH "NAME"
+pboted \- I2P-Bote service written in C++.
+.SH "SYNOPSIS"
+.B pboted
+[\fIOPTION1\fR] [\fIOPTION2\fR]...
+.SH "DESCRIPTION"
+pboted (Plus Bote Daemon)
+is a standalone C++ implementation of I2P-Bote protocol.
+I2P-Bote is a server-less encrypted KademliaDHT-based email protocol.
+Interaction with the I2P network occurs through the SAMv3 interface.
+.PP
+Any of the configuration options below can be used in the \fBDAEMON_ARGS\fR variable in \fI/etc/default/pboted\fR.
+.SH "OPTIONS"
+.TP
+\fB\-\-help\fR
+Show available options.
+.TP
+\fB\-\-conf=\fR
+Config file (default: \fI~/.pboted/pboted.conf\fR or \fI/var/lib/pboted/pboted.conf\fR)
+.BR
+This parameter will be silently ignored if the specified config file does not exist.
+Options specified on the command line take precedence over those in the config file.
+.TP
+\fB\-\-pidfile=\fR
+Where to write pidfile (don\'t write by default)
+.TP
+\fB\-\-daemon\fR
+Router will go to background after start (\fIdisabled\fR by default)
+.TP
+\fB\-\-service\fR
+Router will use system folders like \fI/var/lib/pboted\fR (\fIdisabled\fR by default)
+.TP
+\fB\-\-log=\fR
+Logs destination: \fIstdout\fR, \fIfile\fR, \fIsyslog\fR (\fIstdout\fR if not set, \fIfile\fR - otherwise, for compatibility)
+.TP
+\fB\-\-logfile=\fR
+Path to logfile (default - autodetect)
+.TP
+\fB\-\-loglevel=\fR
+Log messages above this level (\fIdebug\fR, \fBinfo\fR, \fIwarn\fR, \fIerror\fR, \fInone\fR)
+.TP
+\fB\-\-logclftime\fR
+Log messages with full CLF-formatted date and time (\fIdisabled\fR by default)
+.TP
+\fB\-\-host=\fR
+External IP for listen (\fI0.0.0.0\fR by default)
+.TP
+\fB\-\-port=\fR
+UDP port for listen (\fI5050\fR by default)
+.TP
+\fB\-\-storage=\fR
+Limit for local storage usage (\fI50 MB\fR by default)
+.PP
+See service-specific parameters in example config file \fI/usr/share/doc/pboted/pboted.conf.gz\fR
+.SH "FILES"
+/etc/pboted/pboted.conf, /etc/default/pboted
+.RS 4
+pboted configuration files (when running as a system service)
+.RE
+.PP
+/var/lib/pboted/
+.RS 4
+pboted profile directory (when running as a system service, see \fB\-\-service\fR above)
+.RE
+.PP
+$HOME/.pboted/
+.RS 4
+pboted profile directory (when running as a normal user)
+.SH "AUTHOR"
+This manual page was written by polistern <\m[blue]\fBpolistern@i2pmail\&.org\fR\m[]> for the Debian system (but may be used by others).
+.SH "SEE ALSO"
+Documentation at Read the Docs: \m[blue]\fBhttps://pboted\&.readthedocs\&.io/en/latest/\fR\m[]
+.PP
+On Debian systems, the complete text of the BSD-3-Clause license can be found in \fI/usr/share/common-licenses/BSD\fR

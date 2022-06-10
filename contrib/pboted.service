@@ -1,18 +1,18 @@
 [Unit]
 Description=I2P-Bote service written in C++
-#Documentation=
+Documentation=man:pboted(1) https://pboted.readthedocs.io/en/latest/
 After=network.target
 
 [Service]
 User=pboted
 Group=pboted
 RuntimeDirectory=pboted
-RuntimeDirectoryMode=0700
+RuntimeDirectoryMode=0755
 LogsDirectory=pboted
-LogsDirectoryMode=0700
+LogsDirectoryMode=0755
 Type=forking
 
-ExecStart=/usr/sbin/pboted --conf=/etc/pboted/pboted.conf --pidfile=/run/pboted/pboted.pid --logfile=/var/log/pboted/pboted.log --daemon --service
+ExecStart=/usr/sbin/pboted --conf=/etc/pboted/pboted.conf --pidfile=/run/pboted/pboted.pid --log=file --logfile=/var/log/pboted/pboted.log --daemon --service
 ExecReload=/bin/sh -c "kill -HUP $MAINPID"
 
 PIDFile=/run/pboted/pboted.pid
@@ -22,8 +22,6 @@ KillSignal=SIGTERM
 TimeoutStopSec=30s
 SendSIGKILL=yes
 
-# If you have problems with hanging pboted, you can try increase this
-LimitNOFILE=4096
 # To enable write of coredump uncomment this
 #LimitCORE=infinity
 

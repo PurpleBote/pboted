@@ -1,0 +1,2 @@
+d /run/pboted 0755 pboted pboted - -
+d /var/log/pboted 0755 pboted pboted - -

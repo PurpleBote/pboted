@@ -1,0 +1,27 @@
+# Basic profile for pboted
+# Should work without modifications with Ubuntu/Debian packages
+# Authors:
+#   Darknet Villain <supervillain@riseup.net>
+#   polistern <polistern@i2pmail.org>
+#
+#include <tunables/global>
+
+profile pboted /{usr/,}sbin/pboted {
+  #include <abstractions/base>
+  #include <abstractions/openssl>
+  #include <abstractions/nameservice>
+
+  # path specific (feel free to modify if you have another paths)
+  /etc/pboted/** r,
+  /var/lib/pboted/** rw,
+  /var/log/pboted/pboted.log w,
+  /{var/,}run/pboted/pboted.pid rwk,
+  /{usr/,}sbin/pboted mr,
+  @{system_share_dirs}/pboted/** r,
+
+  # user homedir (if started not by init.d or systemd)
+  owner @{HOME}/.pboted/   rw,
+  owner @{HOME}/.pboted/** rwk,
+
+  #include if exists <local/usr.sbin.pboted>
+}
