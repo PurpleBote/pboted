@@ -441,8 +441,7 @@ public:
     operator== (const Entry &rhs)
     {
       return memcmp (this->key, rhs.key, 32) != 0
-             && memcmp (this->dv, rhs.dv, 32) != 0
-             && (this->time == rhs.time);
+             && memcmp (this->dv, rhs.dv, 32) != 0;
     }
   };
 
@@ -517,9 +516,14 @@ public:
         LogPrint (eLogDebug, "Packet: I: fromBuffer: mail dvr: ",
                   dv.ToBase64 ());
 
-        std::memcpy (&entry.time, buf.data () + offset, 4);
-        offset += 4;
+        uint32_t temp_time;
+        std::memcpy (&temp_time, buf.data () + offset, 4);
+        temp_time = ntohl (temp_time);
+        std::memcpy (&entry.time, &temp_time, 4);
+        LogPrint (eLogDebug, "Packet: I: fromBuffer: time: ", entry.time);
+        
         data.push_back (entry);
+        offset += 4;
       }
 
     return true;
@@ -547,6 +551,11 @@ public:
 
     for (auto entry : data)
       {
+        uint32_t temp_time;
+        std::memcpy (&temp_time, &entry.time, 4);
+        temp_time = htonl (temp_time);
+        std::memcpy (&entry.time, &temp_time, 4);
+
         uint8_t arr[68];
         memcpy (arr, entry.key, 68);
         result.insert (result.end (), std::begin (arr), std::end (arr));
@@ -571,7 +580,6 @@ public:
       {
         i2p::data::Tag<32> dv_h (data[i].dv);
         LogPrint (eLogDebug, "Packet: I: erase_entry: dv_h: ", dv_h.ToBase64 ());
-        // if (memcmp (delHash, data[i].dv, 32) == 0)
         if (dh_h == dv_h)
           {
             data.erase (data.begin () + i);
