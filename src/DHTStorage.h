@@ -64,12 +64,12 @@ class DHTStorage {
   bool exist(pbote::type type, i2p::data::Tag<32> key);
   static bool find(const std::vector<std::string>& list, i2p::data::Tag<32> key);
 
-
   int safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
   int safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
   int safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
 
   int update_index(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+  int clean_index(i2p::data::Tag<32> key, int32_t current_timestamp);
 
   void loadLocalIndexPackets();
   void loadLocalEmailPackets();
@@ -80,6 +80,7 @@ class DHTStorage {
   void update_storage_usage();
 
   void remove_old_packets();
+  void remove_old_entries();
 
   size_t limit;
   size_t used;
