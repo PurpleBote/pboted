@@ -849,7 +849,7 @@ EmailWorker::checkOutbox ()
           continue;
         }
 
-      bool changed = false;
+      //bool changed = false;
       std::string et_char ("@"), less_char ("<"), more_char (">");
       size_t from_less_pos = from_address.find (less_char);
       size_t from_et_pos = from_address.find (et_char);
@@ -903,7 +903,7 @@ EmailWorker::checkOutbox ()
                     "EmailWorker: checkOutbox: FROM replaced, old: ",
                     old_from_address, ", new: ", new_from);
           mailPacket.setField ("From", new_from);
-          changed = true;
+          //changed = true;
         }
 
       // Now replace TO
@@ -962,13 +962,14 @@ EmailWorker::checkOutbox ()
                     "EmailWorker: checkOutbox: TO replaced, old: ",
                     old_to_address, ", new: ", new_to);
           mailPacket.setField ("To", new_to);
-          changed = true;
+          //changed = true;
         }
 
-      if (changed)
-        mailPacket.save ("");
-
+      /// On this step will be generated Message-ID and
+      ///   it will be saved and not be re-generated
+      ///   on the next loading (if first attempt failed)
       mailPacket.compose ();
+      mailPacket.save ("");
 
       // ToDo: compress to gzip for 25519 address (pboted)
       // ToDo: don't forget, for tests sent uncompressed
