@@ -1,0 +1,31 @@
+name: Build DEB on Ubuntu
+
+on: [push, pull_request]
+
+jobs:
+  build-deb-buster:
+    name: Build DEB package for buster
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        submodules: 'recursive'
+    - name: Update Debian changelog
+      run: |
+        sudo apt-get update
+        sudo apt-get install cmake devscripts debhelper
+        debchange -v "`git describe --tags`-buster" -M --distribution buster "trunk build"
+    - name: Build package
+      uses: singingwolfboy/build-dpkg-buster@v1
+      id: build
+      with:
+        args: --unsigned-source --unsigned-changes -b
+    - uses: actions/upload-artifact@v1
+      with:
+        name: ${{ steps.build.outputs.filename }}
+        path: ${{ steps.build.outputs.filename }}
+    - uses: actions/upload-artifact@v1
+      with:
+        name: ${{ steps.build.outputs.filename-dbgsym }}
+        path: ${{ steps.build.outputs.filename-dbgsym }}
