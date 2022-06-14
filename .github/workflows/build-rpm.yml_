@@ -1,0 +1,22 @@
+name: Build RPM
+
+on: [push, pull_request]
+
+jobs:
+  build-rpm:
+    name: Build RPM package
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    - name: Build package
+      id: rpm
+      uses: naveenrajm7/rpmbuild@master
+      with:
+        spec_file: "contrib/rpm/pboted-git.spec"
+    - name: Upload artifact
+      uses: actions/upload-artifact@v1
+      with:
+        name: ${{ steps.rpm.outputs.source_rpm_name }}
+        path: ${{ steps.rpm.outputs.rpm_dir_path }}

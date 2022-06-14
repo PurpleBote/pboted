@@ -29,12 +29,15 @@ Requires:      systemd
 Requires(pre): %{_sbindir}/useradd %{_sbindir}/groupadd
 
 
+
 %description
 I2P-Bote service written in C++.
 
 
+
 %prep
 %setup -q -n pboted-master
+
 
 
 %build
@@ -80,6 +83,7 @@ popd
 %endif
 
 
+
 %install
 pushd build
 
@@ -112,23 +116,27 @@ chrpath -d pboted
 %{__install} -D -m 644 %{_builddir}/pboted-master/debian/pboted.1 %{buildroot}%{_mandir}/man1/pboted.1
 
 
+
 %pre
 getent group pboted >/dev/null || %{_sbindir}/groupadd -r pboted
-getent passwd pboted >/dev/null || \
-  %{_sbindir}/useradd -r -g pboted -s %{_sbindir}/nologin \
-                      -d %{_sharedstatedir}/pboted -c 'I2P-Bote Service' pboted
+getent passwd pboted >/dev/null || %{_sbindir}/useradd -r -g pboted -s %{_sbindir}/nologin \
+  -d %{_sharedstatedir}/pboted -c 'I2P-Bote Service' pboted
+
 
 
 %post
 %systemd_post pboted.service
 
 
+
 %preun
 %systemd_preun pboted.service
 
 
+
 %postun
 %systemd_postun_with_restart pboted.service
+
 
 
 %files
@@ -140,6 +148,7 @@ getent passwd pboted >/dev/null || \
 %{_mandir}/man1/pboted.1*
 %dir %attr(0700,pboted,pboted) %{_sharedstatedir}/pboted
 %dir %attr(0700,pboted,pboted) %{_localstatedir}/log/pboted
+
 
 
 %changelog
