@@ -17,7 +17,7 @@ jobs:
         sudo apt-get install cmake devscripts debhelper
         debchange -v "`git describe --tags`-buster" -M --distribution buster "trunk build"
     - name: Build package
-      uses: singingwolfboy/build-dpkg-buster@v1
+      uses: nylas/build-dpkg-buster@v1
       id: build
       with:
         args: --unsigned-source --unsigned-changes -b

@@ -28,8 +28,10 @@ Requires:      logrotate
 Requires:      systemd
 Requires(pre): %{_sbindir}/useradd %{_sbindir}/groupadd
 
+
 %description
 I2P-Bote service written in C++.
+
 
 %prep
 %setup -q -n pboted-master
@@ -42,7 +44,6 @@ cd build
 %else
 %cmake .
 %endif
-
 
 %if 0%{?rhel} == 9
 pushd redhat-linux-build
@@ -77,6 +78,7 @@ popd
 %if 0%{?mageia} > 7
 popd
 %endif
+
 
 %install
 pushd build

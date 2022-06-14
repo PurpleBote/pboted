@@ -3,8 +3,8 @@ name: Build RPM on Ubuntu
 on: [push, pull_request]
 
 jobs:
-  build-rpm:
-    name: Build RPM package
+  build-rpm-el7:
+    name: Build RPM el7 package
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -14,7 +14,24 @@ jobs:
       id: rpm
       uses: naveenrajm7/rpmbuild@master
       with:
-        spec_file: "contrib/rpm/pboted.spec"
+        spec_file: "contrib/rpm/pboted-git.spec"
+    - name: Upload artifact
+      uses: actions/upload-artifact@v1
+      with:
+        name: Binary RPM
+        path: ${{ steps.rpm.outputs.rpm_dir_path }}
+  build-rpm-el8:
+    name: Build RPM el8 package
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    - name: Build package
+      id: rpm
+      uses: naveenrajm7/rpmbuild@centos8
+      with:
+        spec_file: "contrib/rpm/pboted-git.spec"
     - name: Upload artifact
       uses: actions/upload-artifact@v1
       with:

@@ -26,8 +26,10 @@ Requires:      logrotate
 Requires:      systemd
 Requires(pre): %{_sbindir}/useradd %{_sbindir}/groupadd
 
+
 %description
 I2P-Bote service written in C++.
+
 
 %prep
 %setup -q
@@ -74,6 +76,7 @@ popd
 %if 0%{?mageia} > 7
 popd
 %endif
+
 
 %install
 pushd build
