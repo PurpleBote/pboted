@@ -48,7 +48,7 @@ jobs:
       uses: legoktm/gh-action-build-deb@debian-bullseye
       id: build
       with:
-        args: --unsigned-source --unsigned-changes -b
+        args: --unsigned-source --unsigned-changes
     - name: Upload artifact
       uses: actions/upload-artifact@v1
       with:
