@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build-rpm:
-    name: Build RPM package
+    name: Build RPM package for el7
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -12,12 +12,17 @@ jobs:
         submodules: 'recursive'
     - name: Build package
       id: build
-      uses: polistern/build-rpm-centos7@master
+      uses:  bocekm/rpmbuild@el7
       with:
-        spec: "contrib/rpm/pboted-git.spec"
-        install: cmake make
-    - name: Upload artifact
+        spec_path: "contrib/rpm/pboted.spec"
+        preinstall_packages: cmake3 chrpath gcc-c++ zlib-devel boost-devel openssl-devel mimetic-devel systemd-units
+    - name: Upload RPM artifact
       uses: actions/upload-artifact@v1
       with:
-        name: ${{ steps.build.outputs.filename }}
-        path: ${{ steps.build.outputs.filename }}
+        name: ${{ steps.build.outputs.rpm_name }}
+        path: ${{ steps.build.outputs.rpm_path }}
+    - name: Upload SRPM artifact
+      uses: actions/upload-artifact@v1
+      with:
+        name: ${{ steps.build.outputs.srpm_name }}
+        path: ${{ steps.build.outputs.srpm_path }}
