@@ -43,7 +43,13 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install cmake devscripts debhelper
-        debchange -v "`git describe --tags`-bullseye" -M --distribution bullseye "trunk build"
+
+        LATEST_TAG=$(git describe --tags)
+        BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+        debchange -v "$LATEST_TAG-bullseye" -M --distribution bullseye "trunk build"
+        git archive --format=tar.gz -9 --worktree-attributes --prefix=pboted_$(LATEST_TAG)/ \
+          $(BRANCH) -o ../pboted_$(LATEST_TAG).orig.tar.gz
     - name: Build package
       uses: legoktm/gh-action-build-deb@debian-bullseye
       id: build
