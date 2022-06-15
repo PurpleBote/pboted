@@ -48,8 +48,8 @@ jobs:
         BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
         debchange -v "$LATEST_TAG-bullseye" -M --distribution bullseye "trunk build"
-        git archive --format=tar.gz -9 --worktree-attributes --prefix=pboted_$(LATEST_TAG)/ \
-          $(BRANCH) -o ../pboted_$(LATEST_TAG).orig.tar.gz
+        git archive --format=tar.gz -9 --worktree-attributes --prefix=pboted_$LATEST_TAG/ \
+          $BRANCH -o ../pboted_$LATEST_TAG.orig.tar.gz
     - name: Build package
       uses: legoktm/gh-action-build-deb@debian-bullseye
       id: build
