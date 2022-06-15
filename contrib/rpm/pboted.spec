@@ -36,8 +36,8 @@ I2P-Bote service written in C++.
 %prep
 %setup -q
 pwd
-mkdir -p /github/home/rpmbuild/BUILD/pboted-0.7.9
-cd /github/home/rpmbuild/BUILD/pboted-0.7.9
+mkdir -p /github/home/rpmbuild/BUILD/pboted-0.7.9/lib
+cd /github/home/rpmbuild/BUILD/pboted-0.7.9/lib
 git clone https://github.com/PurpleI2P/i2pd.git i2pd
 cd i2pd
 git checkout 9685754511308dd805522b680c2b1295e590735c
