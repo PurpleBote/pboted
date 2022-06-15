@@ -15,7 +15,8 @@ jobs:
       uses:  bocekm/rpmbuild@el7
       with:
         spec_path: "contrib/rpm/pboted.spec"
-        preinstall_packages: cmake3 chrpath gcc-c++ zlib-devel boost-devel openssl-devel mimetic-devel systemd-units
+        preinstall_packages: epel-release
+        # cmake chrpath gcc-c++ zlib-devel boost-devel openssl-devel mimetic-devel systemd-units
     - name: Upload RPM artifact
       uses: actions/upload-artifact@v1
       with:
