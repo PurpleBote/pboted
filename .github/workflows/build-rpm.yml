@@ -3,7 +3,7 @@ name: Build RPM
 on: [push, pull_request]
 
 jobs:
-  build-rpm:
+  build-rpm-el7:
     name: Build RPM package for el7
     runs-on: ubuntu-latest
     steps:
@@ -13,6 +13,30 @@ jobs:
     - name: Build package
       id: build
       uses:  bocekm/rpmbuild@el7
+      with:
+        spec_path: "contrib/rpm/pboted.spec"
+        #redownload_source:
+        preinstall_packages: epel-release git
+    - name: Upload RPM artifact
+      uses: actions/upload-artifact@v1
+      with:
+        name: ${{ steps.build.outputs.rpm_name }}
+        path: ${{ steps.build.outputs.rpm_path }}
+    - name: Upload SRPM artifact
+      uses: actions/upload-artifact@v1
+      with:
+        name: ${{ steps.build.outputs.srpm_name }}
+        path: ${{ steps.build.outputs.srpm_path }}
+  build-rpm-el8:
+    name: Build RPM package for el8
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+    - name: Build package
+      id: build
+      uses:  bocekm/rpmbuild@el8
       with:
         spec_path: "contrib/rpm/pboted.spec"
         #redownload_source:

@@ -74,7 +74,7 @@ pushd %{_target_platform}
 pushd build
 %endif
 
-make %{?_smp_mflags}
+make
 
 %if 0%{?rhel} == 9
 popd
