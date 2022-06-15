@@ -31,32 +31,32 @@ jobs:
       with:
         name: ${{ steps.build.outputs.filename-dbgsym }}
         path: ${{ steps.build.outputs.filename-dbgsym }}
-  build-deb-bullseye:
-    name: Build DEB on Debian 11 Bullseye
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-        submodules: 'recursive'
-    - name: Update changelog
-      run: |
-        sudo apt-get update
-        sudo apt-get install cmake devscripts debhelper
+  #build-deb-bullseye:
+  #  name: Build DEB on Debian 11 Bullseye
+  #  runs-on: ubuntu-latest
+  #  steps:
+  #  - uses: actions/checkout@v2
+  #    with:
+  #      fetch-depth: 0
+  #      submodules: 'recursive'
+  #  - name: Update changelog
+  #    run: |
+  #      sudo apt-get update
+  #      sudo apt-get install cmake devscripts debhelper
 
-        LATEST_TAG=$(git describe --tags)
-        BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  #      LATEST_TAG=$(git describe --tags)
+  #      BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-        debchange -v "$LATEST_TAG-bullseye" -M --distribution bullseye "trunk build"
-        git archive --format=tar.gz -9 --worktree-attributes --prefix=pboted_$LATEST_TAG/ \
-          $BRANCH -o ../pboted_$LATEST_TAG.orig.tar.gz
-    - name: Build package
-      uses: legoktm/gh-action-build-deb@debian-bullseye
-      id: build
-      with:
-        args: --unsigned-source --unsigned-changes
-    - name: Upload artifact
-      uses: actions/upload-artifact@v1
-      with:
-        name: Packages for bullseye
-        path: output
+  #      debchange -v "$LATEST_TAG-bullseye" -M --distribution bullseye "trunk build"
+  #      git archive --format=tar.gz -9 --worktree-attributes --prefix=pboted_$LATEST_TAG/ \
+  #        $BRANCH -o ../pboted_$LATEST_TAG.orig.tar.gz
+  #  - name: Build package
+  #    uses: legoktm/gh-action-build-deb@debian-bullseye
+  #    id: build
+  #    with:
+  #      args: --unsigned-source --unsigned-changes
+  #  - name: Upload artifact
+  #    uses: actions/upload-artifact@v1
+  #    with:
+  #      name: Packages for bullseye
+  #      path: output
