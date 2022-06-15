@@ -16,7 +16,7 @@ jobs:
       with:
         spec_path: "contrib/rpm/pboted.spec"
         #redownload_source:
-        preinstall_packages: epel-release
+        preinstall_packages: epel-release git
     - name: Upload RPM artifact
       uses: actions/upload-artifact@v1
       with:
