@@ -11,12 +11,13 @@ jobs:
       with:
         submodules: 'recursive'
     - name: Build package
-      id: rpm
-      uses: naveenrajm7/rpmbuild@master
+      id: build
+      uses: polistern/build-rpm-centos7@master
       with:
-        spec_file: "contrib/rpm/pboted-git.spec"
+        spec: "contrib/rpm/pboted-git.spec"
+        install: cmake make
     - name: Upload artifact
       uses: actions/upload-artifact@v1
       with:
-        name: ${{ steps.rpm.outputs.source_rpm_name }}
-        path: ${{ steps.rpm.outputs.rpm_dir_path }}
+        name: ${{ steps.build.outputs.filename }}
+        path: ${{ steps.build.outputs.filename }}
