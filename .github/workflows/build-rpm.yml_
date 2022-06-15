@@ -12,8 +12,7 @@ jobs:
         submodules: 'recursive'
     - name: Build package
       id: build
-      #uses: bocekm/rpmbuild@el7
-      uses: polistern/rpmbuild@rhel8
+      uses: bocekm/rpmbuild@el7
       with:
         spec_path: "contrib/rpm/pboted.spec"
         #redownload_source:
