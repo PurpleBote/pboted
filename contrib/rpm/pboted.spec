@@ -35,7 +35,14 @@ I2P-Bote service written in C++.
 
 %prep
 %setup -q
-
+git clone https://github.com/PurpleI2P/i2pd.git i2pd
+cd i2pd
+git checkout 9685754511308dd805522b680c2b1295e590735c
+cd ..
+git clone https://github.com/polistern/i2psam.git i2psam
+cd i2psam
+git checkout b0888f4129caef1e5d2ead977afd7608095625e2
+cd ..
 
 
 %build
