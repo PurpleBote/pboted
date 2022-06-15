@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build-deb-buster:
-    name: Build DEB package on Debian 10 Buster
+    name: Build DEB on Debian 10 Buster
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -32,7 +32,7 @@ jobs:
         name: ${{ steps.build.outputs.filename-dbgsym }}
         path: ${{ steps.build.outputs.filename-dbgsym }}
   build-deb-bullseye:
-    name: Build DEB package on Debian 11 Bullseye
+    name: Build DEB on Debian 11 Bullseye
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
