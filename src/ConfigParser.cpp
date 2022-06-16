@@ -55,6 +55,7 @@ void Init() {
       ("sam.address", value<std::string>()->default_value("127.0.0.1"), "I2P SAM address (default: 127.0.0.1)")
       ("sam.tcp", value<uint16_t>()->default_value(7656), "I2P SAM port (default: 7656)")
       ("sam.udp", value<uint16_t>()->default_value(7655), "I2P SAM port (default: 7655)")
+      ("sam.key", value<std::string>()->default_value(""), "Path to I2P destination key (default: for service - /var/lib/pboted/destination.key, for user - ~/.pboted/destination.key)")
       /*("sam.auth", bool_switch()->default_value(false),"If SAM authentication requered (default: false)")
       ("sam.login", value<std::string>()->default_value(""),"SAM login")
       ("sam.password", value<std::string>()->default_value(""),"SAM password")*/

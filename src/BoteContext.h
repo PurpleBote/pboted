@@ -21,13 +21,15 @@
 
 #include "Identity.h"
 
-namespace pbote {
+namespace pbote
+{
 
 #define DEFAULT_KEY_FILE_NAME "destination.key"
 
 using queue_type = std::shared_ptr<pbote::util::Queue<std::shared_ptr<PacketForQueue>>>;
 
-class BoteContext {
+class BoteContext
+{
  public:
   BoteContext();
   ~BoteContext();
