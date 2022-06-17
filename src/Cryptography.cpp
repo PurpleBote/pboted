@@ -20,11 +20,7 @@ namespace pbote
 
 ECDHP256Encryptor::ECDHP256Encryptor (const byte *pubkey)
 {
-  auto clock_now1 = std::chrono::high_resolution_clock::now ();
-  auto clock_now2 = std::chrono::high_resolution_clock::now ();
-  std::chrono::high_resolution_clock::duration d = clock_now1 - clock_now2;
-  unsigned seed2 = d.count ();
-  rbe.seed (seed2);
+  rbe.seed (time (NULL));
 
   ec_curve = EC_GROUP_new_by_curve_name (NID_X9_62_prime256v1);
   ec_public_point = EC_POINT_new (ec_curve);

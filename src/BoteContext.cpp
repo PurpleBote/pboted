@@ -28,10 +28,7 @@ BoteContext::BoteContext()
       local_keys_(std::make_shared<i2p::data::PrivateKeys>())
 {
   start_time_ = std::chrono::system_clock::now().time_since_epoch().count();
-  std::chrono::high_resolution_clock::duration
-      d = std::chrono::high_resolution_clock::now() - std::chrono::high_resolution_clock::now();
-  unsigned seed2 = d.count();
-  rbe.seed(seed2);
+  rbe.seed(time (NULL));
 }
 
 BoteContext::~BoteContext()
