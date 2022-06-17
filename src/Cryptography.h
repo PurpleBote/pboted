@@ -28,12 +28,20 @@
 namespace pbote
 {
 
+/// AES
 #define AES_BLOCK_SIZE 16
+#define AES_KEY_SIZE 32
 #define EPH_KEY_LEN 33
-#define KEY_SIZE 32
+/// ECDHP256
+#define ECDHP256_PUB_KEY 33
+#define ECDHP256_PRIV_KEY 33
+/// ECDHP521
+#define ECDHP521_PUB_KEY 66
+#define ECDHP521_PRIV_KEY 67
+#define ECDHP521_PRIV_KEY_COMPRESSED 66
   
 typedef uint8_t byte;
-//typedef std::basic_string<char, std::char_traits<char>, zallocator<char> > secure_string;
+
 using EVP_CIPHER_CTX_ptr = std::unique_ptr<EVP_CIPHER_CTX, decltype(&::EVP_CIPHER_CTX_free)>;
 
 class CryptoKeyEncryptor
@@ -73,6 +81,34 @@ class ECDHP256Decryptor : public CryptoKeyDecryptor
   ~ECDHP256Decryptor () override;
   std::vector<byte> Decrypt (const byte *encrypted, int elen) override;
   size_t GetPublicKeyLen () const override { return 33; };
+
+ private:
+  EC_GROUP *ec_curve;
+  BIGNUM *bn_private_key;
+};
+
+class ECDHP521Encryptor : public CryptoKeyEncryptor
+{
+ public:
+  ECDHP521Encryptor (const byte *pubkey);
+  ~ECDHP521Encryptor () override;
+  std::vector<byte> Encrypt (const byte *data, int dlen) override;
+
+ private:
+  EC_GROUP *ec_curve;
+  EC_POINT *ec_public_point;
+  EC_KEY *ec_ephemeral_key;
+
+  std::independent_bits_engine<std::default_random_engine, CHAR_BIT, uint8_t> rbe;
+};
+
+class ECDHP521Decryptor : public CryptoKeyDecryptor
+{
+ public:
+  ECDHP521Decryptor (const byte *priv);
+  ~ECDHP521Decryptor () override;
+  std::vector<byte> Decrypt (const byte *encrypted, int elen) override;
+  size_t GetPublicKeyLen () const override { return ECDHP521_PUB_KEY; };
 
  private:
   EC_GROUP *ec_curve;
@@ -147,9 +183,9 @@ bn2buf (const BIGNUM *bn, uint8_t *buf, size_t len)
   return true;
 }
 
-void aes_encrypt (const byte key[KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
+void aes_encrypt (const byte key[AES_KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
                   const std::vector<byte>& pdata, std::vector<byte>& cdata);
-void aes_decrypt (const byte key[KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
+void aes_decrypt (const byte key[AES_KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
                   const std::vector<byte>& cdata, std::vector<byte>& pdata);
 
 } // namespace pbote

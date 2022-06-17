@@ -23,7 +23,8 @@
 #include "Signature.h"
 #include "Tag.h"
 
-namespace pbote {
+namespace pbote
+{
 /// Identity types
 const uint8_t KEY_TYPE_ELG2048_DSA1024_SHA256_AES256CBC = 1; /// UNSUPPORTED
 const uint8_t KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC = 2;
@@ -41,10 +42,10 @@ const size_t ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH = 33;
 
 /// ECDH-512 / ECDSA-521 / AES-256 / SHA-512
 const std::string ECDH521_ECDSA521_NAME = "ECDH-521 / ECDSA-521";
-//const size_t ECDH521_ECDSA521_COMPLETE_BASE64_LENGTH = 348;
-//const size_t ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH = 174;
-//const size_t ECDH521_ECDSA521_BYTE_PUBLIC_KEY_LENGTH = 66;
-//const size_t ECDH521_ECDSA521_BYTE_PRIVATE_KEY_LENGTH = 66;
+const size_t ECDH521_ECDSA521_COMPLETE_BASE64_LENGTH = 348;
+const size_t ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH = 174;
+const size_t ECDH521_ECDSA521_BYTE_PUBLIC_KEY_LENGTH = 66;
+const size_t ECDH521_ECDSA521_BYTE_PRIVATE_KEY_LENGTH = 66;
 
 /// X25519 / ED25519 / AES-256 / SHA-512
 const std::string X25519_ED25519_NAME = "X25519 / ED25519";
@@ -56,24 +57,27 @@ const std::string X25519_ED25519_NAME = "X25519 / ED25519";
 typedef i2p::data::Tag<32> IdentHash;
 typedef uint16_t KeyType;
 
-inline std::string keyTypeToString(KeyType keyType) {
-  switch (keyType) {
-    case KEY_TYPE_ELG2048_DSA1024_SHA256_AES256CBC:
-      return {"ElGamal-2048 / DSA-1024"};
-    case KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC:
-      return {ECDH256_ECDSA256_NAME};
-    case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
-      return {ECDH521_ECDSA521_NAME};
-    case KEY_TYPE_NTRUE1087_GMSS512_AES256_SHA512:
-      return {"NTRUE-1087 / GMSS-512"};
-    case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
-      return {X25519_ED25519_NAME};
-    default:
-      return {"UNKNOWN"};
-  }
+inline std::string keyTypeToString(KeyType keyType)
+{
+  switch (keyType)
+    {
+      case KEY_TYPE_ELG2048_DSA1024_SHA256_AES256CBC:
+        return {"ElGamal-2048 / DSA-1024"};
+      case KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC:
+        return {ECDH256_ECDSA256_NAME};
+      case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
+        return {ECDH521_ECDSA521_NAME};
+      case KEY_TYPE_NTRUE1087_GMSS512_AES256_SHA512:
+        return {"NTRUE-1087 / GMSS-512"};
+      case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
+        return {X25519_ED25519_NAME};
+      default:
+        return {"UNKNOWN"};
+    }
 }
 
-class I_BoteIdentity {
+class I_BoteIdentity
+{
  public:
   virtual ~I_BoteIdentity() = default;
 
@@ -102,11 +106,13 @@ class I_BoteIdentity {
   virtual IdentHash hash() const = 0;
 };
 
-class ECDHP256Identity : public I_BoteIdentity {
+class ECDHP256Identity : public I_BoteIdentity
+{
  public:
   ECDHP256Identity() = default;
 
-  size_t from_buffer(const uint8_t *buf, size_t len) override {
+  size_t from_buffer(const uint8_t *buf, size_t len) override
+  {
     if (len < get_identity_size())
       return 0;
 
@@ -115,7 +121,8 @@ class ECDHP256Identity : public I_BoteIdentity {
     return get_identity_size();
   }
 
-  size_t to_buffer(uint8_t *buf, size_t len) override {
+  size_t to_buffer(uint8_t *buf, size_t len) override
+  {
     if (len < get_identity_size())
       return 0;
 
@@ -128,27 +135,63 @@ class ECDHP256Identity : public I_BoteIdentity {
   uint8_t *getCryptoPublicKey() override { return cryptoPublicKey; };
   uint8_t *getSigningPublicKey() override { return signingPublicKey; };
 
-  void setCryptoPrivateKey(const uint8_t *buf, size_t len) override { memcpy(cryptoPrivateKey, buf, len); };
-  void setSigningPrivateKey(const uint8_t *buf, size_t len) override { memcpy(signingPrivateKey, buf, len); };
-  void setCryptoPublicKey(const uint8_t *buf, size_t len) override { memcpy(cryptoPublicKey, buf, len); };
-  void setSigningPublicKey(const uint8_t *buf, size_t len) override { memcpy(signingPublicKey, buf, len); };
+  void setCryptoPrivateKey(const uint8_t *buf, size_t len) override
+  {
+    memcpy(cryptoPrivateKey, buf, len);
+  };
 
-  size_t get_crypto_private_len() const override { return ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH; };
-  size_t get_crypto_public_len() const override { return ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH; };
-  size_t get_singing_private_len() const override { return ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH; };
-  size_t get_singing_public_len() const override { return ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH; };
+  void setSigningPrivateKey(const uint8_t *buf, size_t len) override
+  {
+    memcpy(signingPrivateKey, buf, len);
+  };
 
-  size_t get_identity_size() const override {
+  void setCryptoPublicKey(const uint8_t *buf, size_t len) override
+  {
+    memcpy(cryptoPublicKey, buf, len);
+  };
+
+  void setSigningPublicKey(const uint8_t *buf, size_t len) override
+  {
+    memcpy(signingPublicKey, buf, len);
+  };
+
+  size_t get_crypto_private_len() const override
+  {
+    return ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH;
+  };
+
+  size_t get_crypto_public_len() const override
+  {
+    return ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH;
+  };
+
+  size_t get_singing_private_len() const override
+  {
+    return ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH;
+  };
+
+  size_t get_singing_public_len() const override
+  {
+    return ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH;
+  };
+
+  size_t get_identity_size() const override
+  {
     return (ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH * 2);
   };
 
-  size_t get_identity_full_size() const override {
+  size_t get_identity_full_size() const override
+  {
     return ((ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH + ECDH256_ECDSA256_BYTE_PRIVATE_KEY_LENGTH) * 2);
   };
 
-  size_t get_identity_type() const override { return KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC; };
+  size_t get_identity_type() const override
+  {
+    return KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC;
+  };
 
-  IdentHash hash() const override {
+  IdentHash hash() const override
+  {
     IdentHash hash;
     SHA256(cryptoPublicKey, get_identity_size(), hash);
     return hash;
@@ -161,7 +204,106 @@ class ECDHP256Identity : public I_BoteIdentity {
   uint8_t signingPublicKey[ECDH256_ECDSA256_BYTE_PUBLIC_KEY_LENGTH]{};
 };
 
-class BoteIdentityPublic {
+class ECDHP521Identity : public I_BoteIdentity
+{
+ public:
+  ECDHP521Identity() = default;
+
+  size_t from_buffer(const uint8_t *buf, size_t len) override
+  {
+    if (len < get_identity_size())
+      return 0;
+
+    memcpy(cryptoPublicKey, buf, ECDH521_ECDSA521_BYTE_PUBLIC_KEY_LENGTH);
+    memcpy(signingPublicKey, buf + ECDH521_ECDSA521_BYTE_PUBLIC_KEY_LENGTH, ECDH521_ECDSA521_BYTE_PUBLIC_KEY_LENGTH);
+    return get_identity_size();
+  }
+
+  size_t to_buffer(uint8_t *buf, size_t len) override
+  {
+    if (len < get_identity_size())
+      return 0;
+
+    memcpy(buf, cryptoPublicKey, get_identity_size());
+    return get_identity_size();
+  }
+
+  uint8_t *getCryptoPrivateKey() override { return cryptoPrivateKey; };
+  uint8_t *getSigningPrivateKey() override { return signingPrivateKey; };
+  uint8_t *getCryptoPublicKey() override { return cryptoPublicKey; };
+  uint8_t *getSigningPublicKey() override { return signingPublicKey; };
+
+  void setCryptoPrivateKey(const uint8_t *buf, size_t len) override
+  {
+    memcpy(cryptoPrivateKey, buf, len);
+  };
+
+  void setSigningPrivateKey(const uint8_t *buf, size_t len) override
+  {
+    memcpy(signingPrivateKey, buf, len);
+  };
+
+  void setCryptoPublicKey(const uint8_t *buf, size_t len) override
+  {
+    memcpy(cryptoPublicKey, buf, len);
+  };
+
+  void setSigningPublicKey(const uint8_t *buf, size_t len) override
+  {
+    memcpy(signingPublicKey, buf, len);
+  };
+
+  size_t get_crypto_private_len() const override
+  {
+    return ECDH521_ECDSA521_BYTE_PRIVATE_KEY_LENGTH;
+  };
+
+  size_t get_crypto_public_len() const override
+  {
+    return ECDH521_ECDSA521_BYTE_PUBLIC_KEY_LENGTH;
+  };
+
+  size_t get_singing_private_len() const override
+  {
+    return ECDH521_ECDSA521_BYTE_PRIVATE_KEY_LENGTH;
+  };
+
+  size_t get_singing_public_len() const override
+  {
+    return ECDH521_ECDSA521_BYTE_PUBLIC_KEY_LENGTH;
+  };
+
+  size_t get_identity_size() const override
+  {
+    return (ECDH521_ECDSA521_BYTE_PUBLIC_KEY_LENGTH * 2);
+  };
+
+  size_t get_identity_full_size() const override
+  {
+    return ((ECDH521_ECDSA521_BYTE_PUBLIC_KEY_LENGTH + ECDH521_ECDSA521_BYTE_PRIVATE_KEY_LENGTH) * 2);
+  };
+
+  size_t get_identity_type() const override
+  {
+    return KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC;
+  };
+
+  IdentHash hash() const override
+  {
+    IdentHash hash;
+    SHA256(cryptoPublicKey, get_identity_size(), hash);
+    return hash;
+  }
+
+ private:
+  uint8_t cryptoPrivateKey[ECDH521_ECDSA521_BYTE_PRIVATE_KEY_LENGTH]{};
+  uint8_t signingPrivateKey[ECDH521_ECDSA521_BYTE_PRIVATE_KEY_LENGTH]{};
+  uint8_t cryptoPublicKey[ECDH521_ECDSA521_BYTE_PUBLIC_KEY_LENGTH]{};
+  uint8_t signingPublicKey[ECDH521_ECDSA521_BYTE_PUBLIC_KEY_LENGTH]{};
+};
+
+class BoteIdentityPublic
+{
  public:
   BoteIdentityPublic(KeyType type = KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
   BoteIdentityPublic(const uint8_t *cryptoPublicKey, const uint8_t *signingPublicKey,
@@ -211,7 +353,8 @@ class BoteIdentityPublic {
   mutable std::mutex m_VerifierMutex;
 };
 
-class BoteIdentityPrivate {
+class BoteIdentityPrivate
+{
  public:
   BoteIdentityPrivate(KeyType type = KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
   BoteIdentityPrivate(const BoteIdentityPrivate &other) { *this = other; };
@@ -230,15 +373,36 @@ class BoteIdentityPrivate {
   size_t GetFullLen() const { return m_Public->GetIdentity()->get_identity_full_size(); };
   KeyType GetKeyType() const { return m_Public->GetKeyType(); }
 
-  size_t getCryptoPrivateKeyLen() const { return m_Public->GetIdentity()->get_crypto_private_len(); };
-  const uint8_t *GetCryptoPrivateKey() const { return m_Public->GetIdentity()->getCryptoPrivateKey(); };
-  void setCryptoPrivateKey(const uint8_t *buf, size_t len) { m_Public->GetIdentity()->setCryptoPrivateKey(buf, len); };
+  size_t getCryptoPrivateKeyLen() const
+  {
+    return m_Public->GetIdentity()->get_crypto_private_len();
+  };
 
-  size_t getSigningPrivateKeyLen() const { return m_Public->GetIdentity()->get_singing_private_len(); };
-  const uint8_t *GetSigningPrivateKey() const { return m_Public->GetIdentity()->getSigningPrivateKey(); };
-  void setSigningPrivateKey(const uint8_t *buf, size_t len) {
+  const uint8_t *GetCryptoPrivateKey() const
+  {
+    return m_Public->GetIdentity()->getCryptoPrivateKey();
+  };
+
+  void setCryptoPrivateKey(const uint8_t *buf, size_t len)
+  {
+    m_Public->GetIdentity()->setCryptoPrivateKey(buf, len);
+  };
+
+  size_t getSigningPrivateKeyLen() const
+  {
+    return m_Public->GetIdentity()->get_singing_private_len();
+  };
+
+  const uint8_t *GetSigningPrivateKey() const
+  {
+    return m_Public->GetIdentity()->getSigningPrivateKey();
+  };
+
+  void setSigningPrivateKey(const uint8_t *buf, size_t len)
+  {
     m_Public->GetIdentity()->setSigningPrivateKey(buf, len);
   };
+
   size_t GetSignatureLen() const { return m_Public->GetSignatureLen(); };
 
   std::vector<uint8_t> Decrypt(const uint8_t *encrypted, size_t elen);
@@ -271,7 +435,8 @@ const std::string IDENTITY_PREFIX_PUBLISHED = "published";
 const std::string IDENTITY_PREFIX_DEFAULT = "default";
 const std::string CONFIGURATION_PREFIX = "configuration.";
 
-struct BoteIdentityFull {
+struct BoteIdentityFull
+{
   uint16_t id;
   std::string salt;
   std::string publicName;
@@ -286,7 +451,8 @@ struct BoteIdentityFull {
   BoteIdentityPrivate identity;
 };
 
-class identitiesStorage {
+class identitiesStorage
+{
  public:
   identitiesStorage() = default;
 
@@ -295,7 +461,10 @@ class identitiesStorage {
   //void saveIdentities();
   //void importIdentities();
   //void exportIdentities();
-  void addIdentityToStorage(const BoteIdentityFull& ident) { identities_.push_back(std::make_shared<BoteIdentityFull>(ident)); }
+  void addIdentityToStorage(const BoteIdentityFull& ident)
+  {
+    identities_.push_back(std::make_shared<BoteIdentityFull>(ident));
+  }
 
   //BoteIdentityFull createIdentity();
   std::vector<std::shared_ptr<BoteIdentityFull>> getIdentities() { return identities_; };
