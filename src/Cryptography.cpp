@@ -24,9 +24,9 @@ ECDHP256Encryptor::ECDHP256Encryptor (const byte *pubkey)
 
   ec_curve = EC_GROUP_new_by_curve_name (NID_X9_62_prime256v1);
   ec_public_point = EC_POINT_new (ec_curve);
-  ec_ephemeral_key = create_key ();
+  ec_shared_key = create_key (NID_X9_62_prime256v1);
 
-  BIGNUM *bn_public_key = BN_bin2bn (pubkey, ECDHP256_PUB_KEY, nullptr);
+  BIGNUM *bn_public_key = BN_bin2bn (pubkey, ECDHP256_PUB_KEY_SIZE, nullptr);
   EC_POINT_bn2point (ec_curve, bn_public_key, ec_public_point, nullptr);
 }
 
@@ -38,30 +38,31 @@ ECDHP256Encryptor::~ECDHP256Encryptor ()
   if (ec_public_point)
     EC_POINT_free (ec_public_point);
 
-  if (ec_ephemeral_key)
-    EC_KEY_free (ec_ephemeral_key);
+  if (ec_shared_key)
+    EC_KEY_free (ec_shared_key);
 }
 
 std::vector<byte>
 ECDHP256Encryptor::Encrypt (const byte *data, int len)
 {
-  if (!ec_curve && !ec_public_point)
+  if (!ec_curve || !ec_public_point)
     {
       LogPrint (eLogError, "Crypto: Encrypt: Key or curve are not ready");
       return {};
     }
 
   /// Get shared point
-  const EC_POINT* ec_eph_point = EC_KEY_get0_public_key (ec_ephemeral_key);
-  byte shared_key[EPH_KEY_LEN];
-  EC_POINT_point2oct (ec_curve, ec_eph_point, POINT_CONVERSION_COMPRESSED,
-                      shared_key, EPH_KEY_LEN, nullptr);
+  const EC_POINT* ec_shared_point = EC_KEY_get0_public_key (ec_shared_key);
+  byte shared_key[ECDHP256_PUB_KEY_SIZE];
+  EC_POINT_point2oct (ec_curve, ec_shared_point, POINT_CONVERSION_COMPRESSED,
+                      shared_key, ECDHP256_PUB_KEY_SIZE, nullptr);
 
-  std::vector<byte> result (shared_key, shared_key + EPH_KEY_LEN);
+  /// Write shared point to result data
+  std::vector<byte> result (shared_key, shared_key + ECDHP256_PUB_KEY_SIZE);
 
-  /// Create the shared secret
+  /// Create the shared secret from shared point
   int secret_len;
-  byte *secret = get_secret (ec_ephemeral_key, ec_public_point, &secret_len);
+  byte *secret = get_secret (ec_shared_key, ec_public_point, &secret_len);
 
   if (secret_len <= 0)
     return {};
@@ -99,7 +100,7 @@ ECDHP256Encryptor::Encrypt (const byte *data, int len)
 ECDHP256Decryptor::ECDHP256Decryptor (const byte *priv)
 {
   ec_curve = EC_GROUP_new_by_curve_name (NID_X9_62_prime256v1);
-  bn_private_key = BN_bin2bn (priv, ECDHP256_PRIV_KEY, nullptr);
+  bn_private_key = BN_bin2bn (priv, ECDHP256_PRIV_KEY_SIZE, nullptr);
 }
 
 ECDHP256Decryptor::~ECDHP256Decryptor ()
@@ -114,7 +115,7 @@ ECDHP256Decryptor::~ECDHP256Decryptor ()
 std::vector<byte>
 ECDHP256Decryptor::Decrypt (const byte *encrypted, int elen)
 {
-  if (!ec_curve && !bn_private_key)
+  if (!ec_curve || !bn_private_key)
     {
       LogPrint (eLogError, "Crypto: Decrypt: Key or curve are not ready");
       return {};
@@ -128,20 +129,20 @@ ECDHP256Decryptor::Decrypt (const byte *encrypted, int elen)
       return {};
     }
 
-  /// Read the ephemeral public key - 33 byte
+  /// Read the shared public key
   size_t offset = 0;
-  byte ephemeral_key[EPH_KEY_LEN];
-  memcpy (ephemeral_key, encrypted, EPH_KEY_LEN);
-  offset += EPH_KEY_LEN;
+  byte shared_key[ECDHP256_PUB_KEY_SIZE];
+  memcpy (shared_key, encrypted, ECDHP256_PUB_KEY_SIZE);
+  offset += ECDHP256_PUB_KEY_SIZE;
 
   /// decompress into an EC point
-  EC_POINT *ecp_eph_public_point = EC_POINT_new (ec_curve);
-  BIGNUM *bn_eph_key = BN_bin2bn (ephemeral_key, EPH_KEY_LEN, nullptr);
-  EC_POINT_bn2point (ec_curve, bn_eph_key, ecp_eph_public_point, nullptr);
-  EC_KEY *eph_ec_key = EC_KEY_new_by_curve_name (NID_X9_62_prime256v1);
+  EC_POINT *ecp_shared_public_point = EC_POINT_new (ec_curve);
+  BIGNUM *bn_shared_key = BN_bin2bn (shared_key, ECDHP256_PUB_KEY_SIZE, nullptr);
+  EC_POINT_bn2point (ec_curve, bn_shared_key, ecp_shared_public_point, nullptr);
+  EC_KEY *shared_ec_key = EC_KEY_new_by_curve_name (NID_X9_62_prime256v1);
 
   /// Make public key from the public point
-  if (1 != EC_KEY_set_public_key (eph_ec_key, ecp_eph_public_point))
+  if (1 != EC_KEY_set_public_key (shared_ec_key, ecp_shared_public_point))
     {
       LogPrint (eLogError,
         "Crypto: Decrypt: Fail to convert public key to point");
@@ -150,7 +151,7 @@ ECDHP256Decryptor::Decrypt (const byte *encrypted, int elen)
 
   /// Re-construct the shared secret
   int secret_len;
-  byte *secret = get_secret (ec_private_key, ecp_eph_public_point, &secret_len);
+  byte *secret = get_secret (ec_private_key, ecp_shared_public_point, &secret_len);
   if (secret_len <= 0)
     return {};
 
@@ -185,10 +186,11 @@ ECDHP521Encryptor::ECDHP521Encryptor (const byte *pubkey)
   rbe.seed (time (NULL));
 
   ec_curve = EC_GROUP_new_by_curve_name (NID_secp521r1);
-  ec_public_point = EC_POINT_new (ec_curve);
-  ec_ephemeral_key = create_key ();
 
-  BIGNUM *bn_public_key = BN_bin2bn (pubkey, ECDHP521_PUB_KEY, nullptr);
+  ec_public_point = EC_POINT_new (ec_curve);
+  ec_shared_key = create_key (NID_secp521r1);
+
+  BIGNUM *bn_public_key = BN_bin2bn (pubkey, ECDHP521_PUB_KEY_SIZE, nullptr);
   EC_POINT_bn2point (ec_curve, bn_public_key, ec_public_point, nullptr);
 }
 
@@ -200,30 +202,31 @@ ECDHP521Encryptor::~ECDHP521Encryptor ()
   if (ec_public_point)
     EC_POINT_free (ec_public_point);
 
-  if (ec_ephemeral_key)
-    EC_KEY_free (ec_ephemeral_key);
+  if (ec_shared_key)
+    EC_KEY_free (ec_shared_key);
 }
 
 std::vector<byte>
 ECDHP521Encryptor::Encrypt (const byte *data, int len)
 {
-  if (!ec_curve && !ec_public_point)
+  if (!ec_curve || !ec_public_point)
     {
       LogPrint (eLogError, "Crypto: Encrypt: Key or curve are not ready");
       return {};
     }
 
   /// Get shared point
-  const EC_POINT* ec_eph_point = EC_KEY_get0_public_key (ec_ephemeral_key);
-  byte shared_key[EPH_KEY_LEN];
-  EC_POINT_point2oct (ec_curve, ec_eph_point, POINT_CONVERSION_COMPRESSED,
-                      shared_key, EPH_KEY_LEN, nullptr);
+  const EC_POINT* ec_shared_point = EC_KEY_get0_public_key (ec_shared_key);
+  byte shared_key[ECDHP521_PUB_KEY_SIZE];
+  EC_POINT_point2oct (ec_curve, ec_shared_point, POINT_CONVERSION_COMPRESSED,
+                      shared_key, ECDHP521_PUB_KEY_SIZE, nullptr);
 
-  std::vector<byte> result (shared_key, shared_key + EPH_KEY_LEN);
+  /// Write shared point to result data
+  std::vector<byte> result (shared_key, shared_key + ECDHP521_PUB_KEY_SIZE);
 
-  /// Create the shared secret
+  /// Create the shared secret from shared point
   int secret_len;
-  byte *secret = get_secret (ec_ephemeral_key, ec_public_point, &secret_len);
+  byte *secret = get_secret (ec_shared_key, ec_public_point, &secret_len);
 
   if (secret_len <= 0)
     return {};
@@ -261,13 +264,13 @@ ECDHP521Encryptor::Encrypt (const byte *data, int len)
 ECDHP521Decryptor::ECDHP521Decryptor (const byte *priv)
 {
   /// Key decompressing
-  byte priv_decompress[ECDHP521_PRIV_KEY];
+  byte priv_decompress[ECDHP521_PRIV_KEY_SIZE];
   memcpy(&priv_decompress[1], priv, ECDHP521_PRIV_KEY_COMPRESSED);
   priv_decompress[0] |= (priv_decompress[1] >> 1) + 2;
   priv_decompress[1] &= 1;
 
   ec_curve = EC_GROUP_new_by_curve_name (NID_secp521r1);
-  bn_private_key = BN_bin2bn (priv_decompress, ECDHP521_PRIV_KEY, nullptr);
+  bn_private_key = BN_bin2bn (priv_decompress, ECDHP521_PRIV_KEY_SIZE, nullptr);
 }
 
 ECDHP521Decryptor::~ECDHP521Decryptor ()
@@ -282,7 +285,7 @@ ECDHP521Decryptor::~ECDHP521Decryptor ()
 std::vector<byte>
 ECDHP521Decryptor::Decrypt (const byte *encrypted, int elen)
 {
-  if (!ec_curve && !bn_private_key)
+  if (!ec_curve || !bn_private_key)
     {
       LogPrint (eLogError, "Crypto: Decrypt: Key or curve are not ready");
       return {};
@@ -296,20 +299,20 @@ ECDHP521Decryptor::Decrypt (const byte *encrypted, int elen)
       return {};
     }
 
-  /// Read the ephemeral public key - 33 byte
+  /// Read the shared public key
   size_t offset = 0;
-  byte ephemeral_key[EPH_KEY_LEN];
-  memcpy (ephemeral_key, encrypted, EPH_KEY_LEN);
-  offset += EPH_KEY_LEN;
+  byte shared_key[ECDHP521_PUB_KEY_SIZE];
+  memcpy (shared_key, encrypted, ECDHP521_PUB_KEY_SIZE);
+  offset += ECDHP521_PUB_KEY_SIZE;
 
   /// decompress into an EC point
-  EC_POINT *ecp_eph_public_point = EC_POINT_new (ec_curve);
-  BIGNUM *bn_eph_key = BN_bin2bn (ephemeral_key, EPH_KEY_LEN, nullptr);
-  EC_POINT_bn2point (ec_curve, bn_eph_key, ecp_eph_public_point, nullptr);
-  EC_KEY *eph_ec_key = EC_KEY_new_by_curve_name (NID_secp521r1);
+  EC_POINT *ecp_shared_public_point = EC_POINT_new (ec_curve);
+  BIGNUM *bn_shared_key = BN_bin2bn (shared_key, ECDHP521_PUB_KEY_SIZE, nullptr);
+  EC_POINT_bn2point (ec_curve, bn_shared_key, ecp_shared_public_point, nullptr);
+  EC_KEY *shared_ec_key = EC_KEY_new_by_curve_name (NID_secp521r1);
 
   /// Make public key from the public point
-  if (1 != EC_KEY_set_public_key (eph_ec_key, ecp_eph_public_point))
+  if (1 != EC_KEY_set_public_key (shared_ec_key, ecp_shared_public_point))
     {
       LogPrint (eLogError,
         "Crypto: Decrypt: Fail to convert public key to point");
@@ -318,7 +321,7 @@ ECDHP521Decryptor::Decrypt (const byte *encrypted, int elen)
 
   /// Re-construct the shared secret
   int secret_len;
-  byte *secret = get_secret (ec_private_key, ecp_eph_public_point, &secret_len);
+  byte *secret = get_secret (ec_private_key, ecp_shared_public_point, &secret_len);
   if (secret_len <= 0)
     return {};
 
@@ -368,14 +371,14 @@ aes_encrypt(const byte key[AES_KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
 
   rc = EVP_EncryptUpdate(ctx.get(), (byte*)&cdata[0], &out_len1,
                          (const byte*)&pdata[0], (int)pdata.size());
-    
+
   if (rc != 1)
     {
       LogPrint (eLogError, "Crypto: aes_encrypt: EVP_EncryptUpdate failed");
       cdata = std::vector<byte>();
       return;
     }
-  
+
   int out_len2 = (int)cdata.size() - out_len1;
   rc = EVP_EncryptFinal_ex(ctx.get(), (byte*)&cdata[0] + out_len1, &out_len2);
 
@@ -415,10 +418,10 @@ aes_decrypt(const byte key[AES_KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
       pdata = std::vector<byte>();
       return;
     }
-  
+
   int out_len2 = (int)pdata.size() - out_len1;
   rc = EVP_DecryptFinal_ex(ctx.get(), (byte*)&pdata[0] + out_len1, &out_len2);
-  
+
   if (rc != 1)
     {
       LogPrint (eLogError, "Crypto: aes_decrypt: EVP_DecryptFinal_ex failed");

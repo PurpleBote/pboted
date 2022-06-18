@@ -27,7 +27,7 @@ BoteIdentityPublic::BoteIdentityPublic(KeyType keyType)
         break;
       case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
         //m_Identity.reset(new X25519Identity());
-        break;
+        //break;
       default:
         LogPrint(eLogError, "EmailIdentityPublic: Unsupported key type: ", keyTypeToString(keyType));
     }
@@ -63,10 +63,10 @@ BoteIdentityPublic::BoteIdentityPublic(const uint8_t *cryptoPublicKey, const uin
       m_Identity->setCryptoPublicKey(cryptoPublicKey, cryptoPublicKeyLen);
       m_Identity->setSigningPublicKey(signingPublicKey, signingPublicKeyLen);
     }
-  else if (keyType == KEY_TYPE_X25519_ED25519_SHA512_AES256CBC)
+  /*else if (keyType == KEY_TYPE_X25519_ED25519_SHA512_AES256CBC)
     {
       // ToDo
-    }
+    }*/
   else
     {
       LogPrint(eLogError, "BoteIdentityPublic: Unsupported key type: ", keyTypeToString(keyType));
@@ -190,7 +190,7 @@ std::shared_ptr<pbote::CryptoKeyEncryptor> BoteIdentityPublic::CreateEncryptor(c
       case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
         return std::make_shared<pbote::ECDHP521Encryptor>(key);
       case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
-        return nullptr;
+        //return nullptr;
         // ToDo: return std::make_shared<pbote::X25519Encryptor>(key);
       default:
         LogPrint (eLogError, "BoteIdentityPublic: CreateEncryptor: Unsupported crypto key type ",
@@ -220,7 +220,7 @@ i2p::crypto::Verifier *BoteIdentityPublic::CreateVerifier(KeyType keyType)
         return nullptr;
         // ToDo: return new i2p::crypto::ECDSAP521Verifier();
       case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
-        return nullptr;
+        //return nullptr;
         // ToDo: return new i2p::crypto::ED25519Verifier();
       default:
         LogPrint (eLogError, "BoteIdentityPublic: CreateVerifier: Unsupported signing key type ", keyTypeToString(keyType));
@@ -405,7 +405,7 @@ i2p::crypto::Signer *BoteIdentityPrivate::CreateSigner(KeyType keyType, const ui
         return nullptr;
         // ToDo: return new i2p::crypto::ECDSAP521Signer(priv);
       case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
-        return nullptr;
+        //return nullptr;
         // ToDo: return new i2p::crypto::ED25519Signer(priv);
       default:
         LogPrint(eLogError, "BoteIdentityPrivate: CreateSigner: Unsupported signing key type ", keyTypeToString(keyType));
@@ -430,7 +430,7 @@ std::shared_ptr<pbote::CryptoKeyDecryptor> BoteIdentityPrivate::CreateDecryptor(
       case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
         return std::make_shared<pbote::ECDHP521Decryptor>(GetCryptoPrivateKey());
       case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
-        return nullptr; // ToDo
+        //return nullptr; // ToDo
       default:
         LogPrint(eLogError, "BoteIdentityPrivate: CreateDecryptor: Unsupported crypto key type ",
                  keyTypeToString(GetKeyType()));

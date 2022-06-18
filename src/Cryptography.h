@@ -31,13 +31,12 @@ namespace pbote
 /// AES
 #define AES_BLOCK_SIZE 16
 #define AES_KEY_SIZE 32
-#define EPH_KEY_LEN 33
 /// ECDHP256
-#define ECDHP256_PUB_KEY 33
-#define ECDHP256_PRIV_KEY 33
+#define ECDHP256_PUB_KEY_SIZE 33
+#define ECDHP256_PRIV_KEY_SIZE 33
 /// ECDHP521
-#define ECDHP521_PUB_KEY 66
-#define ECDHP521_PRIV_KEY 67
+#define ECDHP521_PUB_KEY_SIZE 66
+#define ECDHP521_PRIV_KEY_SIZE 67
 #define ECDHP521_PRIV_KEY_COMPRESSED 66
   
 typedef uint8_t byte;
@@ -69,7 +68,7 @@ class ECDHP256Encryptor : public CryptoKeyEncryptor
  private:
   EC_GROUP *ec_curve;
   EC_POINT *ec_public_point;
-  EC_KEY *ec_ephemeral_key;
+  EC_KEY *ec_shared_key;
 
   std::independent_bits_engine<std::default_random_engine, CHAR_BIT, uint8_t> rbe;
 };
@@ -80,7 +79,7 @@ class ECDHP256Decryptor : public CryptoKeyDecryptor
   ECDHP256Decryptor (const byte *priv);
   ~ECDHP256Decryptor () override;
   std::vector<byte> Decrypt (const byte *encrypted, int elen) override;
-  size_t GetPublicKeyLen () const override { return 33; };
+  size_t GetPublicKeyLen () const override { return ECDHP256_PUB_KEY_SIZE; };
 
  private:
   EC_GROUP *ec_curve;
@@ -97,7 +96,7 @@ class ECDHP521Encryptor : public CryptoKeyEncryptor
  private:
   EC_GROUP *ec_curve;
   EC_POINT *ec_public_point;
-  EC_KEY *ec_ephemeral_key;
+  EC_KEY *ec_shared_key;
 
   std::independent_bits_engine<std::default_random_engine, CHAR_BIT, uint8_t> rbe;
 };
@@ -108,7 +107,7 @@ class ECDHP521Decryptor : public CryptoKeyDecryptor
   ECDHP521Decryptor (const byte *priv);
   ~ECDHP521Decryptor () override;
   std::vector<byte> Decrypt (const byte *encrypted, int elen) override;
-  size_t GetPublicKeyLen () const override { return ECDHP521_PUB_KEY; };
+  size_t GetPublicKeyLen () const override { return ECDHP521_PUB_KEY_SIZE; };
 
  private:
   EC_GROUP *ec_curve;
@@ -122,6 +121,14 @@ get_secret (EC_KEY *private_key, const EC_POINT *public_key, int *secret_len)
   unsigned char *secret;
 
   field_size = EC_GROUP_get_degree (EC_KEY_get0_group (private_key));
+
+  if (field_size == 0)
+  {
+    OPENSSL_free (secret);
+    LogPrint (eLogError, "Crypto: get_secret: Failed to get degree for group");
+    return nullptr;
+  }
+
   *secret_len = (field_size + 7) / 8;
 
   if (nullptr == (secret = static_cast<byte *> (OPENSSL_malloc (*secret_len))))
@@ -150,11 +157,11 @@ get_secret (EC_KEY *private_key, const EC_POINT *public_key, int *secret_len)
 }
 
 inline EC_KEY *
-create_key ()
+create_key (int nid)
 {
   EC_KEY *key;
 
-  if (nullptr == (key = EC_KEY_new_by_curve_name (NID_X9_62_prime256v1)))
+  if (nullptr == (key = EC_KEY_new_by_curve_name (nid)))
     {
       LogPrint(eLogError, "Crypto: create_key: Failed to create key curve");
       return nullptr;
