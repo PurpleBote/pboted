@@ -303,8 +303,10 @@ EmailWorker::sendEmailTask ()
           email->setField ("X-I2PBote-Delete-Auth-Hash", del_hash.ToBase64 ());
 
           /// Create recipient
+          pbote::BoteIdentityPublic recipient_identity;
           std::string to_address = email->getToAddresses ();
           LogPrint (eLogDebug, "EmailWorker: Send: to_address: ", to_address);
+
           /// Add zeros to beginning
           if (to_address.size () == ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH)
             {
@@ -313,7 +315,9 @@ EmailWorker::sendEmailTask ()
               std::string signingPubKey
                   = "A" + to_address.substr (ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2,
                                              ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2);
+
               to_address = cryptoPubKey + signingPubKey;
+              recipient_identity = pbote::BoteIdentityPublic(KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
             }
           else if (to_address.size () == ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH)
             {
@@ -322,10 +326,12 @@ EmailWorker::sendEmailTask ()
               std::string signingPubKey
                   = "A" + to_address.substr (ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2,
                                              ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2);
+
               to_address = cryptoPubKey + signingPubKey;
+              recipient_identity = pbote::BoteIdentityPublic(KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC);
             }
 
-          pbote::BoteIdentityPublic recipient_identity;
+          LogPrint (eLogDebug, "EmailWorker: Send: to_address: ", to_address);
 
           if (recipient_identity.FromBase64 (to_address) == 0)
             {
@@ -335,6 +341,8 @@ EmailWorker::sendEmailTask ()
               continue;
             }
 
+          LogPrint (eLogDebug, "EmailWorker: Send: recipient_identity: ",
+                    recipient_identity.ToBase64 ());
           LogPrint (eLogDebug, "EmailWorker: Send: email: recipient hash: ",
                     recipient_identity.GetIdentHash ().ToBase64 ());
 
@@ -376,6 +384,14 @@ EmailWorker::sendEmailTask ()
               = identity->identity.GetPublicIdentity ()->Encrypt (
                   packet_bytes.data (), packet_bytes.size (),
                   recipient_identity.GetCryptoPublicKey ());
+
+          if (enc_packet.edata.empty ())
+          {
+            email->skip (true);
+            LogPrint (eLogError, "EmailWorker: Send: Encrypted data is empty, skipped");
+            continue;
+          }
+
           enc_packet.length = enc_packet.edata.size ();
           enc_packet.alg = identity->identity.GetKeyType ();
           enc_packet.stored_time = 0;
