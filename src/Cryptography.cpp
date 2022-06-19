@@ -186,12 +186,35 @@ ECDHP521Encryptor::ECDHP521Encryptor (const byte *pubkey)
   rbe.seed (time (NULL));
 
   ec_curve = EC_GROUP_new_by_curve_name (NID_secp521r1);
-
   ec_public_point = EC_POINT_new (ec_curve);
   ec_shared_key = create_key (NID_secp521r1);
 
-  BIGNUM *bn_public_key = BN_bin2bn (pubkey, ECDHP521_PUB_KEY_SIZE, nullptr);
-  EC_POINT_bn2point (ec_curve, bn_public_key, ec_public_point, nullptr);
+  /// Convert the key to the usuall format
+  /// From Java:
+  ///   shorten by one byte (bouncyCompressedKey[0] is either 2 or 3,
+  ///   bouncyCompressedKey[1] is either 0 or 1, so they can fit in two bits)
+  byte pub_unshifted[ECDHP521_PUB_KEY_SIZE];
+
+  memcpy(&pub_unshifted[1], &pubkey[0], ECDHP521_PUB_KEY_SHIFTED_SIZE);
+
+  pub_unshifted[0] = unsigned ((byte)(pub_unshifted[1] | ((pub_unshifted[1] >> 1) + 2)));
+  pub_unshifted[1] = unsigned ((byte)(pub_unshifted[1] & 1));
+
+  BIGNUM *bn_public_key = BN_bin2bn (pub_unshifted, ECDHP521_PUB_KEY_SIZE, nullptr);
+
+  if (bn_public_key == nullptr)
+    LogPrint (eLogError, "Crypto: ECDHP521Encryptor: Fail to convert bin to BN");
+
+  size_t bn_len = BN_num_bytes(bn_public_key);
+  LogPrint (eLogDebug, "Crypto: ECDHP521Encryptor: bn_len: ", bn_len);
+
+  if (!ec_curve || !ec_public_point)
+    LogPrint (eLogError, "Crypto: ECDHP521Encryptor: Key or curve are not ready");
+
+  EC_POINT* result = EC_POINT_bn2point (ec_curve, bn_public_key, ec_public_point, nullptr);
+
+  if (result == nullptr)
+    LogPrint (eLogError, "Crypto: ECDHP521Encryptor: Point creation failed");
 }
 
 ECDHP521Encryptor::~ECDHP521Encryptor ()
@@ -218,8 +241,17 @@ ECDHP521Encryptor::Encrypt (const byte *data, int len)
   /// Get shared point
   const EC_POINT* ec_shared_point = EC_KEY_get0_public_key (ec_shared_key);
   byte shared_key[ECDHP521_PUB_KEY_SIZE];
-  EC_POINT_point2oct (ec_curve, ec_shared_point, POINT_CONVERSION_COMPRESSED,
-                      shared_key, ECDHP521_PUB_KEY_SIZE, nullptr);
+  size_t octets_len = EC_POINT_point2oct (ec_curve, ec_shared_point, POINT_CONVERSION_COMPRESSED,
+                                   shared_key, ECDHP521_PUB_KEY_SIZE, nullptr);
+
+  LogPrint (eLogDebug, "Crypto: Encrypt: octets_len: ", octets_len);
+
+  if (0 == octets_len)
+    {
+      LogPrint (eLogError, "Crypto: Encrypt: Octets len is zero");
+      return {};
+    }
+
 
   /// Write shared point to result data
   std::vector<byte> result (shared_key, shared_key + ECDHP521_PUB_KEY_SIZE);
@@ -228,10 +260,10 @@ ECDHP521Encryptor::Encrypt (const byte *data, int len)
   int secret_len;
   byte *secret = get_secret (ec_shared_key, ec_public_point, &secret_len);
 
+  LogPrint (eLogDebug, "Crypto: Encrypt: Secret len: ", secret_len);
+
   if (secret_len <= 0)
     return {};
-
-  LogPrint (eLogDebug, "Crypto: Encrypt: Secret len: ", secret_len);
 
   /// Generate hash of shared secret
   std::vector<byte> secret_hash (secret_len);
@@ -263,14 +295,11 @@ ECDHP521Encryptor::Encrypt (const byte *data, int len)
 
 ECDHP521Decryptor::ECDHP521Decryptor (const byte *priv)
 {
-  /// Key decompressing
-  byte priv_decompress[ECDHP521_PRIV_KEY_SIZE];
-  memcpy(&priv_decompress[1], priv, ECDHP521_PRIV_KEY_COMPRESSED);
-  priv_decompress[0] |= (priv_decompress[1] >> 1) + 2;
-  priv_decompress[1] &= 1;
-
   ec_curve = EC_GROUP_new_by_curve_name (NID_secp521r1);
-  bn_private_key = BN_bin2bn (priv_decompress, ECDHP521_PRIV_KEY_SIZE, nullptr);
+  bn_private_key = BN_bin2bn (priv, ECDHP521_PRIV_KEY_SIZE, nullptr);
+
+  if (!ec_curve || !bn_private_key)
+    LogPrint (eLogError, "Crypto: ECDHP521Decryptor: Key or curve are not ready");
 }
 
 ECDHP521Decryptor::~ECDHP521Decryptor ()
