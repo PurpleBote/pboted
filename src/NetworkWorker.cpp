@@ -329,6 +329,8 @@ NetworkWorker::start ()
           if (!first_attempt)
             std::this_thread::sleep_for (std::chrono::seconds (10));
 
+          first_attempt = false;
+
           key = createSAMSession ();
 
           if (!key)
@@ -338,8 +340,6 @@ NetworkWorker::start ()
             LogPrint (eLogError, "Network: SAM session failed, reconnecting");
           else
             success = true;
-
-          first_attempt = false;
         }
 
       if (!context.keys_loaded ())
