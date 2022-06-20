@@ -475,9 +475,30 @@ EmailWorker::sendEmailTask ()
           LogPrint (eLogDebug, "EmailWorker: Send: to_address: ", to_address);
 
           // Add zeros to beginning
-          std::string cryptoPubKey = "A" + to_address.substr (0, 43);
-          std::string signingPubKey = "A" + to_address.substr (43, 43);
-          to_address = cryptoPubKey + signingPubKey;
+          if (to_address.size () == ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH)
+            {
+              std::string cryptoPubKey
+                  = "A" + to_address.substr (0, ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2);
+              std::string signingPubKey
+                  = "A" + to_address.substr (ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2,
+                                             ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2);
+
+              to_address = cryptoPubKey + signingPubKey;
+              recipient_identity = pbote::BoteIdentityPublic(KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
+            }
+          else if (to_address.size () == ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH)
+            {
+              std::string cryptoPubKey
+                  = "A" + to_address.substr (0, ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2);
+              std::string signingPubKey
+                  = "A" + to_address.substr (ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2,
+                                             ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2);
+
+              to_address = cryptoPubKey + signingPubKey;
+              recipient_identity = pbote::BoteIdentityPublic(KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC);
+            }
+
+          LogPrint (eLogDebug, "EmailWorker: Send: to_address: ", to_address);
 
           if (recipient_identity.FromBase64 (to_address) == 0)
             {
@@ -487,6 +508,8 @@ EmailWorker::sendEmailTask ()
               continue;
             }
 
+          LogPrint (eLogDebug, "EmailWorker: Send: recipient_identity: ",
+                    recipient_identity.ToBase64 ());
           LogPrint (eLogDebug, "EmailWorker: Send: index recipient hash: ",
                     recipient_identity.GetIdentHash ().ToBase64 ());
 
