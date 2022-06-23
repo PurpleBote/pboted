@@ -70,6 +70,9 @@ private:
 
   bool check_thread_exist (const std::string &identity_name);
 
+  std::shared_ptr<BoteIdentityPublic> parse_address_v0(std::string address);
+  std::shared_ptr<BoteIdentityPublic> parse_address_v1(std::string address);
+
   bool started_;
   std::thread *m_send_thread_;
   std::thread *m_worker_thread_;

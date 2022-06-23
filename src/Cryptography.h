@@ -38,7 +38,10 @@ namespace pbote
 #define ECDHP521_PRIV_KEY_SIZE 66
 #define ECDHP521_PUB_KEY_SIZE 67
 #define ECDHP521_PUB_KEY_SHIFTED_SIZE 66
-  
+/// X25519
+#define X25519_PRIV_KEY_SIZE 32
+#define X25519_PUB_KEY_SIZE 32
+
 typedef uint8_t byte;
 
 using EVP_CIPHER_CTX_ptr = std::unique_ptr<EVP_CIPHER_CTX, decltype(&::EVP_CIPHER_CTX_free)>;
@@ -114,8 +117,37 @@ class ECDHP521Decryptor : public CryptoKeyDecryptor
   BIGNUM *bn_private_key;
 };
 
+class X25519Encryptor : public CryptoKeyEncryptor
+{
+ public:
+  X25519Encryptor (const byte *pubkey);
+  ~X25519Encryptor () override;
+  std::vector<byte> Encrypt (const byte *data, int dlen) override;
+
+ private:
+  EVP_PKEY_CTX * ctx;
+  EVP_PKEY * public_key;
+  EVP_PKEY * shared_key;
+
+  std::independent_bits_engine<std::default_random_engine, CHAR_BIT, uint8_t> rbe;
+};
+
+class X25519Decryptor : public CryptoKeyDecryptor
+{
+ public:
+  X25519Decryptor (const byte *priv);
+  ~X25519Decryptor () override;
+  std::vector<byte> Decrypt (const byte *encrypted, int elen) override;
+  size_t GetPublicKeyLen () const override { return X25519_PUB_KEY_SIZE; };
+
+ private:
+  EVP_PKEY_CTX * ctx;
+  EVP_PKEY * private_key;
+  EVP_PKEY * shared_key;
+};
+
 inline byte *
-get_secret (EC_KEY *private_key, const EC_POINT *public_key, int *secret_len)
+agree_EC_secret (EC_KEY *private_key, const EC_POINT *public_key, int *secret_len)
 {
   int field_size;
   unsigned char *secret;
@@ -125,7 +157,7 @@ get_secret (EC_KEY *private_key, const EC_POINT *public_key, int *secret_len)
   if (field_size == 0)
   {
     OPENSSL_free (secret);
-    LogPrint (eLogError, "Crypto: get_secret: Failed to get degree for group");
+    LogPrint (eLogError, "Crypto: agree_EC_secret: Failed to get degree for group");
     return nullptr;
   }
 
@@ -133,7 +165,7 @@ get_secret (EC_KEY *private_key, const EC_POINT *public_key, int *secret_len)
 
   if (nullptr == (secret = static_cast<byte *> (OPENSSL_malloc (*secret_len))))
     {
-      LogPrint(eLogError, "Crypto: get_secret: Failed to allocate memory for secret");
+      LogPrint(eLogError, "Crypto: agree_EC_secret: Failed to allocate memory for secret");
       return nullptr;
     }
 
@@ -142,14 +174,14 @@ get_secret (EC_KEY *private_key, const EC_POINT *public_key, int *secret_len)
   if (*secret_len < 0)
   {
     OPENSSL_free (secret);
-    LogPrint (eLogError, "Crypto: get_secret: Failed to compute agreement key");
+    LogPrint (eLogError, "Crypto: agree_EC_secret: Failed to compute agreement key");
     return nullptr;
   }
 
   if (*secret_len == 0)
     {
       OPENSSL_free (secret);
-      LogPrint (eLogError, "Crypto: get_secret: Secret have zero length");
+      LogPrint (eLogError, "Crypto: agree_EC_secret: Secret have zero length");
       return nullptr;
     }
 
@@ -157,19 +189,19 @@ get_secret (EC_KEY *private_key, const EC_POINT *public_key, int *secret_len)
 }
 
 inline EC_KEY *
-create_key (int nid)
+create_EC_key (int nid)
 {
   EC_KEY *key;
 
   if (nullptr == (key = EC_KEY_new_by_curve_name (nid)))
     {
-      LogPrint(eLogError, "Crypto: create_key: Failed to create key curve");
+      LogPrint(eLogError, "Crypto: create_EC_key: Failed to create key curve");
       return nullptr;
     }
 
   if (1 != EC_KEY_generate_key (key))
     {
-      LogPrint (eLogError, "Crypto: create_key: Failed to generate key");
+      LogPrint (eLogError, "Crypto: create_EC_key: Failed to generate key");
       return nullptr;
     }
 

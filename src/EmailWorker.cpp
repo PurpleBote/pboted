@@ -260,7 +260,7 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
               email_del_auth);
         }
 
-      // ToDo: check sent emails status
+      // ToDo: check sent emails status -> check_email_delivery_task
       //   if nodes sent empty response - mark as deleted (delivered)
 
       LogPrint (eLogInfo, "EmailWorker: Check task:  ", id_name, ": complete");
@@ -297,43 +297,25 @@ EmailWorker::sendEmailTask ()
           SHA256 (packet.DA, 32, enc_packet.delete_hash);
           i2p::data::Tag<32> del_hash (enc_packet.delete_hash), del_auth (packet.DA);
 
-          LogPrint (eLogDebug, "EmailWorker: Send: del_auth: ", del_auth.ToBase64 ());        
+          LogPrint (eLogDebug, "EmailWorker: Send: del_auth: ", del_auth.ToBase64 ());
           LogPrint (eLogDebug, "EmailWorker: Send: del_hash: ", del_hash.ToBase64 ());
 
           email->setField ("X-I2PBote-Delete-Auth-Hash", del_hash.ToBase64 ());
 
           /// Create recipient
-          pbote::BoteIdentityPublic recipient_identity;
+          std::shared_ptr<BoteIdentityPublic> recipient_identity;
           std::string to_address = email->getToAddresses ();
-          LogPrint (eLogDebug, "EmailWorker: Send: to_address: ", to_address);
 
-          /// Add zeros to beginning
-          if (to_address.size () == ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH)
-            {
-              std::string cryptoPubKey
-                  = "A" + to_address.substr (0, ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2);
-              std::string signingPubKey
-                  = "A" + to_address.substr (ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2,
-                                             ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2);
+          std::string format_prefix = to_address.substr(0, to_address.find(".") + 1);
 
-              to_address = cryptoPubKey + signingPubKey;
-              recipient_identity = pbote::BoteIdentityPublic(KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
-            }
-          else if (to_address.size () == ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH)
-            {
-              std::string cryptoPubKey
-                  = "A" + to_address.substr (0, ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2);
-              std::string signingPubKey
-                  = "A" + to_address.substr (ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2,
-                                             ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2);
+          if (format_prefix.compare(ADDRESS_B32_PREFIX) == 0)
+            recipient_identity = parse_address_v1(to_address);
+          else if (format_prefix.compare(ADDRESS_B64_PREFIX) == 0)
+            recipient_identity = parse_address_v1(to_address);
+          else
+            recipient_identity = parse_address_v0(to_address);
 
-              to_address = cryptoPubKey + signingPubKey;
-              recipient_identity = pbote::BoteIdentityPublic(KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC);
-            }
-
-          LogPrint (eLogDebug, "EmailWorker: Send: to_address: ", to_address);
-
-          if (recipient_identity.FromBase64 (to_address) == 0)
+          if (recipient_identity == nullptr)
             {
               LogPrint (eLogWarning, "EmailWorker: Send: Can't create "
                         "identity from \"TO\" header, skip mail");
@@ -342,16 +324,16 @@ EmailWorker::sendEmailTask ()
             }
 
           LogPrint (eLogDebug, "EmailWorker: Send: recipient_identity: ",
-                    recipient_identity.ToBase64 ());
+                    recipient_identity->ToBase64 ());
           LogPrint (eLogDebug, "EmailWorker: Send: email: recipient hash: ",
-                    recipient_identity.GetIdentHash ().ToBase64 ());
+                    recipient_identity->GetIdentHash ().ToBase64 ());
 
           /// Get and check FROM identity
           auto from_name = email->field ("From");
           auto identity_name = from_name.substr (0, from_name.find (' '));
-          sp_id_full identity = pbote::context.identityByName (identity_name);
+          //sp_id_full identity = pbote::context.identityByName (identity_name);
 
-          if (!identity)
+          /*if (!identity)
             {
               if (context.get_identities_count ())
                 {
@@ -370,20 +352,53 @@ EmailWorker::sendEmailTask ()
                   stopSendEmailTask ();
                   return;
                 }
-            }
+            }*/
 
           /// Sign data
           // ToDo: sign email here
 
           /// Encrypt data
+
+          /// Create sender
+          std::shared_ptr<BoteIdentityPublic> sender_identity;
+          std::string from_address = email->get_from_address ();
+
+          LogPrint (eLogDebug, "EmailWorker: Send: from_address: ", from_address);
+
+          format_prefix = from_address.substr(0, from_address.find(".") + 1);
+
+          if (format_prefix.compare(ADDRESS_B32_PREFIX) == 0)
+            sender_identity = parse_address_v1(from_address);
+          else if (format_prefix.compare(ADDRESS_B64_PREFIX) == 0)
+            sender_identity = parse_address_v1(from_address);
+          else
+            sender_identity = parse_address_v0(from_address);
+
+          if (sender_identity == nullptr)
+            {
+              LogPrint (eLogWarning, "EmailWorker: Send: Can't create "
+                        "identity from \"FROM\" header, skip mail");
+              email->skip (true);
+              continue;
+            }
+
+          LogPrint (eLogDebug, "EmailWorker: Send: sender_identity: ",
+                    sender_identity->ToBase64 ());
+          LogPrint (eLogDebug, "EmailWorker: Send: email: sender hash: ",
+                    sender_identity->GetIdentHash ().ToBase64 ());
+
+
           LogPrint (eLogDebug, "EmailWorker: Send: packet.data.size: ",
                     packet.data.size ());
 
           auto packet_bytes = packet.toByte ();
-          enc_packet.edata
+          /*enc_packet.edata
               = identity->identity.GetPublicIdentity ()->Encrypt (
                   packet_bytes.data (), packet_bytes.size (),
-                  recipient_identity.GetCryptoPublicKey ());
+                  recipient_identity->GetCryptoPublicKey ());*/
+          enc_packet.edata = sender_identity->Encrypt (
+                  packet_bytes.data (), packet_bytes.size (),
+                  recipient_identity->GetCryptoPublicKey ());
 
           if (enc_packet.edata.empty ())
           {
@@ -393,7 +408,7 @@ EmailWorker::sendEmailTask ()
           }
 
           enc_packet.length = enc_packet.edata.size ();
-          enc_packet.alg = identity->identity.GetKeyType ();
+          enc_packet.alg = sender_identity->GetKeyType ();
           enc_packet.stored_time = 0;
 
           LogPrint (eLogDebug, "EmailWorker: Send: enc_packet.edata.size(): ",
@@ -470,37 +485,19 @@ EmailWorker::sendEmailTask ()
 
           // Create recipient
           // ToDo: re-use from previous step
-          pbote::BoteIdentityPublic recipient_identity;
+          std::shared_ptr<BoteIdentityPublic> recipient_identity;
           std::string to_address = email->getToAddresses ();
-          LogPrint (eLogDebug, "EmailWorker: Send: to_address: ", to_address);
 
-          // Add zeros to beginning
-          if (to_address.size () == ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH)
-            {
-              std::string cryptoPubKey
-                  = "A" + to_address.substr (0, ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2);
-              std::string signingPubKey
-                  = "A" + to_address.substr (ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2,
-                                             ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2);
+          std::string format_prefix = to_address.substr(0, to_address.find(".") + 1);
 
-              to_address = cryptoPubKey + signingPubKey;
-              recipient_identity = pbote::BoteIdentityPublic(KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
-            }
-          else if (to_address.size () == ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH)
-            {
-              std::string cryptoPubKey
-                  = "A" + to_address.substr (0, ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2);
-              std::string signingPubKey
-                  = "A" + to_address.substr (ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2,
-                                             ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2);
+          if (format_prefix.compare(ADDRESS_B32_PREFIX) == 0)
+            recipient_identity = parse_address_v1(to_address);
+          else if (format_prefix.compare(ADDRESS_B64_PREFIX) == 0)
+            recipient_identity = parse_address_v1(to_address);
+          else
+            recipient_identity = parse_address_v0(to_address);
 
-              to_address = cryptoPubKey + signingPubKey;
-              recipient_identity = pbote::BoteIdentityPublic(KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC);
-            }
-
-          LogPrint (eLogDebug, "EmailWorker: Send: to_address: ", to_address);
-
-          if (recipient_identity.FromBase64 (to_address) == 0)
+          if (recipient_identity == nullptr)
             {
               LogPrint (eLogWarning, "EmailWorker: Send: Can't create "
                         "identity from \"TO\" header, skip mail");
@@ -509,12 +506,12 @@ EmailWorker::sendEmailTask ()
             }
 
           LogPrint (eLogDebug, "EmailWorker: Send: recipient_identity: ",
-                    recipient_identity.ToBase64 ());
+                    recipient_identity->ToBase64 ());
           LogPrint (eLogDebug, "EmailWorker: Send: index recipient hash: ",
-                    recipient_identity.GetIdentHash ().ToBase64 ());
+                    recipient_identity->GetIdentHash ().ToBase64 ());
 
           memcpy (new_index_packet.hash,
-                  recipient_identity.GetIdentHash ().data (), 32);
+                  recipient_identity->GetIdentHash ().data (), 32);
 
           // ToDo: for test, need to rewrite
           new_index_packet.nump = 1;
@@ -545,7 +542,7 @@ EmailWorker::sendEmailTask ()
           store_index_packet.data = index_packet;
 
           /// Send Store Request with Index Packet to nodes
-          nodes = DHT_worker.store (recipient_identity.GetIdentHash (),
+          nodes = DHT_worker.store (recipient_identity->GetIdentHash (),
                                     new_index_packet.type,
                                     store_index_packet);
 
@@ -905,7 +902,7 @@ EmailWorker::checkOutbox ()
       std::string et_char ("@"), less_char ("<"), more_char (">");
       size_t from_less_pos = from_address.find (less_char);
       size_t from_et_pos = from_address.find (et_char);
-      
+
       /// Check if we got "@" and "<" it in order "alias <name@domain>"
       if (from_less_pos != std::string::npos
           && from_et_pos != std::string::npos
@@ -1150,6 +1147,111 @@ EmailWorker::check_thread_exist (const std::string &identity_name)
     return true;
 
   return false;
+}
+
+std::shared_ptr<BoteIdentityPublic>
+EmailWorker::parse_address_v0(std::string address)
+{
+  BoteIdentityPublic identity;
+  size_t base64_key_len = 0, offset = 0;
+
+  if (address.length() == ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH)
+    {
+      identity = BoteIdentityPublic(KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
+      base64_key_len = ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2;
+    }
+  else if (address.length() == ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH)
+    {
+      identity = BoteIdentityPublic(KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC);
+      base64_key_len = ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2;
+    }
+  else
+    {
+      LogPrint(eLogWarning, "EmailWorker: parse_address_v0: Unsupported identity type");
+      return nullptr;
+    }
+
+  // Restore keys
+  std::string cryptoPublicKey = "A" + address.substr(offset, (base64_key_len));
+  offset += (base64_key_len);
+  std::string signingPublicKey = "A" + address.substr(offset, (base64_key_len));
+
+  std::string restored_identity_str;
+  restored_identity_str.append(cryptoPublicKey);
+  restored_identity_str.append(signingPublicKey);
+
+  identity.FromBase64(restored_identity_str);
+
+  LogPrint(eLogDebug, "EmailWorker: parse_address_v0: identity.ToBase64: ",
+           identity.ToBase64());
+  LogPrint(eLogDebug, "EmailWorker: parse_address_v0: idenhash.ToBase64: ",
+           identity.GetIdentHash().ToBase64());
+
+  return std::make_shared<BoteIdentityPublic>(identity);
+}
+
+std::shared_ptr<BoteIdentityPublic>
+EmailWorker::parse_address_v1(std::string address)
+{
+  BoteIdentityPublic identity;
+  std::string format_prefix = address.substr (0, address.find (".") + 1);
+  std::string base_str = address.substr (format_prefix.length ());
+  // ToDo: Define length from base32/64
+  uint8_t identity_bytes[2048];
+  size_t identity_len = 0;
+
+  if (format_prefix.compare (ADDRESS_B32_PREFIX) == 0)
+    identity_len = i2p::data::Base32ToByteStream (base_str.c_str (), base_str.length (), identity_bytes, 2048);
+  else if (format_prefix.compare (ADDRESS_B64_PREFIX) == 0)
+    identity_len = i2p::data::Base64ToByteStream (base_str.c_str (), base_str.length (), identity_bytes, 2048);
+  else
+    return nullptr;
+
+  if (identity_len < 5)
+    {
+      LogPrint (eLogError, "identitiesStorage: parse_identity_v1: Malformed address");
+      return nullptr;
+    }
+
+  if (identity_bytes[0] != ADDRES_FORMAT_V1)
+    {
+      LogPrint (eLogError, "identitiesStorage: parse_identity_v1: Unsupported address format");
+      return nullptr;
+    }
+
+  if (identity_bytes[1] == CRYP_TYPE_ECDH256 &&
+      identity_bytes[2] == SIGN_TYPE_ECDH256 &&
+      identity_bytes[3] == SYMM_TYPE_AES_256 &&
+      identity_bytes[4] == HASH_TYPE_SHA_256)
+    {
+      identity = BoteIdentityPublic(KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
+    }
+  else if (identity_bytes[1] == CRYP_TYPE_ECDH521 &&
+           identity_bytes[2] == SIGN_TYPE_ECDH521 &&
+           identity_bytes[3] == SYMM_TYPE_AES_256 &&
+           identity_bytes[4] == HASH_TYPE_SHA_512)
+    {
+      identity = BoteIdentityPublic(KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC);
+    }
+  else if (identity_bytes[1] == CRYP_TYPE_X25519 &&
+           identity_bytes[2] == SIGN_TYPE_ED25519 &&
+           identity_bytes[3] == SYMM_TYPE_AES_256 &&
+           identity_bytes[4] == HASH_TYPE_SHA_512)
+    {
+      identity = BoteIdentityPublic(KEY_TYPE_X25519_ED25519_SHA512_AES256CBC);
+    }
+
+  size_t len = identity.FromBuffer(identity_bytes + 5, identity_len);
+
+  if (len == 0)
+    return nullptr;
+
+  LogPrint(eLogDebug, "identitiesStorage: parse_identity_v1: identity.ToBase64: ",
+           identity.ToBase64());
+  LogPrint(eLogDebug, "identitiesStorage: parse_identity_v1: idenhash.ToBase64: ",
+           identity.GetIdentHash().ToBase64());
+
+  return std::make_shared<BoteIdentityPublic>(identity);
 }
 
 } // namespace kademlia

@@ -24,7 +24,7 @@ ECDHP256Encryptor::ECDHP256Encryptor (const byte *pubkey)
 
   ec_curve = EC_GROUP_new_by_curve_name (NID_X9_62_prime256v1);
   ec_public_point = EC_POINT_new (ec_curve);
-  ec_shared_key = create_key (NID_X9_62_prime256v1);
+  ec_shared_key = create_EC_key (NID_X9_62_prime256v1);
 
   BIGNUM *bn_public_key = BN_bin2bn (pubkey, ECDHP256_PUB_KEY_SIZE, nullptr);
   EC_POINT_bn2point (ec_curve, bn_public_key, ec_public_point, nullptr);
@@ -62,7 +62,7 @@ ECDHP256Encryptor::Encrypt (const byte *data, int len)
 
   /// Create the shared secret from shared point
   int secret_len;
-  byte *secret = get_secret (ec_shared_key, ec_public_point, &secret_len);
+  byte *secret = agree_EC_secret (ec_shared_key, ec_public_point, &secret_len);
 
   if (secret_len <= 0)
     return {};
@@ -151,7 +151,7 @@ ECDHP256Decryptor::Decrypt (const byte *encrypted, int elen)
 
   /// Re-construct the shared secret
   int secret_len;
-  byte *secret = get_secret (ec_private_key, ecp_shared_public_point, &secret_len);
+  byte *secret = agree_EC_secret (ec_private_key, ecp_shared_public_point, &secret_len);
   if (secret_len <= 0)
     return {};
 
@@ -187,7 +187,7 @@ ECDHP521Encryptor::ECDHP521Encryptor (const byte *pubkey)
 
   ec_curve = EC_GROUP_new_by_curve_name (NID_secp521r1);
   ec_public_point = EC_POINT_new (ec_curve);
-  ec_shared_key = create_key (NID_secp521r1);
+  ec_shared_key = create_EC_key (NID_secp521r1);
 
   /// Convert the key to the usuall format
   /// From Java:
@@ -258,7 +258,7 @@ ECDHP521Encryptor::Encrypt (const byte *data, int len)
 
   /// Create the shared secret from shared point
   int secret_len;
-  byte *secret = get_secret (ec_shared_key, ec_public_point, &secret_len);
+  byte *secret = agree_EC_secret (ec_shared_key, ec_public_point, &secret_len);
 
   LogPrint (eLogDebug, "Crypto: Encrypt: Secret len: ", secret_len);
 
@@ -350,11 +350,220 @@ ECDHP521Decryptor::Decrypt (const byte *encrypted, int elen)
 
   /// Re-construct the shared secret
   int secret_len;
-  byte *secret = get_secret (ec_private_key, ecp_shared_public_point, &secret_len);
+  byte *secret = agree_EC_secret (ec_private_key, ecp_shared_public_point, &secret_len);
   if (secret_len <= 0)
     return {};
 
   LogPrint (eLogDebug, "Crypto: Decrypt: Secret len: ", secret_len);
+
+  /// Get hash of shared secret
+  std::vector<byte> secret_hash (secret_len);
+  SHA256 (secret, secret_len, secret_hash.data ());
+  OPENSSL_free (secret);
+
+  i2p::data::Tag<32> secret_h (secret_hash.data ());
+  LogPrint (eLogDebug, "Crypto: Decrypt: Secret_hash: ", secret_h.ToBase64 ());
+
+  /// Decrypt using the shared secret hash as AES key
+  byte ivec[AES_BLOCK_SIZE];
+  memcpy(ivec, encrypted + offset, AES_BLOCK_SIZE);
+  offset += AES_BLOCK_SIZE;
+
+  size_t dlen = elen - offset;
+  LogPrint (eLogDebug, "Crypto: Decrypt: elen: ", elen, ", dlen: ", dlen);
+
+  std::vector<byte> edata (encrypted + offset, encrypted + offset + dlen),
+    decrypted (dlen);
+
+  aes_decrypt (secret_hash.data (), ivec, edata, decrypted);
+
+  return decrypted;
+}
+
+X25519Encryptor::X25519Encryptor (const byte *pubkey)
+{
+  rbe.seed (time (NULL));
+
+  EVP_PKEY_keygen_init (ctx);
+  EVP_PKEY_keygen (ctx, &shared_key);
+
+  public_key = EVP_PKEY_new_raw_public_key (EVP_PKEY_X25519, nullptr,
+                                            pubkey, X25519_PRIV_KEY_SIZE);
+
+  if (!shared_key || !ctx || !public_key)
+    LogPrint (eLogError, "Crypto: X25519Encryptor: Key or context are not ready");
+}
+
+X25519Encryptor::~X25519Encryptor ()
+{
+  EVP_PKEY_CTX_free (ctx);
+
+  if (public_key)
+    EVP_PKEY_free (public_key);
+
+  if (shared_key)
+    EVP_PKEY_free (shared_key);
+}
+
+std::vector<byte>
+X25519Encryptor::Encrypt (const byte *data, int len)
+{
+  if (!shared_key || !ctx || !public_key)
+    {
+      LogPrint (eLogError, "Crypto: Encrypt: Key or context are not ready");
+      return {};
+    }
+
+  /// Write raw shared key to result data
+  size_t key_len = X25519_PUB_KEY_SIZE;
+  uint8_t raw_shared_key[X25519_PUB_KEY_SIZE];
+  EVP_PKEY_get_raw_public_key (shared_key, raw_shared_key, &key_len);
+  std::vector<byte> result (raw_shared_key, raw_shared_key + X25519_PUB_KEY_SIZE);
+
+  /// Create the shared secret
+  if (EVP_PKEY_derive_init(ctx) <= 0)
+    {
+      LogPrint (eLogError, "Crypto: Encrypt: EVP derive initialization failed");
+      return {};
+    }
+
+  if (EVP_PKEY_derive_set_peer(ctx, public_key) <= 0)
+    {
+      LogPrint (eLogError, "Crypto: Encrypt: EVP derive set peer failed");
+      return {};
+    }
+
+  size_t secret_len;
+  byte *secret;
+
+  if (EVP_PKEY_derive(ctx, nullptr, &secret_len) <= 0)
+    {
+      LogPrint (eLogError, "Crypto: Encrypt: EVP derive failed");
+      return {};
+    }
+
+  if (nullptr == (secret = static_cast<byte *> (OPENSSL_malloc (secret_len))))
+    {
+      LogPrint(eLogError, "Crypto: Encrypt: Failed to allocate memory for secret");
+      return {};
+    }
+
+  if (EVP_PKEY_derive(ctx, secret, &secret_len) <= 0)
+    {
+      LogPrint (eLogError, "Crypto: Encrypt: Shared key derivation failed");
+      return {};
+    }
+
+  LogPrint (eLogDebug, "Crypto: Encrypt: Secret len: ", secret_len);
+
+  if (secret_len <= 0)
+    return {};
+
+  /// Generate hash of shared secret
+  std::vector<byte> secret_hash (secret_len);
+  SHA256 (secret, secret_len, secret_hash.data ());
+  OPENSSL_free (secret);
+
+  i2p::data::Tag<32> secret_h (secret_hash.data ());
+  LogPrint (eLogDebug, "Crypto: Encrypt: secret_hash: ", secret_h.ToBase64 ());
+
+  /// Encrypt the data using the hash of the shared secret as an AES key
+  byte ivec[AES_BLOCK_SIZE];
+  std::generate (ivec, ivec + AES_BLOCK_SIZE, std::ref (rbe));
+  result.insert (result.end (), ivec, ivec + AES_BLOCK_SIZE);
+
+  const int padding = len % 16;
+
+  LogPrint (eLogDebug, "Crypto: Encrypt: len: ", len, ", padding: ", padding);
+
+  std::vector<byte> pdata (data, data + len),
+    encrypted (len + padding);
+  aes_encrypt (secret_hash.data (), ivec, pdata, encrypted);
+
+  LogPrint (eLogDebug, "Crypto: Encrypt: Encrypted size: ", encrypted.size ());
+
+  result.insert (result.end (), encrypted.begin (), encrypted.end ());
+
+  return result;
+}
+
+X25519Decryptor::X25519Decryptor (const byte *priv)
+{
+  private_key = EVP_PKEY_new_raw_private_key (EVP_PKEY_X25519, nullptr, priv, X25519_PRIV_KEY_SIZE);
+  ctx = EVP_PKEY_CTX_new (private_key, nullptr);
+
+  if (!private_key || !ctx)
+    LogPrint (eLogError, "Crypto: X25519Decryptor: Key or context are not ready");
+}
+
+X25519Decryptor::~X25519Decryptor ()
+{
+  EVP_PKEY_CTX_free (ctx);
+
+  if (private_key)
+    EVP_PKEY_free (private_key);
+
+  if (shared_key)
+    EVP_PKEY_free (shared_key);
+}
+
+std::vector<byte>
+X25519Decryptor::Decrypt (const byte *encrypted, int elen)
+{
+  if (!private_key || !ctx)
+    {
+      LogPrint (eLogError, "Crypto: Decrypt: Key or context are not ready");
+      return {};
+    }
+
+  /// Read the shared public key from data
+  size_t offset = 0;
+  byte raw_shared_key[X25519_PUB_KEY_SIZE];
+  memcpy (raw_shared_key, encrypted, X25519_PUB_KEY_SIZE);
+  offset += X25519_PUB_KEY_SIZE;
+
+  /// Convert raw key to key
+  EVP_PKEY *shared_key = EVP_PKEY_new_raw_public_key (EVP_PKEY_X25519, nullptr,
+                                                      raw_shared_key, X25519_PUB_KEY_SIZE);
+
+  /// Re-construct the shared secret
+  if (EVP_PKEY_derive_init(ctx) <= 0)
+    {
+      LogPrint (eLogError, "Crypto: Decrypt: EVP derive initialization failed");
+      return {};
+    }
+
+  if (EVP_PKEY_derive_set_peer(ctx, shared_key) <= 0)
+    {
+      LogPrint (eLogError, "Crypto: Decrypt: EVP derive set peer failed");
+      return {};
+    }
+
+  size_t secret_len;
+  byte *secret;
+
+  if (EVP_PKEY_derive(ctx, nullptr, &secret_len) <= 0)
+    {
+      LogPrint (eLogError, "Crypto: Decrypt: EVP derive failed");
+      return {};
+    }
+
+  if (nullptr == (secret = static_cast<byte *> (OPENSSL_malloc (secret_len))))
+    {
+      LogPrint(eLogError, "Crypto: Decrypt: Failed to allocate memory for secret");
+      return {};
+    }
+
+  if (EVP_PKEY_derive(ctx, secret, &secret_len) <= 0)
+    {
+      LogPrint (eLogError, "Crypto: Decrypt: Shared key derivation failed");
+      return {};
+    }
+
+  LogPrint (eLogDebug, "Crypto: Decrypt: Secret len: ", secret_len);
+
+  if (secret_len <= 0)
+    return {};
 
   /// Get hash of shared secret
   std::vector<byte> secret_hash (secret_len);
