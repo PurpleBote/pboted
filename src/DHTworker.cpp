@@ -326,7 +326,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 
   auto batch
       = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
-  batch->owner = "DHTworker::store";
+  batch->owner = "DHT::store";
 
   std::vector<sp_node> closestNodes = closestNodesLookupTask (hash);
 
@@ -336,7 +336,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 
   if (closestNodes.size () < MIN_CLOSEST_NODES)
     {
-      LogPrint (eLogInfo, "DHT: store: not enough nodes, try usual nodes");
+      LogPrint (eLogWarning, "DHT: store: Not enough nodes, try usual nodes");
 
       for (const auto &node : m_nodes_)
         closestNodes.push_back (node.second);
@@ -398,6 +398,8 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
       if (response_packet.fromBuffer (response->payload.data (),
                                       response->payload.size (), true))
         {
+          LogPrint (eLogDebug, "DHT: store: Response status ",
+                    statusToString (response_packet.status));
           if (response_packet.status == StatusCode::OK
               || response_packet.status == StatusCode::DUPLICATED_DATA)
             result.push_back (response->from);
@@ -723,29 +725,46 @@ DHTworker::closestNodesLookupTask (HashKey key)
         peers_list = receivePeerListV5 (packet.data.data (), packet.length);
 
       if (peers_list.empty ())
-        continue;
+        {
+          LogPrint (eLogDebug, "DHT: closestNodesLookupTask: peers_list empty");
+          continue;
+        }
+
+      LogPrint (eLogDebug, "DHT: closestNodesLookupTask: peers_list size: ",
+                peers_list.size ());
 
       for (const auto &peer : peers_list)
         {
           auto it = closestNodes.find (peer->GetIdentHash ());
-          if (it != closestNodes.end ())
-            closestNodes.insert (
-                std::pair<HashKey, sp_node> (peer->GetIdentHash (), peer));
+          if (it == closestNodes.end ())
+            {
+              closestNodes.insert (
+                  std::pair<HashKey, sp_node> (peer->GetIdentHash (), peer));
+              LogPrint (eLogDebug, "DHT: closestNodesLookupTask: Added node: ",
+                        peer->GetIdentHash ().ToBase64 ());
+            }
         }
     }
   /// If there are no more requests to send and
   /// no more responses to wait for - we're finished
 
   /// If we have node locally and it's locked - remove it from list
+  size_t locked_counter = 0;
   auto node_itr = closestNodes.begin ();
   while (node_itr != closestNodes.end ())
     {
       auto known_node = findNode (node_itr->second->GetIdentHash ());
       if (known_node && known_node->locked ())
-        node_itr = closestNodes.erase (node_itr);
+        {
+          node_itr = closestNodes.erase (node_itr);
+          locked_counter++;
+        }
       else
         ++node_itr;
     }
+
+  LogPrint (eLogDebug, "DHT: closestNodesLookupTask: Removed locked node(s): ",
+            locked_counter);
 
   std::vector<sp_node> result;
   for (auto node : closestNodes)
@@ -759,7 +778,8 @@ DHTworker::closestNodesLookupTask (HashKey key)
   for (const auto &node : closestNodes)
     addNode (node.second->ToBase64 ());
 
-  LogPrint (eLogDebug, "DHT: closestNodesLookupTask: finished");
+  LogPrint (eLogDebug, "DHT: closestNodesLookupTask: finished, count: ",
+            result.size ());
 
   return result;
 }
@@ -894,6 +914,9 @@ DHTworker::receivePeerListV5 (const uint8_t *buf, size_t len)
         }
       LogPrint (eLogDebug, "DHT: receivePeerListV5: nodes: ", nump,
                 ", added: ", nodes_added, ", dup: ", nodes_dup);
+      LogPrint (eLogDebug, "DHT: receivePeerListV5: closestNodes count: ",
+                closestNodes.size ());
+
       return closestNodes;
     }
   else
@@ -1135,11 +1158,12 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
         }
       else if (prev_status)
         {
-          LogPrint (eLogWarning, "DHT: StoreRequest: Got error while on save");
           if (save_status == STORE_FILE_EXIST)
             response.status = pbote::StatusCode::DUPLICATED_DATA;
           else
             response.status = pbote::StatusCode::GENERAL_ERROR;
+          LogPrint (eLogWarning, "DHT: StoreRequest: Packet not saved, status: ",
+                    statusToString (response.status));
         }
     }
   else
@@ -1149,6 +1173,7 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
       response.status = pbote::StatusCode::INVALID_PACKET;
     }
 
+  LogPrint (eLogWarning, "DHT: StoreRequest: Send status: ", statusToString (response.status));
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
   context.send (q_packet);

@@ -67,7 +67,8 @@ namespace kademlia
 #define CLOSEST_NODES_LOOKUP_TIMEOUT (5 * 60)
 
 /// the minimum nodes for find request
-#define MIN_CLOSEST_NODES 10
+// ToDo: Change to 10 after 0.9.0
+#define MIN_CLOSEST_NODES 5
 
 #define DEFAULT_NODE_FILE_NAME "nodes.txt"
 
