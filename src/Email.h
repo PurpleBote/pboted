@@ -101,6 +101,7 @@ class Email
   std::vector<uint8_t> getHashCash ();
 
   //std::map<std::string, std::string> getAllRecipients ();
+  std::string get_from_address () { return mail.header().from().begin()->mailbox(); }
   //std::string getRecipients (const std::string &type);
   std::string getToAddresses () { return mail.header().to().begin()->mailbox().mailbox(); }
   //std::string getCCAddresses () { return mail.header().cc().begin()->mailbox().mailbox(); }

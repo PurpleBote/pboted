@@ -248,6 +248,8 @@ UDPSender::send ()
   if (!packet)
     return;
 
+  check_session();
+
   std::string payload (packet->payload.begin (), packet->payload.end ());
   std::string message
       = SAM::Message::datagramSend (m_sessionID_, packet->destination);
@@ -267,6 +269,16 @@ UDPSender::handle_send (
   // ToDo: error handler
   if (bytes_transferred > 0)
     context.add_sent_byte_count (bytes_transferred);
+}
+
+void
+UDPSender::check_session()
+{
+  while (sam_session->isSick ())
+    {
+      LogPrint (eLogError, "Network: UDPSender: SAM session is sick");
+      std::this_thread::sleep_for (std::chrono::seconds (10));
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -346,6 +358,7 @@ NetworkWorker::start ()
         context.save_new_keys (key);
 
       /// Because we get sessionID after SAM initialization
+      m_SendHandler->set_sam_session (router_session_);
       m_SendHandler->setSessionID (
           const_cast<std::string &> (router_session_->getSessionID ()));
       m_SendHandler->start ();

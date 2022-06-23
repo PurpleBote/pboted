@@ -149,7 +149,13 @@ bool DaemonLinux::stop() {
 void DaemonLinux::run() {
   while (running) {
     // ToDo: check status of network, DHT, relay, etc. and try restart on error
-    std::this_thread::sleep_for(std::chrono::seconds(60));
+    std::this_thread::sleep_for(std::chrono::seconds(10));
+
+    if (pbote::network::network_worker.is_sick ())
+      {
+        pbote::network::network_worker.init ();
+        pbote::network::network_worker.start ();
+      }
   }
 }
 

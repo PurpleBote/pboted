@@ -133,6 +133,12 @@ public:
     m_sendQueue = sendQueue;
   };
 
+  void
+  set_sam_session (std::shared_ptr<SAM::DatagramSession> session)
+  {
+    sam_session = session;
+  };
+
   int
   get_socket () const
   {
@@ -162,10 +168,14 @@ private:
   void send ();
   void handle_send (std::size_t bytes_transferred);
 
+  void check_session();
+
   bool running_;
   std::thread *m_SendThread;
   std::string m_nickname_;
   std::string m_sessionID_;
+
+  std::shared_ptr<SAM::DatagramSession> sam_session;
 
   int f_socket;
   int f_port;
@@ -184,6 +194,8 @@ public:
   void init ();
   void start ();
   void stop ();
+
+  bool is_sick() { return router_session_->isSick (); };
 
 private:
   /** prevent making copies */
