@@ -125,9 +125,9 @@ class X25519Encryptor : public CryptoKeyEncryptor
   std::vector<byte> Encrypt (const byte *data, int dlen) override;
 
  private:
-  EVP_PKEY_CTX * ctx;
-  EVP_PKEY * public_key;
-  EVP_PKEY * shared_key;
+  EVP_PKEY_CTX *ctx;
+  EVP_PKEY *public_key;
+  EVP_PKEY *shared_key;
 
   std::independent_bits_engine<std::default_random_engine, CHAR_BIT, uint8_t> rbe;
 };
@@ -141,9 +141,9 @@ class X25519Decryptor : public CryptoKeyDecryptor
   size_t GetPublicKeyLen () const override { return X25519_PUB_KEY_SIZE; };
 
  private:
-  EVP_PKEY_CTX * ctx;
-  EVP_PKEY * private_key;
-  EVP_PKEY * shared_key;
+  EVP_PKEY_CTX *ctx;
+  EVP_PKEY *private_key;
+  EVP_PKEY *shared_key;
 };
 
 inline byte *

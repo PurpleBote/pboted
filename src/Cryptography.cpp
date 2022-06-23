@@ -384,13 +384,18 @@ X25519Encryptor::X25519Encryptor (const byte *pubkey)
 {
   rbe.seed (time (NULL));
 
+  shared_key = nullptr;
+  ctx = EVP_PKEY_CTX_new_id (NID_X25519, nullptr);
+
   EVP_PKEY_keygen_init (ctx);
   EVP_PKEY_keygen (ctx, &shared_key);
 
   public_key = EVP_PKEY_new_raw_public_key (EVP_PKEY_X25519, nullptr,
-                                            pubkey, X25519_PRIV_KEY_SIZE);
+                                            pubkey, X25519_PUB_KEY_SIZE);
 
-  if (!shared_key || !ctx || !public_key)
+  EVP_PKEY_CTX_free(ctx);
+
+  if (!shared_key || !public_key)
     LogPrint (eLogError, "Crypto: X25519Encryptor: Key or context are not ready");
 }
 
@@ -408,7 +413,7 @@ X25519Encryptor::~X25519Encryptor ()
 std::vector<byte>
 X25519Encryptor::Encrypt (const byte *data, int len)
 {
-  if (!shared_key || !ctx || !public_key)
+  if (!shared_key || !public_key)
     {
       LogPrint (eLogError, "Crypto: Encrypt: Key or context are not ready");
       return {};
@@ -421,6 +426,14 @@ X25519Encryptor::Encrypt (const byte *data, int len)
   std::vector<byte> result (raw_shared_key, raw_shared_key + X25519_PUB_KEY_SIZE);
 
   /// Create the shared secret
+  ctx = EVP_PKEY_CTX_new(shared_key, nullptr);
+
+  if (!ctx)
+    { 
+      LogPrint (eLogError, "Crypto: Encrypt: CTX is empty");
+      return {};
+    }
+
   if (EVP_PKEY_derive_init(ctx) <= 0)
     {
       LogPrint (eLogError, "Crypto: Encrypt: EVP derive initialization failed");
@@ -489,6 +502,7 @@ X25519Encryptor::Encrypt (const byte *data, int len)
 
 X25519Decryptor::X25519Decryptor (const byte *priv)
 {
+  shared_key = nullptr;
   private_key = EVP_PKEY_new_raw_private_key (EVP_PKEY_X25519, nullptr, priv, X25519_PRIV_KEY_SIZE);
   ctx = EVP_PKEY_CTX_new (private_key, nullptr);
 
@@ -523,10 +537,16 @@ X25519Decryptor::Decrypt (const byte *encrypted, int elen)
   offset += X25519_PUB_KEY_SIZE;
 
   /// Convert raw key to key
-  EVP_PKEY *shared_key = EVP_PKEY_new_raw_public_key (EVP_PKEY_X25519, nullptr,
-                                                      raw_shared_key, X25519_PUB_KEY_SIZE);
+  shared_key = EVP_PKEY_new_raw_public_key (EVP_PKEY_X25519, nullptr,
+                                            raw_shared_key, X25519_PUB_KEY_SIZE);
 
   /// Re-construct the shared secret
+  if (!ctx)
+    { 
+      LogPrint (eLogError, "Crypto: Encrypt: CTX is empty");
+      return {};
+    }
+
   if (EVP_PKEY_derive_init(ctx) <= 0)
     {
       LogPrint (eLogError, "Crypto: Decrypt: EVP derive initialization failed");
