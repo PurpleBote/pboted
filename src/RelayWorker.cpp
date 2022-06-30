@@ -55,11 +55,11 @@ void
 RelayWorker::run ()
 {
   bool task_status = false;
-  
+
   while (started_)
     {
       set_start_time ();
-        
+
       if (!m_peers_.empty ())
         task_status = check_peers ();
       else
@@ -78,6 +78,7 @@ bool
 RelayWorker::check_peers ()
 {
   LogPrint (eLogDebug, "Relay: Start new round");
+  size_t reachable_peers = 0;
 
   auto batch
       = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
@@ -117,7 +118,7 @@ RelayWorker::check_peers ()
 
       return false;
     }
-  
+
   for (const auto &response : responses)
     {
       if (response->type != type::CommN)
@@ -176,6 +177,7 @@ RelayWorker::check_peers ()
                 {
                   LogPrint (eLogDebug, "Relay: Got response, mark reachable");
                   m_peer.second->reachable (true);
+                  reachable_peers++;
                 }
             }
         }
@@ -194,6 +196,7 @@ RelayWorker::check_peers ()
                 {
                   LogPrint (eLogDebug, "Relay: Got response, mark reachable");
                   m_peer.second->reachable (true);
+                  reachable_peers++;
                 }
             }
         }
@@ -202,6 +205,8 @@ RelayWorker::check_peers ()
           LogPrint (eLogWarning, "Relay: Unknown version: ", response->ver);
         }
     }
+
+  LogPrint (eLogDebug, "Relay: Reachable peers: ", reachable_peers);
 
   context.removeBatch (batch);
   writePeers ();
@@ -331,9 +336,7 @@ RelayWorker::loadPeers ()
             continue;
 
           peer.samples ((size_t)std::stoi (peer_str));
-          
           LogPrint (eLogDebug, "Relay: peer: ", peer.short_str ());
-          
           peers.push_back (std::make_shared<RelayPeer> (peer));
         }
     }
@@ -700,7 +703,7 @@ std::chrono::seconds
 RelayWorker::get_delay (bool exec_status)
 {
   unsigned long interval;
-  
+
   if (exec_status)
     interval = UPDATE_INTERVAL_LONG;
   else
@@ -711,7 +714,7 @@ RelayWorker::get_delay (bool exec_status)
 
   if (exec_finish_t <= exec_start_t)
     return std::chrono::seconds(1);
-  
+
   unsigned long duration = exec_finish_t - exec_start_t;
 
   if (duration < interval)
@@ -719,6 +722,6 @@ RelayWorker::get_delay (bool exec_status)
 
   return std::chrono::seconds(1);
 }
-  
+
 } // relay
 } // pbote

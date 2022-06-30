@@ -84,7 +84,7 @@ bool Daemon_Singleton::init(int argc, char *argv[],
   bool logclftime;
   pbote::config::GetOption("logclftime", logclftime);
 
-  /* setup logging */
+  // Setup logging
   if (logclftime)
     pbote::log::Logger().SetTimeFormat("[%d/%b/%Y:%H:%M:%S %z]");
 
@@ -107,7 +107,12 @@ bool Daemon_Singleton::init(int argc, char *argv[],
     // use stdout -- default
   }
 
-  LogPrint(eLogInfo, CODENAME, " v", VERSION, " starting");
+#ifdef NDEBUG
+  LogPrint(eLogInfo, CODENAME, " v", VERSION, "r starting");
+#else
+  LogPrint(eLogInfo, CODENAME, " v", VERSION, "d starting");
+#endif // NDEBUG
+
   LogPrint(eLogDebug, "FS: Data directory: ", datadir);
   LogPrint(eLogDebug, "FS: Main config file: ", config);
 
