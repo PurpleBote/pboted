@@ -23,12 +23,18 @@ namespace pbote
 namespace kademlia
 {
 
+#ifdef NDEBUG
 #define SEND_EMAIL_INTERVAL (5 * 60)
+#else
+#define SEND_EMAIL_INTERVAL (1 * 60)
+#endif // NDEBUG
+
 #define CHECK_EMAIL_INTERVAL (5 * 60)
 
 using sp_id_full = std::shared_ptr<pbote::BoteIdentityFull>;
 using thread_map
     = std::unordered_map<std::string, std::shared_ptr<std::thread> >;
+using v_sp_email = std::vector<std::shared_ptr<pbote::Email> >;
 
 class EmailWorker
 {
@@ -46,7 +52,7 @@ public:
   void startSendEmailTask ();
   bool stopSendEmailTask ();
 
-  std::vector<std::shared_ptr<pbote::Email> > check_inbox ();
+  v_sp_email check_inbox ();
 
 private:
   void run ();
@@ -62,16 +68,13 @@ private:
   static std::vector<pbote::EmailUnencryptedPacket>
   loadLocalIncompletePacket ();
 
-  static std::vector<std::shared_ptr<pbote::Email> > checkOutbox ();
+  static void checkOutbox (v_sp_email &emails);
 
   std::vector<pbote::Email>
   processEmail (const sp_id_full &identity,
                 const std::vector<pbote::EmailEncryptedPacket> &mail_packets);
 
   bool check_thread_exist (const std::string &identity_name);
-
-  std::shared_ptr<BoteIdentityPublic> parse_address_v0(std::string address);
-  std::shared_ptr<BoteIdentityPublic> parse_address_v1(std::string address);
 
   bool started_;
   std::thread *m_send_thread_;

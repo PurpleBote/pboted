@@ -87,6 +87,7 @@ Email::Email (const std::vector<uint8_t> &data, bool from_net)
   std::memcpy(&packet.length, data.data() + offset, 2);
   offset += 2;
 
+  // ToDo: use it
   i2p::data::Tag<32> mes_id(packet.mes_id);
   LogPrint(eLogDebug, "Email: mes_id: ", mes_id.ToBase64());
 
@@ -152,7 +153,7 @@ std::string
 Email::get_message_id ()
 {
   std::string message_id = field ("Message-ID");
-  
+
   if (message_id.empty () ||
       (message_id.size () == 36 &&
        message_id.c_str ()[14] != 4))
@@ -187,32 +188,89 @@ Email::set_message_id_bytes ()
 }
 
 std::vector<uint8_t>
-Email::getHashCash ()
+Email::hashcash ()
 {
+  /**
+   * Format:
+   * version: (currently 1)
+   * bits: the number of leading bits that are 0
+   * timestamp: a date/time stamp (time is optional)
+   * resource: the data string being transmitted, for example, an IP address, email address, or other data
+   * extension: ignored in version 1
+   * random seed: base-64 encoded random set of characters
+   * counter: base-64 encoded binary counter between 0 and 220, (1,048,576)
+   *
+   * Example:
+   * 1:20:1303030600:admin@example.com::McMybZIhxKXu57jd:FOvXX
+   */
+
+  /*
+  uint8_t version = 1;
+  uint8_t bits = 20;
+  std::string resource ("admin@example.com"), extension, seed, counter;
+
+  const auto time_now = std::chrono::system_clock::now();
+  int32_t ts_now = (int32_t)std::chrono::duration_cast<std::chrono::seconds>(time_now.time_since_epoch()).count();
   // ToDo: think about it
-  /*bool isDone = false;
-  size_t counter = 0;
+  seed = std::string("McMybZIhxKXu57jd");
+  counter = std::string("FOvXX");
 
-  uint8_t ver = 1, numb = 20;
-
-  time_t rawtime;
-  struct tm *timeinfo;
-  char buffer[80];
-  time(&rawtime);
-  timeinfo = localtime(&rawtime);
-  strftime(buffer, sizeof(buffer), "%Y%m%d%H%M%S", timeinfo);
-  std::string datetime(buffer);
-
-  //while(!isDone) {
-
-  //}
+  std::string hc_s;
+  hc_s.append ("" + version);
+  hc_s.append (":" + bits);
+  hc_s.append (":" + ts_now);
+  hc_s.append (":" + resource);
+  hc_s.append (":" + extension);
+  hc_s.append (":" + seed);
+  hc_s.append (":" + counter);
   */
 
   // ToDo: temp, TBD
-  std::string temp_s ("1:20:1303030600:admin@example.com::McMybZIhxKXu57jd:FOvXX");
-  std::vector<uint8_t> result (temp_s.begin(), temp_s.end());
+  std::string hc_s ("1:20:1303030600:admin@example.com::McMybZIhxKXu57jd:FOvXX");
+  LogPrint (eLogDebug, "Email: hashcash: hashcash: ", hc_s);
+  std::vector<uint8_t> result (hc_s.begin(), hc_s.end());
 
   return result;
+}
+
+std::string
+Email::get_from_label ()
+{
+  return mail.header().from().begin()->label();
+}
+
+std::string
+Email::get_from_mailbox ()
+{
+  return mail.header().from().begin()->mailbox();
+}
+
+std::string
+Email::get_from_address ()
+{
+  auto mailbox = mail.header().from().begin()->mailbox();
+  auto domain = mail.header().from().begin()->domain();
+  return mailbox + "@" + domain;
+}
+
+std::string
+Email::get_to_label ()
+{
+  return mail.header().to().begin()->mailbox().label();
+}
+
+std::string
+Email::get_to_mailbox ()
+{
+  return mail.header().to().begin()->mailbox().mailbox();
+}
+
+std::string
+Email::get_to_addresses ()
+{
+  auto mailbox = mail.header().to().begin()->mailbox().mailbox();
+  auto domain = mail.header().to().begin()->mailbox().domain();
+  return mailbox + "@" + domain;
 }
 
 bool
@@ -239,8 +297,6 @@ Email::bytes ()
 {
   std::stringstream buffer;
   buffer << mail;
-
-  LogPrint (eLogDebug, "Email: bytes: buffer << operator:\n", buffer.str ());
 
   std::string str_buf = buffer.str ();
   std::vector<uint8_t> result (str_buf.begin (), str_buf.end ());
@@ -310,7 +366,7 @@ Email::move (const std::string &dir)
     {
       LogPrint (eLogInfo, "Email: move: File ", filename (), " moved to ", new_path);
       filename (new_path);
-      
+
       return true;
     }
 
@@ -332,12 +388,9 @@ Email::compose ()
             get_message_id_bytes ().ToBase64 ());
 
   uint8_t zero_array[32]{0};
+
   if (memcmp(packet.DA, zero_array, 32) == 0)
-    {
-      // ToDo: Need to fix random engine
-      context.random_cid (packet.DA, 32);
-      context.random_cid (packet.DA, 32);
-    }
+    context.random_cid (packet.DA, 32);
 
   i2p::data::Tag<32> del_auth (packet.DA);
   LogPrint (eLogDebug, "Email: compose: Message DA: ", del_auth.ToBase64 ());
@@ -349,6 +402,78 @@ Email::compose ()
 
   empty_ = false;
   incomplete_ = false;
+
+  /// For debug only
+  std::stringstream buffer;
+  buffer << mail;
+  LogPrint (eLogDebug, "Email: compose: content:\n", buffer.str ());
+  ///
+}
+
+void
+Email::encrypt ()
+{
+  if (skip ())
+    return;
+
+  if (encrypted_)
+    return;
+
+  SHA256 (packet.DA, 32, encrypted.delete_hash);
+  /// For debug only
+  i2p::data::Tag<32> del_hash (encrypted.delete_hash), del_auth (packet.DA);
+  LogPrint (eLogDebug, "Email: encrypt: del_auth: ", del_auth.ToBase64 ());
+  LogPrint (eLogDebug, "Email: encrypt: del_hash: ", del_hash.ToBase64 ());
+  ///
+
+  setField ("X-I2PBote-Delete-Auth-Hash", del_hash.ToBase64 ());
+
+  LogPrint (eLogDebug, "Email: encrypt: packet.data.size: ", packet.data.size ());
+
+  auto packet_bytes = packet.toByte ();
+
+  if (!sender)
+    {
+      LogPrint (eLogError, "Email: encrypt: Sender error");
+      skip (true);
+      return;
+    }
+
+  encrypted.edata = sender->GetPublicIdentity ()->Encrypt (
+          packet_bytes.data (), packet_bytes.size (),
+          recipient->GetCryptoPublicKey ());
+
+  if (encrypted.edata.empty ())
+    {
+      LogPrint (eLogError, "Email: encrypt: Encrypted data is empty, skipped");
+      skip (true);
+      return;
+    }
+
+  encrypted.length = encrypted.edata.size ();
+  encrypted.alg = sender->GetKeyType ();
+  encrypted.stored_time = 0;
+
+  LogPrint (eLogDebug, "Email: encrypt: encrypted.edata.size(): ",
+            encrypted.edata.size ());
+
+  /// Get hash of data + length for DHT key
+  const size_t data_for_hash_len = 2 + encrypted.edata.size ();
+  std::vector<uint8_t> data_for_hash
+      = { static_cast<uint8_t> (encrypted.length >> 8),
+          static_cast<uint8_t> (encrypted.length & 0xff) };
+  data_for_hash.insert (data_for_hash.end (), encrypted.edata.begin (), encrypted.edata.end ());
+
+  SHA256 (data_for_hash.data (), data_for_hash_len, encrypted.key);
+
+  i2p::data::Tag<32> dht_key (encrypted.key);
+
+  setField ("X-I2PBote-DHT-Key", dht_key.ToBase64 ());
+
+  LogPrint (eLogDebug, "Email: encrypt: dht_key: ", dht_key.ToBase64 ());
+  LogPrint (eLogDebug, "Email: encrypt: encrypted.length : ", encrypted.length);
+
+  encrypted_ = true;
 }
 
 bool
@@ -371,6 +496,7 @@ Email::compress (CompressionAlgorithm type)
 
       packet.data.push_back (uint8_t (CompressionAlgorithm::ZLIB));
       packet.data.insert (packet.data.end (), output.begin (), output.end ());
+      LogPrint (eLogDebug, "Email: compress: ZLIB compressed");
       return true;
     }
 
@@ -405,6 +531,7 @@ Email::decompress (std::vector<uint8_t> v_mail)
                       std::vector<uint8_t>(v_mail.data() + offset,
                                            v_mail.data() + v_mail.size()));
       packet.data = output;
+      LogPrint (eLogDebug, "Email: compress: LZMA decompressed");
       return;
     }
 
@@ -416,6 +543,7 @@ Email::decompress (std::vector<uint8_t> v_mail)
                       std::vector<uint8_t>(v_mail.data() + offset,
                                            v_mail.data() + v_mail.size()));
       packet.data = output;
+      LogPrint (eLogDebug, "Email: compress: ZLIB decompressed");
       return;
     }
 
@@ -522,6 +650,169 @@ Email::zlibDecompress (std::vector<uint8_t> &outBuf,
   i2p::data::GzipDeflator deflator;
   deflator.Deflate (inBuf.data (), inBuf.size (),
                     outBuf.data (), outBuf.size ());
+}
+
+void
+Email::set_sender_identity (sp_id_full identity)
+{
+  if (!identity)
+    {
+      LogPrint (eLogWarning, "Email: set_sender: Can't set "
+                "sender identity, skipped");
+      skip (true);
+      return;
+    }
+
+  sender = std::make_shared<BoteIdentityPrivate>(identity->identity);
+  std::string addr = sender->GetPublicIdentity ()->ToBase64v1 ();
+
+  std::string old_from_address = field("From");
+  std::string new_from;
+  new_from.append (identity->publicName + " <b64." + addr + ">");
+
+  set_from (new_from);
+  set_sender (new_from);
+
+  LogPrint (eLogDebug, "EmailWorker: set_sender: FROM replaced, old: ",
+                old_from_address, ", new: ", new_from);
+
+  LogPrint (eLogDebug, "Email: set_sender: sender: ", sender->ToBase64 ());
+  LogPrint (eLogDebug, "Email: set_sender: email: sender hash: ",
+            sender->GetIdentHash ().ToBase64 ());
+}
+
+void
+Email::set_recipient_identity (std::string to_address)
+{
+  LogPrint (eLogDebug, "Email: set_recipient: to_address: ", to_address);
+
+  std::string format_prefix = to_address.substr(0, to_address.find(".") + 1);
+
+  if (format_prefix.compare(ADDRESS_B32_PREFIX) == 0)
+    recipient = parse_address_v1(to_address);
+  else if (format_prefix.compare(ADDRESS_B64_PREFIX) == 0)
+    recipient = parse_address_v1(to_address);
+  else
+    recipient = parse_address_v0(to_address);
+
+  if (recipient == nullptr)
+    {
+      LogPrint (eLogWarning, "Email: set_recipient: Can't create "
+                "recipient from \"TO\" header, skip mail");
+      skip (true);
+
+      return;
+    }
+
+  LogPrint (eLogDebug, "Email: set_recipient: recipient: ",
+            recipient->ToBase64 ());
+  LogPrint (eLogDebug, "Email: set_recipient: recipient hash: ",
+            recipient->GetIdentHash ().ToBase64 ());
+}
+
+sp_id_public
+Email::parse_address_v0(std::string address)
+{
+  BoteIdentityPublic identity;
+  size_t base64_key_len = 0, offset = 0;
+
+  if (address.length() == ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH)
+    {
+      identity = BoteIdentityPublic(KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
+      base64_key_len = ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2;
+    }
+  else if (address.length() == ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH)
+    {
+      identity = BoteIdentityPublic(KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC);
+      base64_key_len = ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2;
+    }
+  else
+    {
+      LogPrint(eLogWarning, "EmailWorker: parse_address_v0: Unsupported identity type");
+      return nullptr;
+    }
+
+  // Restore keys
+  std::string cryptoPublicKey = "A" + address.substr(offset, (base64_key_len));
+  offset += (base64_key_len);
+  std::string signingPublicKey = "A" + address.substr(offset, (base64_key_len));
+
+  std::string restored_identity_str;
+  restored_identity_str.append(cryptoPublicKey);
+  restored_identity_str.append(signingPublicKey);
+
+  identity.FromBase64(restored_identity_str);
+
+  LogPrint(eLogDebug, "EmailWorker: parse_address_v0: identity.ToBase64: ",
+           identity.ToBase64());
+  LogPrint(eLogDebug, "EmailWorker: parse_address_v0: idenhash.ToBase64: ",
+           identity.GetIdentHash().ToBase64());
+
+  return std::make_shared<BoteIdentityPublic>(identity);
+}
+
+sp_id_public
+Email::parse_address_v1(std::string address)
+{
+  BoteIdentityPublic identity;
+  std::string format_prefix = address.substr (0, address.find (".") + 1);
+  std::string base_str = address.substr (format_prefix.length ());
+  // ToDo: Define length from base32/64
+  uint8_t identity_bytes[2048];
+  size_t identity_len = 0;
+
+  if (format_prefix.compare (ADDRESS_B32_PREFIX) == 0)
+    identity_len = i2p::data::Base32ToByteStream (base_str.c_str (), base_str.length (), identity_bytes, 2048);
+  else if (format_prefix.compare (ADDRESS_B64_PREFIX) == 0)
+    identity_len = i2p::data::Base64ToByteStream (base_str.c_str (), base_str.length (), identity_bytes, 2048);
+  else
+    return nullptr;
+
+  if (identity_len < 5)
+    {
+      LogPrint (eLogError, "identitiesStorage: parse_identity_v1: Malformed address");
+      return nullptr;
+    }
+
+  if (identity_bytes[0] != ADDRES_FORMAT_V1)
+    {
+      LogPrint (eLogError, "identitiesStorage: parse_identity_v1: Unsupported address format");
+      return nullptr;
+    }
+
+  if (identity_bytes[1] == CRYP_TYPE_ECDH256 &&
+      identity_bytes[2] == SIGN_TYPE_ECDSA256 &&
+      identity_bytes[3] == SYMM_TYPE_AES_256 &&
+      identity_bytes[4] == HASH_TYPE_SHA_256)
+    {
+      identity = BoteIdentityPublic(KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
+    }
+  else if (identity_bytes[1] == CRYP_TYPE_ECDH521 &&
+           identity_bytes[2] == SIGN_TYPE_ECDSA521 &&
+           identity_bytes[3] == SYMM_TYPE_AES_256 &&
+           identity_bytes[4] == HASH_TYPE_SHA_512)
+    {
+      identity = BoteIdentityPublic(KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC);
+    }
+  else if (identity_bytes[1] == CRYP_TYPE_X25519 &&
+           identity_bytes[2] == SIGN_TYPE_ED25519 &&
+           identity_bytes[3] == SYMM_TYPE_AES_256 &&
+           identity_bytes[4] == HASH_TYPE_SHA_512)
+    {
+      identity = BoteIdentityPublic(KEY_TYPE_X25519_ED25519_SHA512_AES256CBC);
+    }
+
+  size_t len = identity.FromBuffer(identity_bytes + 5, identity_len);
+
+  if (len == 0)
+    return nullptr;
+
+  LogPrint(eLogDebug, "identitiesStorage: parse_identity_v1: identity.ToBase64: ",
+           identity.ToBase64());
+  LogPrint(eLogDebug, "identitiesStorage: parse_identity_v1: idenhash.ToBase64: ",
+           identity.GetIdentHash().ToBase64());
+
+  return std::make_shared<BoteIdentityPublic>(identity);
 }
 
 } // pbote

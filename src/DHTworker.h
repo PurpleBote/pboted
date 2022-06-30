@@ -67,8 +67,11 @@ namespace kademlia
 #define CLOSEST_NODES_LOOKUP_TIMEOUT (5 * 60)
 
 /// the minimum nodes for find request
-// ToDo: Change to 10 after 0.9.0
+#ifdef NDEBUG
+#define MIN_CLOSEST_NODES 10
+#else
 #define MIN_CLOSEST_NODES 5
+#endif // NDEBUG
 
 #define DEFAULT_NODE_FILE_NAME "nodes.txt"
 
@@ -280,7 +283,7 @@ private:
   std::thread *m_worker_thread_;
   sp_node local_node_;
 
-  mutable std::mutex m_nodes_mutex_;
+  mutable std::mutex m_nodes_mutex_, check_closest_mutex;
   std::map<HashKey, sp_node> m_nodes_;
 
   // ToDo: K-bucket/routing table and S-bucket (NEED MORE DISCUSSION)

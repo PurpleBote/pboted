@@ -159,6 +159,48 @@ std::string BoteIdentityPublic::ToBase64() const
   return std::string(str.data(), l1);
 }
 
+std::string BoteIdentityPublic::ToBase64v1() const
+{
+  const size_t bufLen = GetFullLen();
+  const size_t strLen = i2p::data::Base64EncodingBufferSize(bufLen + 5);
+  std::vector<uint8_t> data(bufLen);
+  std::vector<char> str(strLen);
+  size_t l = ToBuffer(data.data(), bufLen);
+
+  std::vector<uint8_t> buf;
+
+
+  switch(GetKeyType())
+    {
+      case KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC:
+        {
+          uint8_t temp_2[5] = {ADDRES_FORMAT_V1,CRYP_TYPE_ECDH256,SIGN_TYPE_ECDSA256,SYMM_TYPE_AES_256,HASH_TYPE_SHA_256};
+          buf = std::vector<uint8_t>(std::begin(temp_2), std::end(temp_2));
+          break;
+        }
+      case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
+        {
+          uint8_t temp_3[5] = {ADDRES_FORMAT_V1,CRYP_TYPE_ECDH521,SIGN_TYPE_ECDSA521,SYMM_TYPE_AES_256,HASH_TYPE_SHA_512};
+          buf = std::vector<uint8_t>(std::begin(temp_3), std::end(temp_3));
+          break;
+        }
+      case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
+        {
+          uint8_t temp_4[5] = {ADDRES_FORMAT_V1,CRYP_TYPE_X25519,SIGN_TYPE_ED25519,SYMM_TYPE_AES_256,HASH_TYPE_SHA_512};
+          buf = std::vector<uint8_t>(std::begin(temp_4), std::end(temp_4));
+          break;
+        }
+      default:
+        return {};
+    }
+
+  buf.insert( buf.end(), data.begin(), data.end() );
+
+  size_t l1 = i2p::data::ByteStreamToBase64(buf.data(), l + 5, str.data(), strLen);
+
+  return { str.data(), l1 };
+}
+
 size_t BoteIdentityPublic::GetSignatureLen() const
 {
   /* ToDo
@@ -678,15 +720,14 @@ bool identitiesStorage::parse_identity_v1 (BoteIdentityFull *identity)
     }
 
   if (identity_bytes[1] == CRYP_TYPE_ECDH256 &&
-      identity_bytes[2] == SIGN_TYPE_ECDH256 &&
+      identity_bytes[2] == SIGN_TYPE_ECDSA256 &&
       identity_bytes[3] == SYMM_TYPE_AES_256 &&
       identity_bytes[4] == HASH_TYPE_SHA_256)
     {
       identity->identity = BoteIdentityPrivate(KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
-      
     }
   else if (identity_bytes[1] == CRYP_TYPE_ECDH521 &&
-           identity_bytes[2] == SIGN_TYPE_ECDH521 &&
+           identity_bytes[2] == SIGN_TYPE_ECDSA521 &&
            identity_bytes[3] == SYMM_TYPE_AES_256 &&
            identity_bytes[4] == HASH_TYPE_SHA_512)
     {

@@ -313,7 +313,7 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
             " responses for ", key.ToBase64 (), ", type: ", type);
   context.removeBatch (batch);
 
-  calc_locks (batch->getResponses ());
+  //calc_locks (batch->getResponses ());
 
   return batch->getResponses ();
 }
@@ -388,7 +388,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 
   auto responses = batch->getResponses ();
 
-  calc_locks (responses);
+  //calc_locks (responses);
 
   result.reserve (responses.size ());
 
@@ -596,9 +596,11 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
 std::vector<sp_node>
 DHTworker::closestNodesLookupTask (HashKey key)
 {
+  check_closest_mutex.lock ();
+
   auto batch
       = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
-  batch->owner = "DHT::closestNodesLookupTask";
+  batch->owner = "DHT::closestNodesLookup";
 
   std::map<HashKey, sp_node> closestNodes;
   std::vector<sp_comm_packet> responses;
@@ -608,6 +610,9 @@ DHTworker::closestNodesLookupTask (HashKey key)
   auto task_start_time
       = std::chrono::system_clock::now ().time_since_epoch ().count ();
   auto unlocked_nodes = getUnlockedNodes ();
+
+  if (unlocked_nodes.empty ())
+    unlocked_nodes = getAllNodes ();
 
   for (auto node : unlocked_nodes)
     {
@@ -634,7 +639,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
   while (!active_requests.empty ()
          && exec_duration < CLOSEST_NODES_LOOKUP_TIMEOUT)
     {
-      LogPrint (eLogDebug, "DHT: closestNodesLookupTask: Batch size: ",
+      LogPrint (eLogDebug, "DHT: closestNodesLookup: Batch size: ",
                 batch->packetCount ());
 
       context.send (batch);
@@ -643,7 +648,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
 
       if (!responses.empty ())
         {
-          LogPrint (eLogDebug, "DHT: closestNodesLookupTask: Got ",
+          LogPrint (eLogDebug, "DHT: closestNodesLookup: Got ",
                     responses.size (), " responses for key ", key.ToBase64 ());
 
           for (const auto &response : responses)
@@ -663,7 +668,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
         }
       else
         {
-          LogPrint (eLogWarning, "DHT: closestNodesLookupTask: Not enough "
+          LogPrint (eLogWarning, "DHT: closestNodesLookup: Not enough "
                                  "responses, resend batch");
           context.removeBatch (batch);
         }
@@ -682,7 +687,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
           // for now we just skip it
           LogPrint (
               eLogWarning,
-              "DHT: closestNodesLookupTask: Got non-response packet, type: ",
+              "DHT: closestNodesLookup: Got non-response packet, type: ",
               response->type, ", ver: ", unsigned (response->ver));
           continue;
         }
@@ -692,7 +697,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
                                        response->payload.size (), true);
       if (!parsed)
         {
-          LogPrint (eLogWarning, "DHT: closestNodesLookupTask: Payload is too "
+          LogPrint (eLogWarning, "DHT: closestNodesLookup: Payload is too "
                                  "short, parsing skipped");
           continue;
         }
@@ -700,14 +705,14 @@ DHTworker::closestNodesLookupTask (HashKey key)
       if (packet.status != StatusCode::OK)
         {
           LogPrint (eLogWarning,
-                    "DHT: closestNodesLookupTask: Response status: ",
+                    "DHT: closestNodesLookup: Response status: ",
                     statusToString (packet.status));
           continue;
         }
 
       if (packet.length == 0)
         {
-          LogPrint (eLogWarning, "DHT: closestNodesLookupTask: Packet without "
+          LogPrint (eLogWarning, "DHT: closestNodesLookup: Packet without "
                                  "payload, parsing skipped");
           continue;
         }
@@ -726,11 +731,11 @@ DHTworker::closestNodesLookupTask (HashKey key)
 
       if (peers_list.empty ())
         {
-          LogPrint (eLogDebug, "DHT: closestNodesLookupTask: peers_list empty");
+          LogPrint (eLogDebug, "DHT: closestNodesLookup: peers_list empty");
           continue;
         }
 
-      LogPrint (eLogDebug, "DHT: closestNodesLookupTask: peers_list size: ",
+      LogPrint (eLogDebug, "DHT: closestNodesLookup: peers_list size: ",
                 peers_list.size ());
 
       for (const auto &peer : peers_list)
@@ -740,7 +745,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
             {
               closestNodes.insert (
                   std::pair<HashKey, sp_node> (peer->GetIdentHash (), peer));
-              LogPrint (eLogDebug, "DHT: closestNodesLookupTask: Added node: ",
+              LogPrint (eLogDebug, "DHT: closestNodesLookup: Added node: ",
                         peer->GetIdentHash ().ToBase64 ());
             }
         }
@@ -749,7 +754,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
   /// no more responses to wait for - we're finished
 
   /// If we have node locally and it's locked - remove it from list
-  size_t locked_counter = 0;
+  /*size_t locked_counter = 0;
   auto node_itr = closestNodes.begin ();
   while (node_itr != closestNodes.end ())
     {
@@ -763,8 +768,8 @@ DHTworker::closestNodesLookupTask (HashKey key)
         ++node_itr;
     }
 
-  LogPrint (eLogDebug, "DHT: closestNodesLookupTask: Removed locked node(s): ",
-            locked_counter);
+  LogPrint (eLogDebug, "DHT: closestNodesLookup: Removed locked node(s): ",
+            locked_counter);*/
 
   std::vector<sp_node> result;
   for (auto node : closestNodes)
@@ -778,8 +783,10 @@ DHTworker::closestNodesLookupTask (HashKey key)
   for (const auto &node : closestNodes)
     addNode (node.second->ToBase64 ());
 
-  LogPrint (eLogDebug, "DHT: closestNodesLookupTask: finished, count: ",
+  LogPrint (eLogDebug, "DHT: closestNodesLookup: finished, count: ",
             result.size ());
+
+  check_closest_mutex.unlock ();
 
   return result;
 }
@@ -1062,7 +1069,7 @@ DHTworker::receiveDeletionQuery (const sp_comm_packet &packet)
           LogPrint (eLogDebug, "DHT: receiveDeletionQuery: found key: ",
                     t_key.ToBase64 ());
 
-          // ToDo: delete local packet
+          // ToDo: delete local packet?
 
           response.status = pbote::StatusCode::OK;
           response.length = 0;
@@ -1272,6 +1279,13 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
   context.send (q_packet);
+
+  if (response.status == pbote::StatusCode::OK)
+    {
+      LogPrint (eLogDebug,
+                "DHT: EmailPacketDelete: Re-send request to other nodes");
+      deleteEmail(t_key, DataE, delete_packet);
+    }
 }
 
 void
@@ -1397,6 +1411,12 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
   context.send (q_packet);
+
+  // ToDo: re-send to other nodes
+  //if (response.status == pbote::StatusCode::OK)
+  //  {
+  //    deleteIndexEntry (t_key, email_dht_key, email_del_auth);
+  //  }
 }
 
 void

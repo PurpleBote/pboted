@@ -42,8 +42,8 @@ const uint8_t CRYP_TYPE_ECDH256 = 0x02;
 const uint8_t CRYP_TYPE_ECDH521 = 0x03;
 const uint8_t CRYP_TYPE_X25519 = 0x05;
 // Signing key ID's
-const uint8_t SIGN_TYPE_ECDH256 = 0x02;
-const uint8_t SIGN_TYPE_ECDH521 = 0x03;
+const uint8_t SIGN_TYPE_ECDSA256 = 0x02;
+const uint8_t SIGN_TYPE_ECDSA521 = 0x03;
 const uint8_t SIGN_TYPE_ED25519 = 0x05;
 // Symmetric alg ID's
 const uint8_t SYMM_TYPE_AES_256 = 0x02;
@@ -434,6 +434,7 @@ class BoteIdentityPublic
   size_t ToBuffer(uint8_t *buf, size_t len) const;
   size_t FromBase64(const std::string &s);
   std::string ToBase64() const;
+  std::string ToBase64v1() const;
 
   std::shared_ptr<I_BoteIdentity> GetIdentity() const { return m_Identity; };
   const IdentHash &GetIdentHash() const { return m_IdentHash; };
@@ -481,6 +482,7 @@ class BoteIdentityPrivate
   size_t ToBuffer(uint8_t *buf, size_t len) const;
   size_t FromBase64(const std::string &s);
   std::string ToBase64() const;
+  //std::string ToBase64v1() const;
 
   std::shared_ptr<const BoteIdentityPublic> GetPublicIdentity() const { return m_Public; };
   const IdentHash &GetIdentHash() const { return m_Public->GetIdentHash(); };
@@ -533,9 +535,6 @@ class BoteIdentityPrivate
   std::shared_ptr<BoteIdentityPublic> m_Public;
   mutable std::unique_ptr<i2p::crypto::Signer> m_Signer;
 };
-
-/// Identity string format:
-///   <crypto public><signing public><crypto private><signing private>
 
 const std::string DEFAULT_IDENTITY_FILE_NAME = "identities.txt";
 

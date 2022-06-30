@@ -191,7 +191,7 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
 
       if (!local_index_packet.empty ())
         {
-          LogPrint (eLogDebug, "EmailWorker: Check task: ", id_name, ": got ",
+          LogPrint (eLogDebug, "EmailWorker: Check: ", id_name, ": got ",
                     local_index_packet.size (), " local index");
 
           /// from_net is true, because we save it as is
@@ -208,30 +208,30 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
         }
       else
         {
-          LogPrint (eLogDebug, "EmailWorker: Check task: ", id_name,
+          LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
                     ": Can't find local index");
         }
 
-      LogPrint (eLogDebug, "EmailWorker: Check task: ", id_name,
+      LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
                 ": Index count: ", index_packets.size ());
 
       auto enc_mail_packets = retrieveEmailPacket (index_packets);
 
-      LogPrint (eLogDebug, "EmailWorker: Check task: ", id_name,
+      LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
                 ": Mail count: ", enc_mail_packets.size ());
 
       if (enc_mail_packets.empty ())
         {
-          LogPrint (eLogDebug, "EmailWorker: Check task: ", id_name,
+          LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
                     ": Have no mail for process");
-          LogPrint (eLogInfo, "EmailWorker: Check task: ", id_name,
+          LogPrint (eLogInfo, "EmailWorker: Check: ", id_name,
                     ": Round complete");
           continue;
         }
 
       auto emails = processEmail (email_identity, enc_mail_packets);
 
-      LogPrint (eLogInfo, "EmailWorker: Check task: ", id_name,
+      LogPrint (eLogInfo, "EmailWorker: Check: ", id_name,
                 ": email(s) processed: ", emails.size ());
 
       // ToDo: check mail signature
@@ -254,7 +254,7 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
           DHT_worker.deleteEmail (email_dht_key, DataE, delete_email_packet);
 
           /// Delete index packets
-          // ToDo: add multipart email support
+          // ToDo: multipart email support
           DHT_worker.deleteIndexEntry (
               email_identity->identity.GetIdentHash (), email_dht_key,
               email_del_auth);
@@ -263,7 +263,7 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
       // ToDo: check sent emails status -> check_email_delivery_task
       //   if nodes sent empty response - mark as deleted (delivered)
 
-      LogPrint (eLogInfo, "EmailWorker: Check task:  ", id_name, ": complete");
+      LogPrint (eLogInfo, "EmailWorker: Check: ", id_name, ": complete");
     }
 }
 
@@ -276,184 +276,52 @@ EmailWorker::incompleteEmailTask ()
 void
 EmailWorker::sendEmailTask ()
 {
+  v_sp_email outbox;
   while (started_)
     {
       // ToDo: read interval parameter from config
       std::this_thread::sleep_for (std::chrono::seconds (SEND_EMAIL_INTERVAL));
 
       std::vector<std::string> nodes;
-      auto outbox = checkOutbox ();
+      checkOutbox (outbox);
+
       if (outbox.empty ())
-        continue;
-
-      /// Create Encrypted Email Packet
-      // ToDo: move to function
-      for (const auto &email : outbox)
         {
-          pbote::EmailEncryptedPacket enc_packet;
-          auto packet = email->getDecrypted ();
-
-          // Get hash of Delete Auth
-          SHA256 (packet.DA, 32, enc_packet.delete_hash);
-          i2p::data::Tag<32> del_hash (enc_packet.delete_hash), del_auth (packet.DA);
-
-          LogPrint (eLogDebug, "EmailWorker: Send: del_auth: ", del_auth.ToBase64 ());
-          LogPrint (eLogDebug, "EmailWorker: Send: del_hash: ", del_hash.ToBase64 ());
-
-          email->setField ("X-I2PBote-Delete-Auth-Hash", del_hash.ToBase64 ());
-
-          /// Create recipient
-          std::shared_ptr<BoteIdentityPublic> recipient_identity;
-          std::string to_address = email->getToAddresses ();
-
-          std::string format_prefix = to_address.substr(0, to_address.find(".") + 1);
-
-          if (format_prefix.compare(ADDRESS_B32_PREFIX) == 0)
-            recipient_identity = parse_address_v1(to_address);
-          else if (format_prefix.compare(ADDRESS_B64_PREFIX) == 0)
-            recipient_identity = parse_address_v1(to_address);
-          else
-            recipient_identity = parse_address_v0(to_address);
-
-          if (recipient_identity == nullptr)
-            {
-              LogPrint (eLogWarning, "EmailWorker: Send: Can't create "
-                        "identity from \"TO\" header, skip mail");
-              email->skip (true);
-              continue;
-            }
-
-          LogPrint (eLogDebug, "EmailWorker: Send: recipient_identity: ",
-                    recipient_identity->ToBase64 ());
-          LogPrint (eLogDebug, "EmailWorker: Send: email: recipient hash: ",
-                    recipient_identity->GetIdentHash ().ToBase64 ());
-
-          /// Get and check FROM identity
-          auto from_name = email->field ("From");
-          auto identity_name = from_name.substr (0, from_name.find (' '));
-          //sp_id_full identity = pbote::context.identityByName (identity_name);
-
-          /*if (!identity)
-            {
-              if (context.get_identities_count ())
-                {
-                  auto email_identities = context.getEmailIdentities ();
-                  LogPrint (eLogWarning, "EmailWorker: Send: Can't find "
-                            "identity with name: ", identity_name);
-
-                  identity = email_identities[0];
-                  LogPrint (eLogWarning, "EmailWorker: Send: Try to use ",
-                            identity->publicName, " just for encrypt data");
-                }
-              else
-                {
-                  LogPrint (eLogError, "EmailWorker: Send: Have no "
-                            "identities, stopping send task");
-                  stopSendEmailTask ();
-                  return;
-                }
-            }*/
-
-          /// Sign data
-          // ToDo: sign email here
-
-          /// Encrypt data
-
-          /// Create sender
-          std::shared_ptr<BoteIdentityPublic> sender_identity;
-          std::string from_address = email->get_from_address ();
-
-          LogPrint (eLogDebug, "EmailWorker: Send: from_address: ", from_address);
-
-          format_prefix = from_address.substr(0, from_address.find(".") + 1);
-
-          if (format_prefix.compare(ADDRESS_B32_PREFIX) == 0)
-            sender_identity = parse_address_v1(from_address);
-          else if (format_prefix.compare(ADDRESS_B64_PREFIX) == 0)
-            sender_identity = parse_address_v1(from_address);
-          else
-            sender_identity = parse_address_v0(from_address);
-
-          if (sender_identity == nullptr)
-            {
-              LogPrint (eLogWarning, "EmailWorker: Send: Can't create "
-                        "identity from \"FROM\" header, skip mail");
-              email->skip (true);
-              continue;
-            }
-
-          LogPrint (eLogDebug, "EmailWorker: Send: sender_identity: ",
-                    sender_identity->ToBase64 ());
-          LogPrint (eLogDebug, "EmailWorker: Send: email: sender hash: ",
-                    sender_identity->GetIdentHash ().ToBase64 ());
-
-
-          LogPrint (eLogDebug, "EmailWorker: Send: packet.data.size: ",
-                    packet.data.size ());
-
-          auto packet_bytes = packet.toByte ();
-          /*enc_packet.edata
-              = identity->identity.GetPublicIdentity ()->Encrypt (
-                  packet_bytes.data (), packet_bytes.size (),
-                  recipient_identity->GetCryptoPublicKey ());*/
-          enc_packet.edata = sender_identity->Encrypt (
-                  packet_bytes.data (), packet_bytes.size (),
-                  recipient_identity->GetCryptoPublicKey ());
-
-          if (enc_packet.edata.empty ())
-          {
-            email->skip (true);
-            LogPrint (eLogError, "EmailWorker: Send: Encrypted data is empty, skipped");
-            continue;
-          }
-
-          enc_packet.length = enc_packet.edata.size ();
-          enc_packet.alg = sender_identity->GetKeyType ();
-          enc_packet.stored_time = 0;
-
-          LogPrint (eLogDebug, "EmailWorker: Send: enc_packet.edata.size(): ",
-                    enc_packet.edata.size ());
-
-          /// Get hash of data + length for DHT key
-          const size_t data_for_hash_len = 2 + enc_packet.edata.size ();
-          std::vector<uint8_t> data_for_hash
-              = { static_cast<uint8_t> (enc_packet.length >> 8),
-                  static_cast<uint8_t> (enc_packet.length & 0xff) };
-          data_for_hash.insert (data_for_hash.end (),
-                                enc_packet.edata.begin (),
-                                enc_packet.edata.end ());
-
-          SHA256 (data_for_hash.data (), data_for_hash_len, enc_packet.key);
-
-          i2p::data::Tag<32> dht_key (enc_packet.key);
-          LogPrint (eLogDebug, "EmailWorker: Send: dht_key: ",
-                    dht_key.ToBase64 ());
-          email->setField ("X-I2PBote-DHT-Key", dht_key.ToBase64 ());
-          LogPrint (eLogDebug, "EmailWorker: Send: enc_packet.length : ",
-                    enc_packet.length);
-
-          email->setEncrypted (enc_packet);
+          LogPrint (eLogDebug, "EmailWorker: Send: Outbox empty");
+          continue;
         }
 
       /// Store Encrypted Email Packet
-      // ToDo: move to function
       for (const auto &email : outbox)
         {
           if (email->skip ())
-            continue;
+            {
+              LogPrint (eLogDebug, "EmailWorker: Send: Email skipped");
+              continue;
+            }
+
+          // ToDo: Sign before encrypt
+          //email->sign ();
+          email->encrypt ();
+
+          if (email->skip ())
+            {
+              LogPrint (eLogDebug, "EmailWorker: Send: Email skipped");
+              continue;
+            }
 
           pbote::StoreRequestPacket store_packet;
-
-          /// For now, HashCash not checking from Java-Bote side
-          store_packet.hashcash = email->getHashCash ();
-          store_packet.hc_length = store_packet.hashcash.size ();
-          LogPrint (eLogDebug, "EmailWorker: Send: store_packet.hc_length: ",
-                    store_packet.hc_length);
 
           store_packet.length = email->getEncrypted ().toByte ().size ();
           store_packet.data = email->getEncrypted ().toByte ();
           LogPrint (eLogDebug, "EmailWorker: Send: store_packet.length: ",
                     store_packet.length);
+
+          /// For now, HashCash not checking from Java Bote side
+          store_packet.hashcash = email->hashcash ();
+          store_packet.hc_length = store_packet.hashcash.size ();
+          LogPrint (eLogDebug, "EmailWorker: Send: store_packet.hc_length: ",
+                    store_packet.hc_length);
 
           /// Send Store Request with Encrypted Email Packet to nodes
           nodes = DHT_worker.store (
@@ -475,7 +343,7 @@ EmailWorker::sendEmailTask ()
         }
 
       /// Create and store Index Packet
-      // ToDo: move to function
+      // ToDo: move to function?
       for (const auto &email : outbox)
         {
           if (email->skip ())
@@ -483,35 +351,9 @@ EmailWorker::sendEmailTask ()
 
           pbote::IndexPacket new_index_packet;
 
-          // Create recipient
-          // ToDo: re-use from previous step
-          std::shared_ptr<BoteIdentityPublic> recipient_identity;
-          std::string to_address = email->getToAddresses ();
-
-          std::string format_prefix = to_address.substr(0, to_address.find(".") + 1);
-
-          if (format_prefix.compare(ADDRESS_B32_PREFIX) == 0)
-            recipient_identity = parse_address_v1(to_address);
-          else if (format_prefix.compare(ADDRESS_B64_PREFIX) == 0)
-            recipient_identity = parse_address_v1(to_address);
-          else
-            recipient_identity = parse_address_v0(to_address);
-
-          if (recipient_identity == nullptr)
-            {
-              LogPrint (eLogWarning, "EmailWorker: Send: Can't create "
-                        "identity from \"TO\" header, skip mail");
-              email->skip (true);
-              continue;
-            }
-
-          LogPrint (eLogDebug, "EmailWorker: Send: recipient_identity: ",
-                    recipient_identity->ToBase64 ());
-          LogPrint (eLogDebug, "EmailWorker: Send: index recipient hash: ",
-                    recipient_identity->GetIdentHash ().ToBase64 ());
-
+          auto recipient = email->get_recipient ();
           memcpy (new_index_packet.hash,
-                  recipient_identity->GetIdentHash ().data (), 32);
+                  recipient->GetIdentHash ().data (), 32);
 
           // ToDo: for test, need to rewrite
           new_index_packet.nump = 1;
@@ -531,7 +373,7 @@ EmailWorker::sendEmailTask ()
           pbote::StoreRequestPacket store_index_packet;
 
           /// For now it's not checking from Java-Bote side
-          store_index_packet.hashcash = email->getHashCash ();
+          store_index_packet.hashcash = email->hashcash ();
           store_index_packet.hc_length = store_index_packet.hashcash.size ();
           LogPrint (eLogDebug, "EmailWorker: Send: store_index.hc_length: ",
               store_index_packet.hc_length);
@@ -542,7 +384,7 @@ EmailWorker::sendEmailTask ()
           store_index_packet.data = index_packet;
 
           /// Send Store Request with Index Packet to nodes
-          nodes = DHT_worker.store (recipient_identity->GetIdentHash (),
+          nodes = DHT_worker.store (recipient->GetIdentHash (),
                                     new_index_packet.type,
                                     store_index_packet);
 
@@ -560,16 +402,22 @@ EmailWorker::sendEmailTask ()
             }
         }
 
-      // ToDo: move to function
-      for (const auto &email : outbox)
+      auto email_it = outbox.begin ();
+      while (email_it != outbox.end ())
         {
-          if (email->skip ())
-            continue;
+          if ((*email_it)->skip ())
+            {
+              ++email_it;
+              continue;
+            }
 
-          email->setField ("X-I2PBote-Deleted", "false");
+          (*email_it)->setField ("X-I2PBote-Deleted", "false");
           /// Write new metadata before move file to sent
-          email->save ("");
-          email->move ("sent");
+          (*email_it)->save ("");
+          (*email_it)->move ("sent");
+          email_it = outbox.erase(email_it);
+          LogPrint (eLogInfo,
+                    "EmailWorker: Send: Email sent, removed from outbox");
         }
 
       LogPrint (eLogInfo, "EmailWorker: Send: Round complete");
@@ -839,25 +687,38 @@ EmailWorker::loadLocalIncompletePacket ()
   return {};
 }
 
-std::vector<std::shared_ptr<pbote::Email> >
-EmailWorker::checkOutbox ()
+void
+EmailWorker::checkOutbox (v_sp_email &emails)
 {
-  /// outbox - plain text packet
-  // ToDo: encrypt all local stored emails
+  /// outbox contain plain text packets
+  // ToDo: encrypt all local stored emails with master password
   std::string outboxPath = pbote::fs::DataDirPath ("outbox");
   std::vector<std::string> mails_path;
   auto result = pbote::fs::ReadDir (outboxPath, mails_path);
 
   if (!result)
     {
-      LogPrint (eLogDebug, "EmailWorker: checkOutbox: No emails in outbox ");
-      return {};
+      LogPrint (eLogDebug, "EmailWorker: checkOutbox: No emails for sending");
+      return;
     }
 
-  std::vector<std::shared_ptr<pbote::Email> > emails;
+  for (const auto &mail : emails)
+    {
+      /// If we check outbox - we can try to re-send skipped emails
+      mail->skip (false);
+
+      auto path = std::find(mails_path.begin (), mails_path.end (), mail->filename ());
+      if (path != std::end(mails_path))
+        {
+          LogPrint (eLogDebug, "EmailWorker: checkOutbox: Already in outbox: ",
+                    mail->filename ());
+          mails_path.erase (path);
+        }
+    }
 
   for (const auto &mail_path : mails_path)
     {
+
       /// Read mime packet
       std::ifstream file (mail_path, std::ios::binary);
       std::vector<uint8_t> bytes ((std::istreambuf_iterator<char> (file)),
@@ -866,152 +727,99 @@ EmailWorker::checkOutbox ()
 
       pbote::Email mailPacket;
       mailPacket.fromMIME (bytes);
-      mailPacket.bytes ();
 
       if (mailPacket.length () > 0)
-        {
-          LogPrint (eLogDebug,
-                    "EmailWorker: checkOutbox: file loaded: ", mail_path);
-        }
+        LogPrint (eLogDebug,"EmailWorker: checkOutbox: loaded: ", mail_path);
       else
         {
-          LogPrint (eLogWarning,
-                    "EmailWorker: checkOutbox: can't read file: ", mail_path);
+          LogPrint (eLogWarning, "EmailWorker: checkOutbox: can't read: ", mail_path);
           continue;
         }
 
       mailPacket.filename (mail_path);
 
-      /* Check if if FROM and TO fields have valid public names, else
+      /**
+       * Check if FROM and TO fields have valid public names, else
        * Check if <name@domain> in AddressBook for replacement
        * if not found - log warning and skip
        * if replaced - save modified email to file to keep changes
        */
-      // ToDo: need to simplify
+      std::string from_label = mailPacket.get_from_label ();
+      std::string from_address = mailPacket.get_from_address ();
+      std::string to_label = mailPacket.get_to_label();
+      std::string to_address = mailPacket.get_to_addresses();
 
-      std::string from_address = mailPacket.field ("From");
-      std::string to_address = mailPacket.field ("To");
-      if (from_address.empty () || to_address.empty ())
+      LogPrint (eLogDebug,"EmailWorker: checkOutbox: from: ", from_label);
+      LogPrint (eLogDebug,"EmailWorker: checkOutbox: from: ", from_address);
+      LogPrint (eLogDebug,"EmailWorker: checkOutbox: to: ", to_label);
+      LogPrint (eLogDebug,"EmailWorker: checkOutbox: to: ", to_address);
+
+      /// First try to find our identity
+      // ToDo: Anon send
+      if (from_label.empty () || from_address.empty ())
         {
-          LogPrint (eLogWarning,
-                    "EmailWorker: checkOutbox: FROM or TO field are empty");
+          LogPrint (eLogWarning, "EmailWorker: checkOutbox: FROM empty");
           continue;
         }
 
-      //bool changed = false;
-      std::string et_char ("@"), less_char ("<"), more_char (">");
-      size_t from_less_pos = from_address.find (less_char);
-      size_t from_et_pos = from_address.find (et_char);
+      auto label_from_identity = context.identityByName (from_label);
+      auto address_from_identity = context.identityByName (from_address);
 
-      /// Check if we got "@" and "<" it in order "alias <name@domain>"
-      if (from_less_pos != std::string::npos
-          && from_et_pos != std::string::npos
-          && from_less_pos < from_et_pos)
+      if (label_from_identity)
+        mailPacket.set_sender_identity(label_from_identity);
+      else if (address_from_identity)
+        mailPacket.set_sender_identity(address_from_identity);
+      else
         {
-          LogPrint (eLogDebug,
-                    "EmailWorker: checkOutbox: Try to replace FROM: ",
-                    from_address);
-
-          std::string old_from_address = from_address;
-          std::string pub_name = from_address.substr (0, from_less_pos - 1);
-          from_address.erase (0, from_less_pos + 1);
-          from_et_pos = from_address.find (et_char);
-          std::string alias_name = from_address.substr (0, from_et_pos);
-
-          auto pub_from_identity = context.identityByName (pub_name);
-          auto alias_from_identity = context.identityByName (alias_name);
-          if (!pub_from_identity && !alias_from_identity)
-            {
-              LogPrint (eLogWarning,
-                        "EmailWorker: checkOutbox: Can't find address for name: ",
-                        pub_name, ", alias: ", alias_name);
-              continue;
-            }
-          std::string new_from;
-          if (pub_from_identity)
-            {
-              std::string pub_str = pub_from_identity->full_key.substr (0, 86);
-              new_from.append (pub_from_identity->publicName + " <"
-                               + pub_str + ">");
-            }
-          else if (alias_from_identity)
-            {
-              std::string alias_str
-                = alias_from_identity->full_key.substr (0, 86);
-              new_from.append (alias_from_identity->publicName + " <"
-                               + alias_str + ">");
-            }
-          else
-            {
-              LogPrint (eLogError,
-                        "EmailWorker: checkOutbox: Unknown error, name: ",
-                        pub_name, ", alias: ", alias_name);
-              continue;
-            }
-          LogPrint (eLogDebug,
-                    "EmailWorker: checkOutbox: FROM replaced, old: ",
-                    old_from_address, ", new: ", new_from);
-          mailPacket.setField ("From", new_from);
-          //changed = true;
+          LogPrint (eLogError, "EmailWorker: checkOutbox: Unknown, label: ",
+                    from_label, ", address: ", from_address);
+          mailPacket.set_sender_identity(nullptr);
+          continue;
         }
 
-      // Now replace TO
-      size_t to_less_pos = to_address.find (less_char);
-      size_t to_et_pos = to_address.find (et_char);
-      size_t to_more_pos = to_address.find (more_char);
-      /// Check if we got "@" and "<" it in order "alias <name@domain>"
-      if (to_less_pos != std::string::npos
-          && to_et_pos != std::string::npos
-          && to_less_pos < to_et_pos)
+      // Now we can try to set correct TO field
+      if (to_label.empty () || to_address.empty ())
         {
-          LogPrint (eLogDebug,
-                    "EmailWorker: checkOutbox: Try to replace TO: ", to_address);
+          LogPrint (eLogWarning, "EmailWorker: checkOutbox: TO empty");
+          continue;
+        }
 
-          std::string old_to_address = to_address;
-          std::string pub_name = to_address.substr (0, to_less_pos - 1);
-          to_address.erase (0, to_less_pos + 1);
-          //to_et_pos = to_address.find (et_char);
-          //std::string alias_name = to_address.substr (0, to_et_pos);
-          to_more_pos = to_address.find (more_char);
-          std::string alias_name = to_address.substr (0, to_more_pos);
+      std::string old_to_address = mailPacket.field("To");
 
-          LogPrint (eLogDebug,
-                    "EmailWorker: checkOutbox: pub_name  : ", pub_name);
-          LogPrint (eLogDebug,
-                    "EmailWorker: checkOutbox: alias_name: ", alias_name);
+      auto label_to_address = context.address_for_name (to_label);
+      auto address_to_address = context.address_for_alias (to_address);
 
-          auto pub_to_address = context.address_for_name (pub_name);
-          auto alias_to_address = context.address_for_alias (alias_name);
+      std::string new_to, b_dest;
 
-          if (pub_to_address.empty () && alias_to_address.empty ())
-            {
-              LogPrint (eLogWarning,
-                        "EmailWorker: checkOutbox: Can't find address for ",
-                        to_address);
-              continue;
-            }
+      if (!label_to_address.empty ())
+        {
+          new_to.append (to_label + " <" + label_to_address + ">");
+          b_dest = label_to_address;
+        }
+      else if (!address_to_address.empty ())
+        {
+          new_to.append (to_label + " <" + address_to_address + ">");
+          b_dest = address_to_address;
+        }
+      else
+        {
+          LogPrint (eLogWarning, "EmailWorker: checkOutbox: Can't find ",
+                    to_address, ", try to use as is");
+          to_address = mailPacket.get_to_mailbox ();
+          new_to.append (to_label + " <" + to_address + ">");
+          b_dest = to_address;
+        }
 
-          std::string new_to;
-          if (!pub_to_address.empty ())
-            {
-              new_to.append (pub_name + " <" + pub_to_address + ">");
-            }
-          else if (!alias_to_address.empty ())
-            {
-              new_to.append (alias_name + " <" + alias_to_address + ">");
-            }
-          else
-            {
-              LogPrint (eLogError,
-                        "EmailWorker: checkOutbox: Unknown error, name: ",
-                        pub_name, ", alias: ", alias_name);
-              continue;
-            }
-          LogPrint (eLogDebug,
-                    "EmailWorker: checkOutbox: TO replaced, old: ",
-                    old_to_address, ", new: ", new_to);
-          mailPacket.setField ("To", new_to);
-          //changed = true;
+      LogPrint (eLogDebug,"EmailWorker: checkOutbox: TO replaced, old: ",
+                old_to_address, ", new: ", new_to);
+
+      mailPacket.set_to (new_to);
+      mailPacket.set_recipient_identity(b_dest);
+
+      if (mailPacket.skip ())
+        {
+          LogPrint (eLogDebug,"EmailWorker: checkOutbox: Email skipped");
+          continue;
         }
 
       /// On this step will be generated Message-ID and
@@ -1019,24 +827,32 @@ EmailWorker::checkOutbox ()
       ///   on the next loading (if first attempt failed)
       mailPacket.compose ();
       mailPacket.save ("");
+      mailPacket.bytes ();
 
-      // ToDo: compress to gzip for 25519 address (pboted)
-      // ToDo: don't forget, for tests sent uncompressed
+      auto recipient = mailPacket.get_recipient ();
+
+      if (!recipient)
+        {
+          LogPrint (eLogError,"EmailWorker: checkOutbox: Recipient error");
+          continue;
+        }
+
+      if (recipient->GetKeyType () == KEY_TYPE_X25519_ED25519_SHA512_AES256CBC)
+        mailPacket.compress (pbote::Email::CompressionAlgorithm::ZLIB);
+      else
+        mailPacket.compress (pbote::Email::CompressionAlgorithm::UNCOMPRESSED);
+
       // ToDo: slice big packet after compress
-      mailPacket.compress (pbote::Email::CompressionAlgorithm::UNCOMPRESSED);
 
       if (!mailPacket.empty ())
-        {
-          emails.push_back (std::make_shared<pbote::Email> (mailPacket));
-        }
+        emails.push_back (std::make_shared<pbote::Email> (mailPacket));
     }
 
-  LogPrint (eLogDebug, "EmailWorker: checkOutbox: Got ", emails.size ()
-            , " email(s)");
-  return emails;
+  LogPrint (eLogInfo, "EmailWorker: checkOutbox: Got ", emails.size (),
+            " email(s)");
 }
 
-std::vector<std::shared_ptr<pbote::Email> >
+v_sp_email
 EmailWorker::check_inbox ()
 {
   // ToDo: encrypt all local stored emails
@@ -1044,7 +860,7 @@ EmailWorker::check_inbox ()
   std::vector<std::string> mails_path;
   auto result = pbote::fs::ReadDir (outboxPath, mails_path);
 
-  std::vector<std::shared_ptr<pbote::Email> > emails;
+  v_sp_email emails;
 
   if (result)
     {
@@ -1147,111 +963,6 @@ EmailWorker::check_thread_exist (const std::string &identity_name)
     return true;
 
   return false;
-}
-
-std::shared_ptr<BoteIdentityPublic>
-EmailWorker::parse_address_v0(std::string address)
-{
-  BoteIdentityPublic identity;
-  size_t base64_key_len = 0, offset = 0;
-
-  if (address.length() == ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH)
-    {
-      identity = BoteIdentityPublic(KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
-      base64_key_len = ECDH256_ECDSA256_PUBLIC_BASE64_LENGTH / 2;
-    }
-  else if (address.length() == ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH)
-    {
-      identity = BoteIdentityPublic(KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC);
-      base64_key_len = ECDH521_ECDSA521_PUBLIC_BASE64_LENGTH / 2;
-    }
-  else
-    {
-      LogPrint(eLogWarning, "EmailWorker: parse_address_v0: Unsupported identity type");
-      return nullptr;
-    }
-
-  // Restore keys
-  std::string cryptoPublicKey = "A" + address.substr(offset, (base64_key_len));
-  offset += (base64_key_len);
-  std::string signingPublicKey = "A" + address.substr(offset, (base64_key_len));
-
-  std::string restored_identity_str;
-  restored_identity_str.append(cryptoPublicKey);
-  restored_identity_str.append(signingPublicKey);
-
-  identity.FromBase64(restored_identity_str);
-
-  LogPrint(eLogDebug, "EmailWorker: parse_address_v0: identity.ToBase64: ",
-           identity.ToBase64());
-  LogPrint(eLogDebug, "EmailWorker: parse_address_v0: idenhash.ToBase64: ",
-           identity.GetIdentHash().ToBase64());
-
-  return std::make_shared<BoteIdentityPublic>(identity);
-}
-
-std::shared_ptr<BoteIdentityPublic>
-EmailWorker::parse_address_v1(std::string address)
-{
-  BoteIdentityPublic identity;
-  std::string format_prefix = address.substr (0, address.find (".") + 1);
-  std::string base_str = address.substr (format_prefix.length ());
-  // ToDo: Define length from base32/64
-  uint8_t identity_bytes[2048];
-  size_t identity_len = 0;
-
-  if (format_prefix.compare (ADDRESS_B32_PREFIX) == 0)
-    identity_len = i2p::data::Base32ToByteStream (base_str.c_str (), base_str.length (), identity_bytes, 2048);
-  else if (format_prefix.compare (ADDRESS_B64_PREFIX) == 0)
-    identity_len = i2p::data::Base64ToByteStream (base_str.c_str (), base_str.length (), identity_bytes, 2048);
-  else
-    return nullptr;
-
-  if (identity_len < 5)
-    {
-      LogPrint (eLogError, "identitiesStorage: parse_identity_v1: Malformed address");
-      return nullptr;
-    }
-
-  if (identity_bytes[0] != ADDRES_FORMAT_V1)
-    {
-      LogPrint (eLogError, "identitiesStorage: parse_identity_v1: Unsupported address format");
-      return nullptr;
-    }
-
-  if (identity_bytes[1] == CRYP_TYPE_ECDH256 &&
-      identity_bytes[2] == SIGN_TYPE_ECDH256 &&
-      identity_bytes[3] == SYMM_TYPE_AES_256 &&
-      identity_bytes[4] == HASH_TYPE_SHA_256)
-    {
-      identity = BoteIdentityPublic(KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
-    }
-  else if (identity_bytes[1] == CRYP_TYPE_ECDH521 &&
-           identity_bytes[2] == SIGN_TYPE_ECDH521 &&
-           identity_bytes[3] == SYMM_TYPE_AES_256 &&
-           identity_bytes[4] == HASH_TYPE_SHA_512)
-    {
-      identity = BoteIdentityPublic(KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC);
-    }
-  else if (identity_bytes[1] == CRYP_TYPE_X25519 &&
-           identity_bytes[2] == SIGN_TYPE_ED25519 &&
-           identity_bytes[3] == SYMM_TYPE_AES_256 &&
-           identity_bytes[4] == HASH_TYPE_SHA_512)
-    {
-      identity = BoteIdentityPublic(KEY_TYPE_X25519_ED25519_SHA512_AES256CBC);
-    }
-
-  size_t len = identity.FromBuffer(identity_bytes + 5, identity_len);
-
-  if (len == 0)
-    return nullptr;
-
-  LogPrint(eLogDebug, "identitiesStorage: parse_identity_v1: identity.ToBase64: ",
-           identity.ToBase64());
-  LogPrint(eLogDebug, "identitiesStorage: parse_identity_v1: idenhash.ToBase64: ",
-           identity.GetIdentHash().ToBase64());
-
-  return std::make_shared<BoteIdentityPublic>(identity);
 }
 
 } // namespace kademlia
