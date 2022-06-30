@@ -24,17 +24,22 @@ namespace kademlia
 void
 DHTStorage::update ()
 {
-  /// There is no need to check this too often
+  /// There is no need to check it too often
   if (update_counter > 20)
   {
     index_mutex.lock ();
     email_mutex.lock ();
     contact_mutex.lock ();
 
-    remove_old_packets ();
-    remove_old_entries ();
+    /// Only in case if we have less than 10 MiB of free space
+    if (limit_reached (10485760))
+      {
+        remove_old_packets ();
+        remove_old_entries ();
+      }
+
     update_counter = 0;
-    
+
     LogPrint (eLogDebug, "DHTStorage: update: ",
              " index: ", local_index_packets.size (),
              ", emails: ", local_email_packets.size (),
@@ -438,7 +443,7 @@ DHTStorage::clean_index(i2p::data::Tag<32> key, int32_t current_timestamp)
           ++it;
           continue;
         }
-      
+
       i2p::data::Tag<32> entry_key(it->key);
       it = index_packet.data.erase(it);
       LogPrint(eLogDebug, "DHTStorage: clean_index: Old record removed: ", entry_key.ToBase64());
@@ -603,8 +608,6 @@ DHTStorage::update_storage_usage()
           if (!boost::filesystem::is_directory(*it))
             used += boost::filesystem::file_size(*it);
         }
-      /*LogPrint(eLogDebug, "DHTStorage: update_storage_usage: directory: ",
-             dir, ", used: ", used);*/
     }
 }
 
@@ -641,7 +644,7 @@ DHTStorage::remove_old_packets()
 
       std::ifstream file(path, std::ifstream::binary);
       if (file.is_open())
-        { 
+        {
           LogPrint(eLogDebug, "DHTStorage: remove_old_packets: opened file ", path);
           file.read(reinterpret_cast<char*>(bytes), 38);
           file.close();
