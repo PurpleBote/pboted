@@ -82,8 +82,7 @@ class DHTStorage {
   void remove_old_packets();
   void remove_old_entries();
 
-  size_t limit;
-  size_t used;
+  size_t limit, used;
   int update_counter;
 
   std::mutex index_mutex, email_mutex, contact_mutex;

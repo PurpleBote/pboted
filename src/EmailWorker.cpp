@@ -270,7 +270,8 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
 void
 EmailWorker::incompleteEmailTask ()
 {
-  // ToDo: need to implement for multipart mail packets
+  // ToDo: need to implement
+  //   for multipart mail packets
 }
 
 void
@@ -324,22 +325,20 @@ EmailWorker::sendEmailTask ()
                     store_packet.hc_length);
 
           /// Send Store Request with Encrypted Email Packet to nodes
-          nodes = DHT_worker.store (
-              i2p::data::Tag<32> (email->getEncrypted ().key),
-              email->getEncrypted ().type, store_packet);
+          i2p::data::Tag<32> email_dht_key (email->getEncrypted ().key);
+          nodes = DHT_worker.store (email_dht_key, DataE, store_packet);
 
           /// If have no OK store responses - mark message as skipped
           if (nodes.empty ())
             {
               email->skip (true);
               LogPrint (eLogWarning, "EmailWorker: Send: email not sent");
+              continue;
             }
-          else
-            {
-              DHT_worker.safe (email->getEncrypted ().toByte ());
-              LogPrint (eLogDebug, "EmailWorker: Send: Email sent to ",
-                        nodes.size (), " node(s)");
-            }
+
+          DHT_worker.safe (email->getEncrypted ().toByte ());
+          LogPrint (eLogDebug, "EmailWorker: Send: Email sent to ",
+                    nodes.size (), " node(s)");
         }
 
       /// Create and store Index Packet
@@ -393,13 +392,12 @@ EmailWorker::sendEmailTask ()
             {
               email->skip (true);
               LogPrint (eLogWarning, "EmailWorker: Send: Index not sent");
+              continue;
             }
-          else
-            {
-              DHT_worker.safe (new_index_packet.toByte ());
-              LogPrint (eLogDebug, "EmailWorker: Send: Index send to ",
-                        nodes.size (), " node(s)");
-            }
+
+          DHT_worker.safe (new_index_packet.toByte ());
+          LogPrint (eLogDebug, "EmailWorker: Send: Index send to ",
+                    nodes.size (), " node(s)");
         }
 
       auto email_it = outbox.begin ();

@@ -34,7 +34,12 @@ namespace kademlia
 #define BIT_SIZE 256
 
 /// Number of redundant storage nodes
-#define KADEMLIA_CONSTANT_K 20
+// ToDo: chnge to 20 on release 0.9.0
+#ifdef NDEBUG
+#define KADEMLIA_CONSTANT_K 4
+#else
+#define KADEMLIA_CONSTANT_K 2
+#endif // NDEBUG
 
 /// The size of the sibling list for S/Kademlia
 #define KADEMLIA_CONSTANT_S 100
@@ -74,6 +79,8 @@ namespace kademlia
 #endif // NDEBUG
 
 #define DEFAULT_NODE_FILE_NAME "nodes.txt"
+
+using batch_comm_packet = pbote::PacketBatch<pbote::CommunicationPacket>;
 
 /**
  * Terms:
@@ -272,7 +279,7 @@ private:
   {
     return started_;
   };
-  
+
   static bool
   isHealthy ()
   {
@@ -294,7 +301,7 @@ private:
 
 extern DHTworker DHT_worker;
 
-}
-}
+} // kademlia
+} // pbote
 
 #endif // PBOTE_DHT_WORKER_H_

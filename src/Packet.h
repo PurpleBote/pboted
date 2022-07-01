@@ -778,7 +778,7 @@ struct ResponsePacket : public CleanCommunicationPacket
 public:
   ResponsePacket () : CleanCommunicationPacket (CommN) {}
 
-  StatusCode status{};
+  StatusCode status{StatusCode::OK};
   uint16_t length{};
   // 'I' = Index Packet
   // 'C' = Directory Entry
@@ -789,13 +789,26 @@ public:
   bool
   fromBuffer (uint8_t *buf, size_t len, bool from_net)
   {
-    /// 3 cause status[1] + length[2]
-    if (len < 3)
-      return false;
+    /// Because prefix[4] + type[1] + ver[1] + CID[32] == 38 byte
+    /// Because 38 + status[1] + length[2] = 41
+    if (len < 41)
+      {
+        LogPrint (eLogWarning,
+                  "Packet: N: fromBuffer: Payload is too short: ", len);
+        return false;
+      }
+    /// Skipping prefix
+    uint16_t offset = 4;
+    /// Start basic part
+    std::memcpy (&type, buf + offset, 1);
+    offset += 1;
+    std::memcpy (&ver, buf + offset, 1);
+    offset += 1;
+    std::memcpy (&cid, buf + offset, 32);
+    offset += 32;
+    /// End basic part
 
-    size_t offset = 0;
-
-    std::memcpy (&status, buf, 1);
+    std::memcpy (&status, buf + offset, 1);
     offset += 1;
     std::memcpy (&length, buf + offset, 2);
     offset += 2;
@@ -814,6 +827,46 @@ public:
     return true;
   }
 
+  bool
+  from_comm_packet (pbote::CommunicationPacket packet, bool from_net)
+  {
+    /// Because  status[1] + length[2] = 3
+    if (packet.payload.size () < 3)
+      {
+        LogPrint (eLogWarning,
+                  "Packet: N: from_comm_packet: Payload is too short: ",
+                  packet.payload.size ());
+        return false;
+      }
+    
+    /// Start basic part
+    std::memcpy (&type, &packet.type, 1);
+    std::memcpy (&ver, &packet.ver, 1);
+    std::memcpy (&cid, &packet.cid, 32);
+    /// End basic part
+
+    uint16_t offset = 0;
+    std::memcpy (&status, packet.payload.data () + offset, 1);
+    offset += 1;
+    std::memcpy (&length, packet.payload.data () + offset, 2);
+    offset += 2;
+
+    if (from_net)
+      length = ntohs (length);
+
+    /// If not OK - packet without payload, stop now
+    if (status != StatusCode::OK)
+      return true;
+
+    if (length == 0)
+      return true;
+
+    data = std::vector<uint8_t> (packet.payload.data () + offset,
+                                 packet.payload.data () + offset + length);
+
+    return true;
+  }
+
   std::vector<uint8_t>
   toByte ()
   {
@@ -826,8 +879,11 @@ public:
 
     result.push_back (status);
 
-    uint8_t v_length[2] = { static_cast<uint8_t> (length >> 8),
-                            static_cast<uint8_t> (length & 0xff) };
+    //uint8_t v_length[2] = { static_cast<uint8_t> (length >> 8),
+    //                        static_cast<uint8_t> (length & 0xff) };
+    uint16_t n_length = htons (length);
+    uint8_t v_length[2];
+    memcpy(v_length, &n_length, 2);
     result.insert (result.end (), std::begin (v_length), std::end (v_length));
 
     if (length > 0)
@@ -915,6 +971,47 @@ public:
   uint16_t length{};
   std::vector<uint8_t> data;
 
+  bool
+  from_comm_packet (pbote::CommunicationPacket packet, bool from_net)
+  {
+    /// Because  hc_length[2] + length[2] = 4
+    if (packet.payload.size () < 4)
+      {
+        LogPrint (eLogWarning,
+                  "Packet: S: from_comm_packet: Payload is too short: ",
+                  packet.payload.size ());
+        return false;
+      }
+    
+    /// Start basic part
+    std::memcpy (&type, &packet.type, 1);
+    std::memcpy (&ver, &packet.ver, 1);
+    std::memcpy (&cid, &packet.cid, 32);
+    /// End basic part
+
+    uint16_t offset = 0;
+    std::memcpy (&hc_length, packet.payload.data () + offset, 2);
+    offset += 2;
+
+    if (from_net)
+      hc_length = ntohl (hc_length);
+
+    hashcash = std::vector<uint8_t> (packet.payload.data () + offset,
+                                     packet.payload.data () + offset + hc_length);
+    offset += hc_length;
+    
+    std::memcpy (&length, packet.payload.data () + offset, 2);
+    offset += 2;
+
+    if (from_net)
+      length = ntohs (length);
+
+    data = std::vector<uint8_t> (packet.payload.data () + offset,
+                                 packet.payload.data () + offset + length);
+
+    return true;
+  }
+
   std::vector<uint8_t>
   toByte ()
   {
@@ -953,9 +1050,11 @@ public:
   fromBuffer (uint8_t *buf, size_t len, bool from_net)
   {
     /// Because prefix[4] + type[1] + ver[1] + CID[32] == 38 byte
-    if (len < 38)
+    /// 38 + key[32] + DA[32] = 102
+    if (len < 102)
       {
-        LogPrint (eLogWarning, "Packet: D: fromBuffer: Payload is too short");
+        LogPrint (eLogWarning,
+                  "Packet: D: fromBuffer: Payload is too short: ", len);
         return false;
       }
 
@@ -973,6 +1072,34 @@ public:
     std::memcpy (&key, buf + offset, 32);
     offset += 32;
     std::memcpy (&DA, buf + offset, 32);
+    // offset += 32;
+    return true;
+  }
+
+  bool
+  from_comm_packet (pbote::CommunicationPacket packet)
+  {
+    /// Because  key[32] + DA[32] = 64
+    if (packet.payload.size () < 64)
+      {
+        LogPrint (eLogWarning,
+                  "Packet: D: from_comm_packet: Payload is too short: ",
+                  packet.payload.size ());
+        return false;
+      }
+
+    /// Skipping prefix
+    
+    /// Start basic part
+    std::memcpy (&type, &packet.type, 1);
+    std::memcpy (&ver, &packet.ver, 1);
+    std::memcpy (&cid, &packet.cid, 32);
+    /// End basic part
+
+    uint16_t offset = 0;
+    std::memcpy (&key, packet.payload.data () + offset, 32);
+    offset += 32;
+    std::memcpy (&DA, packet.payload.data () + offset, 32);
     // offset += 32;
     return true;
   }
@@ -1013,9 +1140,11 @@ public:
   fromBuffer (uint8_t *buf, size_t len, bool from_net)
   {
     /// Because prefix[4] + type[1] + ver[1] + CID[32] == 38 byte
-    if (len < 38)
+    /// 38 + count[1] + dht_key[32] + item[64] = 135 for min 1 item
+    if (len < 135)
       {
-        LogPrint (eLogWarning, "Packet: X: fromBuffer: Payload is too short");
+        LogPrint (eLogWarning,
+                  "Packet: X: fromBuffer: Payload is too short: ", len);
         return false;
       }
 
@@ -1032,7 +1161,7 @@ public:
 
     std::memcpy (&dht_key, buf + offset, 32);
     offset += 32;
-    std::memcpy (&count, buf + offset + offset, 1);
+    std::memcpy (&count, buf + offset, 1);
     offset += 1;
 
     for (uint32_t i = 0; i < count; i++)
@@ -1048,6 +1177,59 @@ public:
         offset += 32;
         i2p::data::Tag<32> da (item.da);
         LogPrint (eLogDebug, "Packet: X: fromBuffer: mail da: ",
+                  da.ToBase64 ());
+
+        data.push_back (item);
+      }
+
+    return true;
+  }
+
+  bool
+  from_comm_packet (pbote::CommunicationPacket packet)
+  {
+    /// Because count[1] + dht_key[32] + item[64] = 97
+    if (packet.payload.size () < 97)
+      {
+        LogPrint (eLogWarning,
+                  "Packet: X: from_comm_packet: Payload is too short: ",
+                  packet.payload.size ());
+        return false;
+      }
+    
+    /// Start basic part
+    std::memcpy (&type, &packet.type, 1);
+    std::memcpy (&ver, &packet.ver, 1);
+    std::memcpy (&cid, &packet.cid, 32);
+    /// End basic part
+
+    uint16_t offset = 0;
+    std::memcpy (&dht_key, packet.payload.data () + offset, 32);
+    offset += 32;
+    std::memcpy (&count, packet.payload.data () + offset, 1);
+    offset += 1;
+
+    if (packet.payload.size () < (size_t)(33 + (64 * count)))
+      {
+        LogPrint (eLogWarning,
+                  "Packet: X: from_comm_packet: Payload is too short: ",
+                  packet.payload.size ());
+        return false;
+      }
+
+    for (uint32_t i = 0; i < count; i++)
+      {
+        pbote::IndexDeleteRequestPacket::item item = {};
+        std::memcpy (&item.key, packet.payload.data () + offset, 32);
+        offset += 32;
+        i2p::data::Tag<32> key (item.key);
+        LogPrint (eLogDebug, "Packet: X: from_comm_packet: mail key: ",
+                  key.ToBase64 ());
+
+        std::memcpy (&item.da, packet.payload.data () + offset, 32);
+        offset += 32;
+        i2p::data::Tag<32> da (item.da);
+        LogPrint (eLogDebug, "Packet: X: from_comm_packet: mail da: ",
                   da.ToBase64 ());
 
         data.push_back (item);

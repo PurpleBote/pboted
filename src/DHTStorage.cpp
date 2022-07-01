@@ -597,7 +597,11 @@ void
 DHTStorage::update_storage_usage()
 {
   std::vector<std::string> dirs = {"DHTindex", "DHTemail", "DHTdirectory"};
-  used = 0;
+  size_t new_used = 0;
+
+  //index_mutex.lock ();
+  //email_mutex.lock ();
+  //contact_mutex.lock ();
 
   for (const auto& dir : dirs)
     {
@@ -606,9 +610,15 @@ DHTStorage::update_storage_usage()
            it != boost::filesystem::recursive_directory_iterator(); ++it)
         {
           if (!boost::filesystem::is_directory(*it))
-            used += boost::filesystem::file_size(*it);
+            new_used += boost::filesystem::file_size(*it);
         }
     }
+
+  used = new_used;
+
+  //index_mutex.unlock ();
+  //email_mutex.unlock ();
+  //contact_mutex.unlock ();
 }
 
 void

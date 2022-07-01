@@ -247,8 +247,7 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
   LogPrint (eLogDebug, "DHT: find: Start for type: ", type,
             ", key: ", key.ToBase64 ());
 
-  auto batch
-      = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
+  auto batch = std::make_shared<batch_comm_packet> ();
   batch->owner = "DHT::find";
 
   std::vector<sp_node> closestNodes = closestNodesLookupTask (key);
@@ -324,8 +323,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
   LogPrint (eLogDebug, "DHT: store: Start for type: ", type,
             ", key: ", hash.ToBase64 ());
 
-  auto batch
-      = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
+  auto batch = std::make_shared<batch_comm_packet> ();
   batch->owner = "DHT::store";
 
   std::vector<sp_node> closestNodes = closestNodesLookupTask (hash);
@@ -369,7 +367,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 
   int counter = 0;
 
-  while (batch->responseCount () < 1 && counter < 5)
+  while (batch->responseCount () < KADEMLIA_CONSTANT_K && counter < 5)
     {
       LogPrint (eLogWarning, "DHT: store: No responses, resend: #", counter);
       context.removeBatch (batch);
@@ -395,16 +393,27 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
   for (const auto &response : responses)
     {
       ResponsePacket response_packet = {};
-      if (response_packet.fromBuffer (response->payload.data (),
-                                      response->payload.size (), true))
+      //bool parsed = response_packet.fromBuffer (response->payload.data (),
+      //                                          response->payload.size (),
+      //                                          true);
+      bool parsed = response_packet.from_comm_packet (*response, true);
+      if (!parsed)
         {
-          LogPrint (eLogDebug, "DHT: store: Response status ",
-                    statusToString (response_packet.status));
-          if (response_packet.status == StatusCode::OK
-              || response_packet.status == StatusCode::DUPLICATED_DATA)
-            result.push_back (response->from);
+          LogPrint (eLogWarning, "DHT: store: Can't parse response");
+          continue;
+        }
+
+      LogPrint (eLogDebug, "DHT: store: Response status ",
+                statusToString (response_packet.status));
+
+      if (response_packet.status == StatusCode::OK ||
+          response_packet.status == StatusCode::DUPLICATED_DATA)
+        {
+          result.push_back (response->from);
         }
     }
+
+  LogPrint (eLogDebug, "DHT: store: Got ", result.size (), " responses");
 
   return result;
 }
@@ -422,8 +431,7 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
         hash.ToBase64 ());
     }
 
-  auto batch
-      = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
+  auto batch = std::make_shared<batch_comm_packet> ();
   batch->owner = "DHTworker::deleteEmail";
 
   std::vector<sp_node> closestNodes = closestNodesLookupTask (hash);
@@ -468,7 +476,7 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
   batch->waitLast (RESPONSE_TIMEOUT);
 
   int counter = 0;
-  while (batch->responseCount () < 1 && counter < 5)
+  while (batch->responseCount () < 1 && counter <= 5)
     {
       LogPrint (eLogWarning, "DHT: deleteEmail: No responses, resend: #",
                 counter);
@@ -509,8 +517,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
         index_dht_key.ToBase64 ());
     }
 
-  auto batch
-      = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
+  auto batch = std::make_shared<batch_comm_packet> ();
   batch->owner = "DHTworker::deleteIndexEntry";
 
   std::vector<sp_node> closestNodes = closestNodesLookupTask (index_dht_key);
@@ -596,10 +603,9 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
 std::vector<sp_node>
 DHTworker::closestNodesLookupTask (HashKey key)
 {
-  check_closest_mutex.lock ();
+  //check_closest_mutex.lock ();
 
-  auto batch
-      = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
+  auto batch = std::make_shared<batch_comm_packet> ();
   batch->owner = "DHT::closestNodesLookup";
 
   std::map<HashKey, sp_node> closestNodes;
@@ -685,16 +691,16 @@ DHTworker::closestNodesLookupTask (HashKey key)
         {
           // ToDo: Looks like in case if we got request to ourself,
           // for now we just skip it
-          LogPrint (
-              eLogWarning,
-              "DHT: closestNodesLookup: Got non-response packet, type: ",
-              response->type, ", ver: ", unsigned (response->ver));
+          LogPrint (eLogWarning,
+                    "DHT: closestNodesLookup: Got non-response packet, type: ",
+                    response->type, ", ver: ", unsigned (response->ver));
           continue;
         }
 
       pbote::ResponsePacket packet;
-      bool parsed = packet.fromBuffer (response->payload.data (),
-                                       response->payload.size (), true);
+      //bool parsed = packet.fromBuffer (response->payload.data (),
+      //                                 response->payload.size (), true);
+      bool parsed = packet.from_comm_packet (*response, true);
       if (!parsed)
         {
           LogPrint (eLogWarning, "DHT: closestNodesLookup: Payload is too "
@@ -704,8 +710,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
 
       if (packet.status != StatusCode::OK)
         {
-          LogPrint (eLogWarning,
-                    "DHT: closestNodesLookup: Response status: ",
+          LogPrint (eLogWarning, "DHT: closestNodesLookup: Response status: ",
                     statusToString (packet.status));
           continue;
         }
@@ -752,25 +757,6 @@ DHTworker::closestNodesLookupTask (HashKey key)
     }
   /// If there are no more requests to send and
   /// no more responses to wait for - we're finished
-
-  /// If we have node locally and it's locked - remove it from list
-  /*size_t locked_counter = 0;
-  auto node_itr = closestNodes.begin ();
-  while (node_itr != closestNodes.end ())
-    {
-      auto known_node = findNode (node_itr->second->GetIdentHash ());
-      if (known_node && known_node->locked ())
-        {
-          node_itr = closestNodes.erase (node_itr);
-          locked_counter++;
-        }
-      else
-        ++node_itr;
-    }
-
-  LogPrint (eLogDebug, "DHT: closestNodesLookup: Removed locked node(s): ",
-            locked_counter);*/
-
   std::vector<sp_node> result;
   for (auto node : closestNodes)
     result.push_back (node.second);
@@ -780,13 +766,31 @@ DHTworker::closestNodesLookupTask (HashKey key)
   /// Now we can lock nodes
   calc_locks (responses);
 
+  /// If the node is in the received list - the answering node has it unlocked
+  /// If we have node locally and it's locked - unlock it
+  size_t unlocked_counter = 0;
+  auto node_itr = closestNodes.begin ();
+  while (node_itr != closestNodes.end ())
+    {
+      auto known_node = findNode (node_itr->second->GetIdentHash ());
+      if (known_node && known_node->locked ())
+        {
+          known_node->gotResponse ();
+          unlocked_counter++;
+        }
+      ++node_itr;
+    }
+
+  LogPrint (eLogDebug, "DHT: closestNodesLookup: Unlocked node(s): ",
+            unlocked_counter);
+
   for (const auto &node : closestNodes)
     addNode (node.second->ToBase64 ());
 
-  LogPrint (eLogDebug, "DHT: closestNodesLookup: finished, count: ",
+  LogPrint (eLogDebug, "DHT: closestNodesLookup: Finished, count: ",
             result.size ());
 
-  check_closest_mutex.unlock ();
+  //check_closest_mutex.unlock ();
 
   return result;
 }
@@ -1103,8 +1107,22 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
   if (addNode (packet->from))
     LogPrint (eLogDebug, "DHT: StoreRequest: Sender added to list");
 
-  uint16_t offset = 0;
-  StoreRequestPacket new_packet;
+  StoreRequestPacket store_packet;
+
+  pbote::ResponsePacket response;
+  memcpy (response.cid, store_packet.cid, 32);
+  response.length = 0;
+
+  bool parsed = store_packet.from_comm_packet (*packet, true);
+  if (!parsed)
+    {
+      LogPrint (eLogWarning, "DHT: receiveStoreRequest: Can't parse");
+      response.status = pbote::StatusCode::INVALID_PACKET;
+    }
+
+  /*
+  //uint16_t offset = 0;
+  //StoreRequestPacket new_packet;
 
   std::memcpy (&new_packet.cid, packet->cid, 32);
   std::memcpy (&new_packet.hc_length, packet->payload.data (), 2);
@@ -1132,15 +1150,16 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
   pbote::ResponsePacket response;
   memcpy (response.cid, packet->cid, 32);
   response.length = 0;
+  */
 
-  if ((new_packet.data[0] == (uint8_t)'I' ||
-       new_packet.data[0] == (uint8_t)'E' ||
-       new_packet.data[0] == (uint8_t)'C') &&
-      new_packet.data[1] == 4)
+  if ((store_packet.data[0] == (uint8_t)'I' ||
+       store_packet.data[0] == (uint8_t)'E' ||
+       store_packet.data[0] == (uint8_t)'C') &&
+      store_packet.data[1] >= 4 && parsed)
     {
       bool prev_status = true;
 
-      if (dht_storage_.limit_reached (new_packet.data.size ()))
+      if (dht_storage_.limit_reached (store_packet.data.size ()))
         {
           LogPrint (eLogWarning, "DHT: StoreRequest: Storage limit reached");
           response.status = pbote::StatusCode::NO_DISK_SPACE;
@@ -1156,7 +1175,7 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
       int save_status = 0;
 
       if (prev_status)
-        save_status = dht_storage_.safe (new_packet.data);
+        save_status = dht_storage_.safe (store_packet.data);
 
       if (prev_status && save_status == STORE_SUCCESS)
         {
@@ -1176,11 +1195,12 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
   else
     {
       LogPrint (eLogWarning, "DHT: StoreRequest: Unsupported packet, type: ",
-                new_packet.data[0], ", ver: ", unsigned (new_packet.data[1]));
+                store_packet.data[0], ", ver: ", unsigned (store_packet.data[1]));
       response.status = pbote::StatusCode::INVALID_PACKET;
     }
 
-  LogPrint (eLogWarning, "DHT: StoreRequest: Send status: ", statusToString (response.status));
+  LogPrint (eLogWarning, "DHT: StoreRequest: Send status: ",
+            statusToString (response.status));
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
   context.send (q_packet);
@@ -1206,8 +1226,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
   response.length = 0;
 
   pbote::EmailDeleteRequestPacket delete_packet{};
-  bool parsed = delete_packet.fromBuffer (packet->payload.data (),
-                            packet->payload.size (), true);
+  bool parsed = delete_packet.from_comm_packet (*packet);
   if (!parsed)
     {
       LogPrint (eLogDebug, "DHT: EmailPacketDelete: Can't parse Email Delete");
@@ -1308,8 +1327,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
   response.length = 0;
 
   pbote::IndexDeleteRequestPacket delete_packet {};
-  bool parsed = delete_packet.fromBuffer (packet->payload.data (),
-                                          packet->payload.size (), true);
+  bool parsed = delete_packet.from_comm_packet (*packet);
   if (!parsed)
     {
       LogPrint (eLogDebug, "DHT: IndexPacketDelete: Can't parse Index Delete");
@@ -1682,7 +1700,7 @@ pbote::FindClosePeersRequestPacket
 DHTworker::findClosePeersPacket (HashKey key)
 {
   pbote::FindClosePeersRequestPacket packet;
-  /// Java will be answer wuth v4, pboted - with v5
+  /// Java will be answer with v4, pboted - with v5
   packet.ver = 5;
   /// Don't reuse request packets because PacketBatch will not add
   /// the same one more than once
@@ -1702,5 +1720,5 @@ DHTworker::retrieveRequestPacket (uint8_t data_type, HashKey key)
   return packet;
 }
 
-} // namespace kademlia
-} // namespace pbote
+} // kademlia
+} // pbote
