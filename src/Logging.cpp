@@ -1,6 +1,6 @@
 /**
- * Copyright (c) 2013-2016, The PurpleI2P Project
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2013-2016, The PurpleI2P Project
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted project and licensed under BSD3
  *
@@ -153,13 +153,13 @@ void Logging::Process(std::shared_ptr<LogMsg> msg) {
     case eLogFile:
     case eLogStream:
       if (m_LogStream)
-        *m_LogStream << TimeAsString(msg->timestamp) << "@" << short_tid << " \t"
+        *m_LogStream << TimeAsString(msg->timestamp) << "@" << short_tid << "\t"
                      << g_LogLevelStr[msg->level] << "\t" << msg->text
                      << std::endl;
       break;
     case eLogStdout:
     default:
-      std::cout << TimeAsString(msg->timestamp) << "@" << short_tid << " \t"
+      std::cout << TimeAsString(msg->timestamp) << "@" << short_tid << "\t"
                 << LogMsgColors[msg->level] << g_LogLevelStr[msg->level]
                 << LogMsgColors[eNumLogLevels] << "\t" << msg->text << std::endl;
       break;
