@@ -310,11 +310,33 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
 
   LogPrint (eLogDebug, "DHT: find: Got ", batch->responseCount (),
             " responses for ", key.ToBase64 (), ", type: ", type);
+
   context.removeBatch (batch);
+  auto responses = batch->getResponses ();
 
-  //calc_locks (batch->getResponses ());
+  std::vector<sp_comm_packet> result;
+  result.reserve (responses.size ());
 
-  return batch->getResponses ();
+  for (const auto &response : responses)
+    {
+      ResponsePacket response_packet = {};
+      bool parsed = response_packet.from_comm_packet (*response, true);
+      if (!parsed)
+        {
+          LogPrint (eLogWarning, "DHT: find: Can't parse response");
+          continue;
+        }
+
+      LogPrint (eLogDebug, "DHT: find: Response status ",
+                statusToString (response_packet.status));
+
+      if (response_packet.status == StatusCode::OK)
+        result.push_back (response);
+    }
+
+  LogPrint (eLogDebug, "DHT: find: Got ", result.size (), " valid responses");
+
+  return result;
 }
 
 std::vector<std::string>
@@ -327,8 +349,6 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
   batch->owner = "DHT::store";
 
   std::vector<sp_node> closestNodes = closestNodesLookupTask (hash);
-
-  // ToDo: add find locally
 
   LogPrint (eLogDebug, "DHT: store: Closest nodes: ", closestNodes.size ());
 
@@ -367,7 +387,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 
   int counter = 0;
 
-  while (batch->responseCount () < KADEMLIA_CONSTANT_K && counter < 5)
+  while (batch->responseCount () < KADEMLIA_CONSTANT_K && counter <= 5)
     {
       LogPrint (eLogWarning, "DHT: store: No responses, resend: #", counter);
       context.removeBatch (batch);
@@ -381,21 +401,14 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
             " responses for ", hash.ToBase64 (), ", type: ", type);
 
   context.removeBatch (batch);
-
-  std::vector<std::string> result;
-
   auto responses = batch->getResponses ();
 
-  //calc_locks (responses);
-
+  std::vector<std::string> result;
   result.reserve (responses.size ());
 
   for (const auto &response : responses)
     {
       ResponsePacket response_packet = {};
-      //bool parsed = response_packet.fromBuffer (response->payload.data (),
-      //                                          response->payload.size (),
-      //                                          true);
       bool parsed = response_packet.from_comm_packet (*response, true);
       if (!parsed)
         {
@@ -413,7 +426,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
         }
     }
 
-  LogPrint (eLogDebug, "DHT: store: Got ", result.size (), " responses");
+  LogPrint (eLogDebug, "DHT: store: Got ", result.size (), " valid responses");
 
   return result;
 }
@@ -432,7 +445,7 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
     }
 
   auto batch = std::make_shared<batch_comm_packet> ();
-  batch->owner = "DHTworker::deleteEmail";
+  batch->owner = "DHT::deleteEmail";
 
   std::vector<sp_node> closestNodes = closestNodesLookupTask (hash);
 
@@ -497,7 +510,17 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
 
   res.reserve (responses.size ());
   for (const auto &response : responses)
-    res.push_back (response->from);
+    {
+      pbote::ResponsePacket res_packet{};
+      res_packet.from_comm_packet (*response, true);
+
+      if (res_packet.status == StatusCode::OK)
+        {
+          res.push_back (response->from);
+          LogPrint (eLogDebug, "DHT: deleteEmail: OK response from: ",
+                    response->from.substr (0, 15), "...");
+        }
+    }
 
   return res;
 }
@@ -518,7 +541,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
     }
 
   auto batch = std::make_shared<batch_comm_packet> ();
-  batch->owner = "DHTworker::deleteIndexEntry";
+  batch->owner = "DHT::deleteIndexEntry";
 
   std::vector<sp_node> closestNodes = closestNodesLookupTask (index_dht_key);
 
@@ -593,11 +616,125 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
 
   auto responses = batch->getResponses ();
 
-  res.reserve (responses.size ());
   for (const auto &response : responses)
-    res.push_back (response->from);
+    {
+      pbote::ResponsePacket res_packet{};
+      res_packet.from_comm_packet (*response, true);
+
+      if (res_packet.status == StatusCode::OK)
+        {
+          res.push_back (response->from);
+          LogPrint (eLogDebug, "DHT: deleteIndexEntry: OK response from: ",
+                    response->from.substr (0, 15), "...");
+        }
+    }
 
   return res;
+}
+
+std::vector<std::shared_ptr<pbote::DeletionInfoPacket> >
+DHTworker::deletion_query (const HashKey &key)
+{
+  LogPrint (eLogDebug, "DHT: deletion_query: Start for key: ", key.ToBase64 ());
+
+  // ToDo: Need to check if we have localy
+  /*
+  if (dht_storage_.get_del_info (key))
+    {
+      LogPrint (eLogDebug, "DHT: deletion_query: Removed local DelInfo, key: ",
+                key.ToBase64 ());
+    }
+  */
+
+  auto batch = std::make_shared<batch_comm_packet> ();
+  batch->owner = "DHT::deletion_query";
+
+  std::vector<sp_node> close_nodes = closestNodesLookupTask (key);
+
+  LogPrint (eLogDebug, "DHT: deletion_query: Closest nodes: ",
+            close_nodes.size ());
+
+  if (close_nodes.size () < MIN_CLOSEST_NODES)
+    {
+      LogPrint (eLogInfo,
+                "DHT: deletion_query: Not enough nodes, try usual nodes");
+
+      for (const auto &node : m_nodes_)
+        close_nodes.push_back (node.second);
+
+      LogPrint (eLogDebug,
+                "DHT: deletion_query: Usual nodes: ", close_nodes.size ());
+    }
+
+  if (close_nodes.empty ())
+    {
+      LogPrint (eLogWarning, "DHT: deletion_query: Not enough nodes");
+      return {};
+    }
+
+  for (const auto &node : close_nodes)
+    {
+      pbote::DeletionQueryPacket packet;
+      context.random_cid (packet.cid, 32);
+      memcpy (packet.dht_key, key.data (), 32);
+
+      auto packet_bytes = packet.toByte ();
+      PacketForQueue q_packet (node->ToBase64 (), packet_bytes.data (),
+                               packet_bytes.size ());
+
+      std::vector<uint8_t> v_cid (std::begin (packet.cid),
+                                  std::end (packet.cid));
+      batch->addPacket (v_cid, q_packet);
+    }
+
+  LogPrint (eLogDebug,
+            "DHT: deletion_query: Batch size: ", batch->packetCount ());
+
+  context.send (batch);
+
+  batch->waitLast (RESPONSE_TIMEOUT);
+
+  int counter = 0;
+  while (batch->responseCount () < 1 && counter < 5)
+    {
+      LogPrint (eLogWarning, "DHT: deletion_query: No responses, resend: #",
+                counter);
+      context.removeBatch (batch);
+      context.send (batch);
+      // ToDo: remove answered nodes from batch
+      batch->waitLast (RESPONSE_TIMEOUT);
+      counter++;
+    }
+
+  LogPrint (eLogDebug, "DHT: deletion_query: Got ", batch->responseCount (),
+            " responses for key ", key.ToBase64 ());
+
+  context.removeBatch (batch);
+
+  std::vector<std::shared_ptr<pbote::DeletionInfoPacket> > results;
+
+  auto responses = batch->getResponses ();
+
+  for (const auto &response : responses)
+    {
+      pbote::ResponsePacket res_packet{};
+      res_packet.from_comm_packet (*response, true);
+
+      if (res_packet.status == StatusCode::OK)
+        {
+          LogPrint (eLogDebug, "DHT: deletion_query: OK response from: ",
+                    response->from.substr (0, 15), "...");
+
+          pbote::DeletionInfoPacket del_info_packet{};
+          del_info_packet.fromBuffer (res_packet.data, true);
+          results.push_back (std::make_shared<pbote::DeletionInfoPacket>(del_info_packet));
+        }
+    }
+
+  LogPrint (eLogDebug, "DHT: deletion_query: Got ", results.size (),
+            " results for key ", key.ToBase64 ());
+
+  return results;
 }
 
 std::vector<sp_node>
@@ -722,17 +859,64 @@ DHTworker::closestNodesLookupTask (HashKey key)
           continue;
         }
 
+      size_t nodes_added = 0, nodes_dup = 0;
       std::vector<sp_node> peers_list;
 
-      if (unsigned (packet.data[1]) == 4
-          && (packet.data[0] == (uint8_t)'L'
-              || packet.data[0] == (uint8_t)'P'))
-        peers_list = receivePeerListV4 (packet.data.data (), packet.length);
+      if (unsigned (packet.data[1]) == 4 &&
+          (packet.data[0] == (uint8_t)'L' || packet.data[0] == (uint8_t)'P'))
+        {
+          //peers_list = receivePeerListV4 (packet.data.data (), packet.length);
+          pbote::PeerListPacketV4 peer_list;
+          bool parsed = peer_list.fromBuffer (packet.data.data (),
+                                              packet.length, true);
 
-      if (unsigned (packet.data[1]) == 5
-          && (packet.data[0] == (uint8_t)'L'
-              || packet.data[0] == (uint8_t)'P'))
-        peers_list = receivePeerListV5 (packet.data.data (), packet.length);
+          if (!parsed)
+          {
+            LogPrint (eLogWarning,
+                      "DHT: closestNodesLookup: V4 packet parsing failed");
+            continue;
+          }
+
+          for (auto node : peer_list.data)
+            {
+              if (addNode (node))
+                nodes_added++;
+              else
+                nodes_dup++;
+              peers_list.emplace_back (std::make_shared<Node> (node.ToBase64 ()));
+            }
+          LogPrint (eLogDebug, "DHT: closestNodesLookup: V4 nodes: ",
+                    peers_list.size (), ", added: ", nodes_added,
+                    ", dup: ", nodes_dup);
+        }
+
+      if (unsigned (packet.data[1]) == 5 &&
+          (packet.data[0] == (uint8_t)'L' || packet.data[0] == (uint8_t)'P'))
+        {
+          //peers_list = receivePeerListV5 (packet.data.data (), packet.length);
+          pbote::PeerListPacketV5 peer_list;
+          bool parsed = peer_list.fromBuffer (packet.data.data (),
+                                              packet.length, true);
+
+          if (!parsed)
+          {
+            LogPrint (eLogWarning,
+                      "DHT: closestNodesLookup: V5 packet parsing failed");
+            continue;
+          }
+
+          for (auto node : peer_list.data)
+            {
+              if (addNode (node))
+                nodes_added++;
+              else
+                nodes_dup++;
+              peers_list.emplace_back (std::make_shared<Node> (node.ToBase64 ()));
+            }
+          LogPrint (eLogDebug, "DHT: closestNodesLookup: V5 nodes: ",
+                    peers_list.size (), ", added: ", nodes_added,
+                    ", dup: ", nodes_dup);
+        }
 
       if (peers_list.empty ())
         {
@@ -793,150 +977,6 @@ DHTworker::closestNodesLookupTask (HashKey key)
   //check_closest_mutex.unlock ();
 
   return result;
-}
-
-std::vector<sp_node>
-DHTworker::receivePeerListV4 (const uint8_t *buf, size_t len)
-{
-  size_t offset = 0;
-  uint8_t type, ver;
-  uint16_t nodes_count;
-
-  std::memcpy (&type, buf, 1);
-  offset += 1;
-  std::memcpy (&ver, buf + offset, 1);
-  offset += 1;
-  std::memcpy (&nodes_count, buf + offset, 2);
-  offset += 2;
-  nodes_count = ntohs (nodes_count);
-
-  if ((type == (uint8_t)'L' || type == (uint8_t)'P') && ver == (uint8_t)4)
-    {
-      std::vector<sp_node> closestNodes;
-      size_t nodes_added = 0, nodes_dup = 0;
-      for (size_t i = 0; i < nodes_count; i++)
-        {
-          if (offset == len)
-            {
-              LogPrint (eLogWarning, "DHT: receivePeerListV4: end of packet!");
-              break;
-            }
-          if (offset + 384 > len)
-            {
-              LogPrint (eLogWarning,
-                        "DHT: receivePeerListV4: incomplete packet!");
-              break;
-            }
-
-          uint8_t fullKey[387];
-          memcpy (fullKey, buf + offset, 384);
-          offset += 384;
-
-          i2p::data::IdentityEx node;
-
-          /// This is an workaround, but the current version of the
-          /// protocol does not allow the correct key type to be determined
-          fullKey[384] = 0;
-          fullKey[385] = 0;
-          fullKey[386] = 0;
-
-          size_t res = node.FromBuffer (fullKey, 387);
-          if (res > 0)
-            {
-              closestNodes.emplace_back (
-                  std::make_shared<Node> (node.ToBase64 ()));
-              if (addNode (fullKey, 387))
-                {
-                  nodes_added++;
-                }
-              else
-                {
-                  nodes_dup++;
-                }
-            }
-          else
-            LogPrint (eLogWarning, "DHT: receivePeerListV4: Fail to add node");
-        }
-      LogPrint (eLogDebug, "DHT: receivePeerListV4: nodes: ", nodes_count,
-                ", added: ", nodes_added, ", dup: ", nodes_dup);
-      return closestNodes;
-    }
-  else
-    {
-      LogPrint (eLogWarning,
-                "DHT: receivePeerListV4: Unknown packet, type: ", type,
-                ", ver: ", unsigned (ver));
-      return {};
-    }
-}
-
-std::vector<sp_node>
-DHTworker::receivePeerListV5 (const uint8_t *buf, size_t len)
-{
-  size_t offset = 0;
-  uint8_t type, ver;
-  uint16_t nump;
-
-  std::memcpy (&type, buf, 1);
-  offset += 1;
-  std::memcpy (&ver, buf + offset, 1);
-  offset += 1;
-  std::memcpy (&nump, buf + offset, 2);
-  offset += 2;
-  nump = ntohs (nump);
-
-  if ((type == (uint8_t)'L' || type == (uint8_t)'P') && ver == (uint8_t)5)
-    {
-      std::vector<sp_node> closestNodes;
-      size_t nodes_added = 0, nodes_dup = 0;
-      for (size_t i = 0; i < nump; i++)
-        {
-          if (offset == len)
-            {
-              LogPrint (eLogWarning, "DHT: receivePeerListV5: End of packet");
-              break;
-            }
-          if (offset + 384 > len)
-            {
-              LogPrint (eLogWarning,
-                        "DHT: receivePeerListV5: Incomplete packet");
-              break;
-            }
-
-          i2p::data::IdentityEx identity;
-
-          size_t key_len = identity.FromBuffer (buf + offset, len - offset);
-          offset += key_len;
-          if (key_len > 0)
-            {
-              closestNodes.emplace_back (
-                  std::make_shared<Node> (identity.ToBase64 ()));
-              if (addNode (identity))
-                {
-                  nodes_added++;
-                }
-              else
-                {
-                  nodes_dup++;
-                }
-            }
-          else
-            LogPrint (eLogWarning, "DHT: receivePeerListV5: Fail to add node");
-        }
-      LogPrint (eLogDebug, "DHT: receivePeerListV5: nodes: ", nump,
-                ", added: ", nodes_added, ", dup: ", nodes_dup);
-      LogPrint (eLogDebug, "DHT: receivePeerListV5: closestNodes count: ",
-                closestNodes.size ());
-
-      return closestNodes;
-    }
-  else
-    {
-      LogPrint (eLogWarning,
-                "DHT: receivePeerListV5: Unknown packet, type: ", type,
-                ", ver: ", unsigned (ver));
-      return {};
-    }
 }
 
 void
@@ -1042,50 +1082,55 @@ DHTworker::receiveDeletionQuery (const sp_comm_packet &packet)
     }
 
   if (addNode (packet->from))
+    LogPrint (eLogDebug, "DHT: receiveDeletionQuery: Sender added to list");
+
+  pbote::ResponsePacket response{};
+  pbote::DeletionQueryPacket del_query{};
+
+  bool parsed = del_query.from_comm_packet (*packet);
+  if (!parsed)
     {
-      LogPrint (eLogDebug,
-                "DHT: receiveDeletionQuery: Sender added to list");
-    }
-
-  uint8_t key[32];
-
-  pbote::ResponsePacket response;
-  memcpy (response.cid, packet->cid, 32);
-
-  if (packet->payload.size () == 32)
-    {
-      std::memcpy (&key, packet->payload.data (), 32);
-      HashKey t_key (key);
-
-      LogPrint (eLogDebug, "DHT: receiveDeletionQuery: got request for key: ",
-                t_key.ToBase64 ());
-
-      auto data = dht_storage_.getEmail (key);
-      if (data.empty ())
-        {
-          LogPrint (eLogDebug, "DHT: receiveDeletionQuery: key not found: ",
-                    t_key.ToBase64 ());
-          response.status = pbote::StatusCode::NO_DATA_FOUND;
-          response.length = 0;
-        }
-      else
-        {
-          LogPrint (eLogDebug, "DHT: receiveDeletionQuery: found key: ",
-                    t_key.ToBase64 ());
-
-          // ToDo: delete local packet?
-
-          response.status = pbote::StatusCode::OK;
-          response.length = 0;
-        }
-    }
-  else
-    {
-      // In case if can't parse
       LogPrint (eLogDebug, "DHT: receiveDeletionQuery: Packet is too short");
       response.status = pbote::StatusCode::INVALID_PACKET;
       response.length = 0;
+
+      PacketForQueue q_packet (packet->from, response.toByte ().data (),
+                           response.toByte ().size ());
+      context.send (q_packet);
+      return;
     }
+
+  HashKey t_key (del_query.dht_key);
+
+  LogPrint (eLogDebug, "DHT: receiveDeletionQuery: got request for key: ",
+            t_key.ToBase64 ());
+
+  // ToDo: After email removing it must be stored as DeletionInforPacket
+  // Needed for delivery checking
+
+  //auto data = dht_storage_.get_del_info (key);
+  //if (data.empty ())
+  //  {
+  //    LogPrint (eLogDebug, "DHT: receiveDeletionQuery: key not found: ",
+  //              t_key.ToBase64 ());
+  //    response.status = pbote::StatusCode::NO_DATA_FOUND;
+  //    response.length = 0;
+  //  }
+  //else
+  //  {
+  //    LogPrint (eLogDebug, "DHT: receiveDeletionQuery: found key: ",
+  //              t_key.ToBase64 ());
+
+  //    pbote::DeletionInfoPacket del_packet{};
+  //    del_packet.fromBuffer (res_packet.data, true);
+
+  //    int key_cmp = memcmp (packet.key, del_packet.data[0].key, 32);
+  //    int da_cmp = memcmp (packet.DA, del_packet.data[0].DA, 32);
+  //  }
+  //}
+
+  response.status = pbote::StatusCode::NO_DATA_FOUND;
+  response.length = 0;
 
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
@@ -1119,38 +1164,6 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
       LogPrint (eLogWarning, "DHT: receiveStoreRequest: Can't parse");
       response.status = pbote::StatusCode::INVALID_PACKET;
     }
-
-  /*
-  //uint16_t offset = 0;
-  //StoreRequestPacket new_packet;
-
-  std::memcpy (&new_packet.cid, packet->cid, 32);
-  std::memcpy (&new_packet.hc_length, packet->payload.data (), 2);
-  new_packet.hc_length = ntohs (new_packet.hc_length);
-  offset += 2;
-  LogPrint (eLogDebug, "DHT: StoreRequest: hc_length: ", new_packet.hc_length);
-
-  std::vector<uint8_t> hashCash
-      = { packet->payload.data () + offset,
-          packet->payload.data () + offset + new_packet.hc_length };
-  offset += new_packet.hc_length;
-
-  std::memcpy (&new_packet.length, packet->payload.data () + offset, 2);
-  new_packet.length = ntohs (new_packet.length);
-  offset += 2;
-  LogPrint (eLogDebug, "DHT: StoreRequest: Length: ", new_packet.length);
-
-  new_packet.data = std::vector<uint8_t> (packet->payload.begin () + offset,
-                                          packet->payload.begin () + offset
-                                              + new_packet.length);
-
-  LogPrint (eLogDebug, "DHT: StoreRequest: Got request for type: ",
-            new_packet.data[0], ", ver: ", unsigned (new_packet.data[1]));
-
-  pbote::ResponsePacket response;
-  memcpy (response.cid, packet->cid, 32);
-  response.length = 0;
-  */
 
   if ((store_packet.data[0] == (uint8_t)'I' ||
        store_packet.data[0] == (uint8_t)'E' ||
@@ -1258,7 +1271,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
 
   pbote::EmailEncryptedPacket email_packet{};
   parsed = email_packet.fromBuffer (email_packet_data.data (),
-                                         email_packet_data.size (), true);
+                                    email_packet_data.size (), true);
 
   uint8_t delHash[32]{};
   SHA256 (delete_packet.DA, 32, delHash);
@@ -1287,6 +1300,17 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
   if (dht_storage_.deleteEmail (t_key))
     {
       LogPrint (eLogDebug, "DHT: EmailPacketDelete: Packet removed");
+
+      pbote::DeletionInfoPacket deleted_packet{};
+      deleted_packet.count = 1; // only 1 email packet in request
+      pbote::DeletionInfoPacket::item item;
+      memcpy(item.key, delete_packet.key, 32);
+      memcpy(item.DA, delete_packet.DA, 32);
+      item.time = email_packet.stored_time;
+
+      deleted_packet.data.push_back (item);
+
+      response.data = deleted_packet.toByte ();
       response.status = pbote::StatusCode::OK;
     }
   else
@@ -1369,12 +1393,28 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
       return;
     }
 
+  pbote::DeletionInfoPacket deleted_packet{};
+
   bool erased = false;
   for (auto item : delete_packet.data)
     {
-      if (index_packet.erase_entry (item.key, item.da))
-        erased = true;
+      int32_t result = index_packet.erase_entry (item.key, item.da);
+      if (result > 0)
+        {
+          erased = true;
+
+          pbote::DeletionInfoPacket::item i_item;
+
+          memcpy(i_item.key, item.key, 32);
+          memcpy(i_item.DA, item.da, 32);
+          i_item.time = result;
+
+          deleted_packet.data.push_back (i_item);
+        }
     }
+
+  deleted_packet.count = deleted_packet.data.size ();
+  response.data = deleted_packet.toByte ();
 
   if (!erased)
     {
@@ -1483,60 +1523,55 @@ DHTworker::receiveFindClosePeers (const sp_comm_packet &packet)
       PacketForQueue q_packet (packet->from, response.toByte ().data (),
                                response.toByte ().size ());
       context.send (q_packet);
+      return;
     }
-  else
+
+  LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Got ",
+            closest_nodes.size (),
+            " node(s) closest to key: ", t_key.ToBase64 ());
+  pbote::ResponsePacket response;
+  memcpy (response.cid, packet->cid, 32);
+  response.status = pbote::StatusCode::OK;
+
+  if (packet->ver == 4)
     {
-      LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Got ",
-                closest_nodes.size (),
-                " nodes closest to key: ", t_key.ToBase64 ());
-      pbote::ResponsePacket response;
-      memcpy (response.cid, packet->cid, 32);
-      response.status = pbote::StatusCode::OK;
+      LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Prepare PeerList V4");
+      pbote::PeerListPacketV4 peer_list;
+      peer_list.count = closest_nodes.size ();
 
-      if (packet->ver == 4)
+      for (const auto &node : closest_nodes)
         {
-          LogPrint (eLogDebug,
-                    "DHT: receiveFindClosePeers: Prepare PeerListPacketV4");
-          pbote::PeerListPacketV4 peer_list;
-          peer_list.count = closest_nodes.size ();
-
-          for (const auto &node : closest_nodes)
-            {
-              size_t ilen = node->GetFullLen ();
-              std::vector<uint8_t> buf (ilen);
-              node->ToBuffer (buf.data (), ilen);
-              peer_list.data.insert (peer_list.data.end (), buf.begin (),
-                                     buf.end ());
-            }
-          response.data = peer_list.toByte ();
+          i2p::data::IdentityEx identity;
+          identity.FromBase64 (node->ToBase64 ());
+          peer_list.data.push_back (identity);
         }
 
-      if (packet->ver == 5)
-        {
-          LogPrint (eLogDebug,
-                    "DHT: receiveFindClosePeers: Prepare PeerListPacketV5");
-          pbote::PeerListPacketV5 peer_list;
-          peer_list.count = closest_nodes.size ();
-
-          for (const auto &node : closest_nodes)
-            {
-              size_t ilen = node->GetFullLen ();
-              std::vector<uint8_t> buf (ilen);
-              node->ToBuffer (buf.data (), ilen);
-              peer_list.data.insert (peer_list.data.end (), buf.begin (),
-                                     buf.end ());
-            }
-          response.data = peer_list.toByte ();
-        }
-
-      response.length = response.data.size ();
-
-      LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Send response with ",
-                closest_nodes.size (), " node(s)");
-      PacketForQueue q_packet (packet->from, response.toByte ().data (),
-                               response.toByte ().size ());
-      context.send (q_packet);
+      response.data = peer_list.toByte ();
     }
+
+  if (packet->ver == 5)
+    {
+      LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Prepare PeerList V5");
+      pbote::PeerListPacketV5 peer_list;
+      peer_list.count = closest_nodes.size ();
+
+      for (const auto &node : closest_nodes)
+        {
+          i2p::data::IdentityEx identity;
+          identity.FromBase64 (node->ToBase64 ());
+          peer_list.data.push_back (identity);
+        }
+
+      response.data = peer_list.toByte ();
+    }
+
+  response.length = response.data.size ();
+
+  LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Send response with ",
+            closest_nodes.size (), " node(s)");
+  PacketForQueue q_packet (packet->from, response.toByte ().data (),
+                           response.toByte ().size ());
+  context.send (q_packet);
 }
 
 void

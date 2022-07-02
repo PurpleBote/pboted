@@ -9,6 +9,7 @@
 #include <boost/filesystem.hpp>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <cstdio>
@@ -27,27 +28,28 @@ DHTStorage::update ()
   /// There is no need to check it too often
   if (update_counter > 20)
   {
-    index_mutex.lock ();
-    email_mutex.lock ();
-    contact_mutex.lock ();
+    update_counter = 0;
 
     /// Only in case if we have less than 10 MiB of free space
     if (limit_reached (10485760))
       {
+        LogPrint (eLogDebug, "DHTStorage: update: Cleanup started");
+
+        email_mutex.lock ();
         remove_old_packets ();
+        email_mutex.unlock ();
+
+        index_mutex.lock ();
         remove_old_entries ();
+        index_mutex.unlock ();
+
+        LogPrint (eLogDebug, "DHTStorage: update: Cleanup finished");
       }
 
-    update_counter = 0;
-
     LogPrint (eLogDebug, "DHTStorage: update: ",
-             " index: ", local_index_packets.size (),
-             ", emails: ", local_email_packets.size (),
-             ", contacts: ", local_contact_packets.size ());
-
-    index_mutex.unlock ();
-    email_mutex.unlock ();
-    contact_mutex.unlock ();
+              " index: ", local_index_packets.size (),
+              ", emails: ", local_email_packets.size (),
+              ", contacts: ", local_contact_packets.size ());
   }
 
   loadLocalIndexPackets ();
@@ -68,10 +70,6 @@ DHTStorage::safe(const std::vector<uint8_t>& data)
   memcpy(key, data.data () + 2, 32);
   i2p::data::Tag<32> dht_key (key);
 
-  index_mutex.lock ();
-  email_mutex.lock ();
-  contact_mutex.lock ();
-
   switch (dataType) {
     case ((uint8_t) 'I'):
       success = safeIndex (dht_key, data);
@@ -86,11 +84,6 @@ DHTStorage::safe(const std::vector<uint8_t>& data)
       break;
   }
 
-  index_mutex.unlock();
-  email_mutex.unlock();
-  contact_mutex.unlock();
-
-  update ();
   return success;
 }
 
@@ -105,7 +98,9 @@ DHTStorage::deleteIndex(i2p::data::Tag<32> key)
     if (status)
       {
         LogPrint(eLogInfo, "DHTStorage: deleteIndex: File ", packet_path, " removed");
+
         update_storage_usage();
+
         return true;
       }
     else
@@ -129,7 +124,9 @@ DHTStorage::deleteEmail (i2p::data::Tag<32> key)
       if (status)
         {
           LogPrint(eLogInfo, "DHTStorage: deleteEmail: File ", packet_path, " removed");
+
           update_storage_usage();
+
           return true;
         }
       else
@@ -468,7 +465,6 @@ DHTStorage::clean_index(i2p::data::Tag<32> key, int32_t current_timestamp)
 void
 DHTStorage::loadLocalIndexPackets()
 {
-  index_mutex.lock ();
   local_index_packets = std::vector<std::string>();
   std::string indexPacketPath = pbote::fs::DataDirPath("DHTindex");
   std::vector<std::string> packets_path;
@@ -482,19 +478,16 @@ DHTStorage::loadLocalIndexPackets()
           local_index_packets.push_back(filename);
         }
 
-      LogPrint(eLogDebug, "DHTStorage: loadLocalIndexPackets: index loaded: ", local_index_packets.size());
+      LogPrint(eLogDebug, "DHTStorage: loadLocalIndexPackets: index loaded: ",
+               local_index_packets.size());
     }
   else
-    {
-      LogPrint(eLogWarning, "DHTStorage: loadLocalIndexPackets: have no index files");
-    }
-  index_mutex.unlock ();
+    LogPrint(eLogWarning, "DHTStorage: loadLocalIndexPackets: have no index files");
 }
 
 void
 DHTStorage::loadLocalEmailPackets()
 {
-  email_mutex.lock ();
   local_email_packets = std::vector<std::string>();
   std::string email_packet_path = pbote::fs::DataDirPath("DHTemail");
   std::vector<std::string> packets_path;
@@ -508,19 +501,16 @@ DHTStorage::loadLocalEmailPackets()
           local_email_packets.push_back(filename);
         }
 
-      LogPrint(eLogDebug, "DHTStorage: loadLocalEmailPackets: mails loaded: ", local_email_packets.size());
+      LogPrint(eLogDebug, "DHTStorage: loadLocalEmailPackets: mails loaded: ",
+               local_email_packets.size());
     }
   else
-    {
-      LogPrint(eLogWarning, "DHTStorage: loadLocalEmailPackets: have no mail files");
-    }
-  email_mutex.unlock ();
+    LogPrint(eLogWarning, "DHTStorage: loadLocalEmailPackets: have no mail files");
 }
 
 void
 DHTStorage::loadLocalContactPackets()
 {
-  contact_mutex.lock ();
   local_contact_packets = std::vector<std::string>();
   std::string email_packet_path = pbote::fs::DataDirPath("DHTdirectory");
   std::vector<std::string> packets_path;
@@ -534,13 +524,11 @@ DHTStorage::loadLocalContactPackets()
           local_contact_packets.push_back(filename);
         }
 
-      LogPrint(eLogDebug, "DHTStorage: loadLocalContactPackets: contacts loaded: ", local_contact_packets.size());
+      LogPrint(eLogDebug, "DHTStorage: loadLocalContactPackets: contacts loaded: ",
+               local_contact_packets.size());
     }
   else
-    {
-      LogPrint(eLogWarning, "DHTStorage: loadLocalContactPackets: have no contact files");
-    }
-  contact_mutex.unlock ();
+    LogPrint(eLogWarning, "DHTStorage: loadLocalContactPackets: have no contact files");
 }
 
 size_t
@@ -596,29 +584,41 @@ DHTStorage::set_storage_limit()
 void
 DHTStorage::update_storage_usage()
 {
-  std::vector<std::string> dirs = {"DHTindex", "DHTemail", "DHTdirectory"};
   size_t new_used = 0;
 
-  //index_mutex.lock ();
-  //email_mutex.lock ();
-  //contact_mutex.lock ();
-
-  for (const auto& dir : dirs)
+  try
     {
-      std::string dir_path = pbote::fs::DataDirPath(dir);
+      std::string dir_path = pbote::fs::DataDirPath("DHTindex");
       for (boost::filesystem::recursive_directory_iterator it(dir_path);
            it != boost::filesystem::recursive_directory_iterator(); ++it)
         {
-          if (!boost::filesystem::is_directory(*it))
+          if (boost::filesystem::is_regular_file(*it))
             new_used += boost::filesystem::file_size(*it);
         }
+
+      dir_path = pbote::fs::DataDirPath("DHTemail");
+      for (boost::filesystem::recursive_directory_iterator it(dir_path);
+           it != boost::filesystem::recursive_directory_iterator(); ++it)
+        {
+          if (boost::filesystem::is_regular_file(*it))
+            new_used += boost::filesystem::file_size(*it);
+        }
+
+      dir_path = pbote::fs::DataDirPath("DHTdirectory");
+      for (boost::filesystem::recursive_directory_iterator it(dir_path);
+           it != boost::filesystem::recursive_directory_iterator(); ++it)
+        {
+          if (boost::filesystem::is_regular_file(*it))
+            new_used += boost::filesystem::file_size(*it);
+        }
+
+      used = new_used;
     }
-
-  used = new_used;
-
-  //index_mutex.unlock ();
-  //email_mutex.unlock ();
-  //contact_mutex.unlock ();
+  catch (const std::exception& e)
+    {
+      std::string e_what(e.what());
+      LogPrint(eLogError, "DHTStorage: update_storage_usage: ", e_what);
+    }
 }
 
 void

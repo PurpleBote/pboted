@@ -24,6 +24,7 @@
 #include "NetworkWorker.h"
 #include "PacketHandler.h"
 
+// libi2pd
 #include "Identity.h"
 
 namespace pbote
@@ -217,11 +218,10 @@ public:
   std::vector<std::string> deleteIndexEntry (HashKey index_dht_key,
                                              HashKey email_dht_key,
                                              HashKey del_auth);
+  std::vector<std::shared_ptr<pbote::DeletionInfoPacket> >
+  deletion_query (const HashKey &key);
 
   std::vector<sp_node> closestNodesLookupTask (HashKey key);
-
-  std::vector<sp_node> receivePeerListV4 (const uint8_t *buf, size_t len);
-  std::vector<sp_node> receivePeerListV5 (const uint8_t *buf, size_t len);
 
   void receiveRetrieveRequest (const sp_comm_packet &packet);
   void receiveDeletionQuery (const sp_comm_packet &packet);

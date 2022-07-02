@@ -54,6 +54,8 @@ RelayWorker::stop ()
 void
 RelayWorker::run ()
 {
+  // To prevent too quick start
+  std::this_thread::sleep_for (std::chrono::seconds(30));
   bool task_status = false;
 
   while (started_)
@@ -131,79 +133,79 @@ RelayWorker::check_peers ()
           continue;
         }
 
-      size_t offset = 0;
-      uint8_t status = 0;
-      uint16_t dataLen = 0;
+      pbote::ResponsePacket res_packet;
+      bool parsed = res_packet.from_comm_packet (*response, true);
 
-      std::memcpy (&status, response->payload.data (), 1);
-      offset += 1;
-      std::memcpy (&dataLen, response->payload.data () + offset, 2);
-      dataLen = ntohs (dataLen);
-      offset += 2;
-
-      if (status != StatusCode::OK)
+      if (!parsed)
         {
-          LogPrint (eLogWarning, "Relay: Response: ", statusToString (status));
+          LogPrint (eLogWarning, "Relay: Can't parse response packet ");
           continue;
         }
 
-      if (dataLen < 4)
+      /// Increment peer metric back, if we have valid Response Packet
+      for (const auto &m_peer : m_peers_)
         {
-          LogPrint (eLogWarning,
-                    "Relay: Packet without payload, parsing skipped");
+          if (m_peer.second->ToBase64 () == response->from)
+            {
+              LogPrint (eLogDebug, "Relay: Got response, mark reachable");
+              m_peer.second->reachable (true);
+              reachable_peers++;
+            }
+        }
+
+      if (res_packet.status != StatusCode::OK)
+        {
+          LogPrint (eLogWarning, "Relay: Response: ", statusToString (res_packet.status));
           continue;
         }
 
-      std::vector<uint8_t> data
-          = { response->payload.data () + offset,
-              response->payload.data () + offset + dataLen };
+      size_t added = 0, dupl = 0;
 
-      // ToDo: looks like it can be too slow, need to think how to optimized it
-      LogPrint (eLogDebug, "Relay: type: ", response->type,
-                ", ver: ", unsigned (response->ver));
-
-      if (unsigned (data[1]) == 5
-          && (data[0] == (uint8_t)'L' || data[0] == (uint8_t)'P'))
+      if (unsigned (res_packet.data[1]) == 5)
         {
-          if (!receivePeerListV5 (data.data (), dataLen))
+          pbote::PeerListPacketV5 peer_list;
+          parsed = peer_list.fromBuffer (res_packet.data.data (),
+                                         res_packet.data.size (), true);
+          if (!parsed)
             {
-              LogPrint (eLogWarning, "Relay: Can't parse packet");
+              LogPrint (eLogWarning, "Relay: Can't parse V5 packet");
               continue;
             }
-          /// Increment peer metric back, if we have response
-          for (const auto &m_peer : m_peers_)
+
+          for (auto peer : peer_list.data)
             {
-              if (m_peer.second->ToBase64 () == response->from)
-                {
-                  LogPrint (eLogDebug, "Relay: Got response, mark reachable");
-                  m_peer.second->reachable (true);
-                  reachable_peers++;
-                }
+              if (addPeer (peer.ToBase64 ()))
+                added++;
+              else
+                dupl++;
             }
         }
-      else if (unsigned (data[1]) == 4
-               && (data[0] == (uint8_t)'L' || data[0] == (uint8_t)'P'))
+      else if (unsigned (res_packet.data[1]) == 4)
         {
-          if (!receivePeerListV4 (data.data (), dataLen))
+          pbote::PeerListPacketV4 peer_list;
+          parsed = peer_list.fromBuffer (res_packet.data.data (),
+                                         res_packet.data.size (), true);
+          if (!parsed)
             {
-              LogPrint (eLogWarning, "Relay: Can't parse packet");
+              LogPrint (eLogWarning, "Relay: Can't parse V4 packet");
               continue;
             }
-              /// Increment peer metric back, if we have response
-          for (const auto &m_peer : m_peers_)
+
+          for (auto peer : peer_list.data)
             {
-              if (m_peer.second->ToBase64 () == response->from)
-                {
-                  LogPrint (eLogDebug, "Relay: Got response, mark reachable");
-                  m_peer.second->reachable (true);
-                  reachable_peers++;
-                }
+              if (addPeer (peer.ToBase64 ()))
+                added++;
+              else
+                dupl++;
             }
         }
       else
         {
           LogPrint (eLogWarning, "Relay: Unknown version: ", response->ver);
         }
+
+      LogPrint (eLogDebug, "Relay: Peers added: ", added, ", dup: ", dupl,
+                ", total: ", added + dupl);
     }
 
   LogPrint (eLogDebug, "Relay: Reachable peers: ", reachable_peers);
@@ -391,7 +393,7 @@ RelayWorker::writePeers ()
 
   peer_file << "# Each line is in the format: <dest> <samp>\n";
   peer_file << "#   dest = the I2P destination\n";
-  peer_file << "#   samp = samples from 0 to 25, depending on whether the "
+  peer_file << "#   samp = samples from 0 to 20, depending on whether the "
                "peer responded\n";
   peer_file << "# The fields are separated by a space character.\n";
   peer_file << "# Lines starting with a # are ignored.\n";
@@ -461,137 +463,6 @@ RelayWorker::get_good_peer_count ()
   return getGoodPeers ().size ();
 }
 
-bool
-RelayWorker::receivePeerListV4 (const uint8_t *buf, size_t len)
-{
-  size_t offset = 0;
-  uint8_t type, ver;
-  uint16_t peers_count;
-
-  std::memcpy (&type, buf, 1);
-  offset += 1;
-  std::memcpy (&ver, buf + offset, 1);
-  offset += 1;
-  std::memcpy (&peers_count, buf + offset, 2);
-  offset += 2;
-  peers_count = ntohs (peers_count);
-
-  LogPrint (eLogDebug, "Relay: receivePeerListV4: type: ", type,
-            ", ver: ", unsigned (ver), ", peers: ", peers_count);
-
-  if ((type == (uint8_t)'L' || type == (uint8_t)'P') && ver == (uint8_t)4)
-    {
-      size_t peers_added = 0, peers_dup = 0;
-      for (size_t i = 0; i < peers_count; i++)
-        {
-          if (offset == len)
-            {
-              LogPrint (eLogWarning, "Relay: receivePeerListV4: End of packet");
-              break;
-            }
-          if (offset + 384 > len)
-            {
-              LogPrint (eLogWarning,
-                        "Relay: receivePeerListV4: Incomplete packet");
-              break;
-            }
-
-          uint8_t fullKey[387];
-          memcpy (fullKey, buf + offset, 384);
-          offset += 384;
-
-          i2p::data::IdentityEx peer;
-
-          /// This is an ugly workaround, but the 4th version of the protocol
-          /// does not allow the correct key type to be determined
-          fullKey[384] = 0;
-          fullKey[385] = 0;
-          fullKey[386] = 0;
-
-          size_t res = peer.FromBuffer (fullKey, 387);
-          if (res > 0)
-            {
-              if (addPeer (fullKey, 387))
-                peers_added++;
-              else
-                peers_dup++;
-            }
-          else
-            LogPrint (eLogWarning, "Relay: receivePeerListV4: Fail to add peer");
-        }
-      LogPrint (eLogDebug,
-                "Relay: receivePeerListV4: peers: ", peers_count,
-                ", added: ", peers_added, ", dup: ", peers_dup);
-      return true;
-    }
-  else
-    return false;
-}
-
-bool
-RelayWorker::receivePeerListV5 (const uint8_t *buf, size_t len)
-{
-  size_t offset = 0;
-  uint8_t type, ver;
-  uint16_t peers_count;
-
-  std::memcpy (&type, buf, 1);
-  offset += 1;
-  std::memcpy (&ver, buf + offset, 1);
-  offset += 1;
-  std::memcpy (&peers_count, buf + offset, 2);
-  offset += 2;
-  peers_count = ntohs (peers_count);
-
-  LogPrint (eLogDebug, "Relay: receivePeerListV5: type: ", type,
-            ", ver: ", unsigned (ver), ", peers: ", peers_count);
-
-  if ((type == (uint8_t)'L' || type == (uint8_t)'P') && ver == (uint8_t)5)
-    {
-      size_t peers_added = 0, peers_dup = 0;
-      for (size_t i = 0; i < peers_count; i++)
-        {
-          if (offset == len)
-            {
-              LogPrint (eLogError,
-                        "Relay: receivePeerListV5: End of packet");
-              break;
-            }
-          if (offset + 384 > len)
-            {
-              LogPrint (eLogError,
-                        "Relay: receivePeerListV5: Incomplete packet");
-              break;
-            }
-
-          std::shared_ptr<i2p::data::IdentityEx> peer
-              = std::make_shared<i2p::data::IdentityEx> ();
-
-          size_t key_len = peer->FromBuffer (buf + offset, len - offset);
-          offset += key_len;
-
-          if (key_len > 0)
-            {
-              if (addPeer (peer->ToBase64 ()))
-                peers_added++;
-              else
-                peers_dup++;
-            }
-          else
-            {
-              LogPrint (eLogWarning,
-                        "Relay: receivePeerListV5: Fail to add peer");
-            }
-        }
-      LogPrint (eLogDebug,
-                "Relay: receivePeerListV5: peers: ", peers_count,
-                ", added: ", peers_added, ", dup: ", peers_dup);
-      return true;
-    }
-  else
-    return false;
-}
-
 void
 RelayWorker::peerListRequestV4 (const std::string &sender, const uint8_t *cid)
 {
@@ -609,11 +480,9 @@ RelayWorker::peerListRequestV4 (const std::string &sender, const uint8_t *cid)
 
   for (const auto &peer : good_peers)
     {
-      uint8_t *buf = new uint8_t[peer->GetFullLen ()];
-      size_t l = peer->ToBuffer (buf, peer->GetFullLen ());
-      if (l > 0)
-        peer_list.data.insert (peer_list.data.end (), buf, buf + l);
-      delete[] buf;
+      i2p::data::IdentityEx identity;
+      identity.FromBase64 (peer->ToBase64 ());
+      peer_list.data.push_back (identity);
     }
 
   pbote::ResponsePacket response;
@@ -646,11 +515,9 @@ RelayWorker::peerListRequestV5 (const std::string &sender, const uint8_t *cid)
 
   for (const auto &peer : good_peers)
     {
-      uint8_t *buf = new uint8_t[peer->GetFullLen ()];
-      size_t l = peer->ToBuffer (buf, peer->GetFullLen ());
-      if (l > 0)
-        peer_list.data.insert (peer_list.data.end (), buf, buf + l);
-      delete[] buf;
+      i2p::data::IdentityEx identity;
+      identity.FromBase64 (peer->ToBase64 ());
+      peer_list.data.push_back (identity);
     }
 
   pbote::ResponsePacket response;

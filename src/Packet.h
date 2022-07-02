@@ -25,6 +25,8 @@
 #include <utility>
 #include <vector>
 
+// libi2pd
+#include "Identity.h"
 #include "Tag.h"
 
 #include "Logging.h"
@@ -195,6 +197,19 @@ template <typename T> struct PacketBatch
   }
 
   void
+  removePacket (const std::string &to)
+  {
+    for (auto it = outgoingPackets.begin(); it != outgoingPackets.end(); it++)
+      {
+        if (it->second.destination == to)
+          {
+            outgoingPackets.erase (it->first);
+            return;
+          }
+      }
+  }
+
+  void
   addResponse (std::shared_ptr<T> packet)
   {
     incomingPackets.push_back (packet);
@@ -257,9 +272,8 @@ public:
     /// + alg[1] + length[2] + DA[32]
     if (len < 105)
       {
-        LogPrint (
-            eLogWarning,
-            "Packet: E: fromBuffer: Payload is too short: ", len);
+        LogPrint (eLogWarning, "Packet: E: fromBuffer: Payload is too short: ",
+                  len);
         return {};
       }
 
@@ -270,20 +284,16 @@ public:
     std::memcpy (&ver, buf + offset, 1);
     offset += 1;
 
-    if (type != (uint8_t)'E')
+    if (type != type::DataE)
       {
-        LogPrint (
-            eLogWarning,
-            "Packet: E: fromBuffer: Wrong packet type: ", type);
+        LogPrint (eLogWarning, "Packet: E: fromBuffer: Wrong type: ", type);
         return false;
       }
 
     if (ver != (uint8_t)4)
       {
-        LogPrint (
-            eLogWarning,
-            "Packet: E: fromBuffer: wrong packet version: ",
-            unsigned (ver));
+        LogPrint (eLogWarning, "Packet: E: fromBuffer: Wrong version: ",
+                  unsigned (ver));
         return false;
       }
 
@@ -440,20 +450,19 @@ public:
     bool
     operator== (const Entry &rhs)
     {
-      return memcmp (this->key, rhs.key, 32) != 0
-             && memcmp (this->dv, rhs.dv, 32) != 0;
+      return memcmp (this->key, rhs.key, 32) != 0 &&
+             memcmp (this->dv, rhs.dv, 32) != 0;
     }
   };
 
   uint8_t hash[32]{0};
-  uint32_t nump;
+  uint32_t nump{0};
   std::vector<Entry> data;
 
   bool
   fromBuffer (const std::vector<uint8_t> &buf, bool from_net)
   {
-    /// because type[1] + ver[1] + DH[32] + nump[4] == 38 byte
-    if (buf.size () < 38)
+    if (buf.size () < COMM_DATA_LEN)
       {
         LogPrint (eLogWarning, "Packet: I: fromBuffer: Payload is too short");
         return false;
@@ -469,9 +478,9 @@ public:
 
     std::memcpy (&nump, buf.data () + offset, 4);
     
-    LogPrint (eLogDebug, "Packet: I: fromBuffer: nump raw: ", nump,
-              ", ntohl: ", ntohl (nump),
-              ", from_net: ", from_net ? "true" : "false");
+    //LogPrint (eLogDebug, "Packet: I: fromBuffer: nump raw: ", nump,
+    //          ", ntohl: ", ntohl (nump),
+    //          ", from_net: ", from_net ? "true" : "false");
     
     if (from_net)
       nump = ntohl (nump);
@@ -481,7 +490,7 @@ public:
     LogPrint (eLogDebug, "Packet: I: fromBuffer: nump: ", nump,
               ", type: ", type, ", version: ", unsigned (ver));
 
-    if (type != (uint8_t)'I')
+    if (type != type::DataI)
       {
         LogPrint (eLogWarning, "Packet: I: fromBuffer: Wrong type: ", type);
         return false;
@@ -489,13 +498,13 @@ public:
 
     if (ver != (uint8_t)4)
       {
-        LogPrint (eLogWarning,
-                  "Packet: I: fromBuffer: Wrong version: ", unsigned (ver));
+        LogPrint (eLogWarning, "Packet: I: fromBuffer: Wrong version: ",
+                  unsigned (ver));
         return false;
       }
 
     // Check if payload length enough to parse all entries
-    if (buf.size () < (38 + (68 * nump)))
+    if (buf.size () < (COMM_DATA_LEN + (68 * nump)))
       {
         LogPrint (eLogWarning, "Packet: I: fromBuffer: Incomplete packet");
         return false;
@@ -506,21 +515,21 @@ public:
         pbote::IndexPacket::Entry entry = {};
         std::memcpy (&entry.key, buf.data () + offset, 32);
         offset += 32;
-        i2p::data::Tag<32> key (entry.key);
-        LogPrint (eLogDebug, "Packet: I: fromBuffer: mail key: ",
-                  key.ToBase64 ());
+        //i2p::data::Tag<32> key (entry.key);
+        //LogPrint (eLogDebug, "Packet: I: fromBuffer: mail key: ",
+        //          key.ToBase64 ());
 
         std::memcpy (&entry.dv, buf.data () + offset, 32);
         offset += 32;
-        i2p::data::Tag<32> dv (entry.dv);
-        LogPrint (eLogDebug, "Packet: I: fromBuffer: mail dvr: ",
-                  dv.ToBase64 ());
+        //i2p::data::Tag<32> dv (entry.dv);
+        //LogPrint (eLogDebug, "Packet: I: fromBuffer: mail dvr: ",
+        //          dv.ToBase64 ());
 
         uint32_t temp_time;
         std::memcpy (&temp_time, buf.data () + offset, 4);
         temp_time = ntohl (temp_time);
         std::memcpy (&entry.time, &temp_time, 4);
-        LogPrint (eLogDebug, "Packet: I: fromBuffer: time: ", entry.time);
+        //LogPrint (eLogDebug, "Packet: I: fromBuffer: time: ", entry.time);
         
         data.push_back (entry);
         offset += 4;
@@ -534,7 +543,7 @@ public:
   {
     /// Start basic part
     std::vector<uint8_t> result;
-    result.reserve (38 + (data.size () * 68));
+    result.reserve (COMM_DATA_LEN + (data.size () * 68));
 
     result.push_back (type);
     result.push_back (ver);
@@ -564,31 +573,33 @@ public:
     return result;
   }
 
-  bool
+  int32_t
   erase_entry (const uint8_t key[32], const uint8_t DA[32])
   {
-    uint8_t delHash[32];
+    uint8_t DV[32];
     /// Get hash of Delete Auth
-    SHA256 (DA, 32, delHash);
+    SHA256 (DA, 32, DV);
 
-    i2p::data::Tag<32> da_h (DA), dh_h (delHash);
+    i2p::data::Tag<32> da_h (DA), dh_h (DV);
 
-    LogPrint (eLogDebug, "Packet: I: erase_entry: da_h: ", da_h.ToBase64 ());
-    LogPrint (eLogDebug, "Packet: I: erase_entry: dh_h: ", dh_h.ToBase64 ());
+    LogPrint (eLogDebug, "Packet: I: erase_entry: DA: ", da_h.ToBase64 ());
+    LogPrint (eLogDebug, "Packet: I: erase_entry: DH: ", dh_h.ToBase64 ());
 
     for (uint8_t i = 0; i < (uint8_t)data.size (); i++)
       {
         i2p::data::Tag<32> dv_h (data[i].dv);
-        LogPrint (eLogDebug, "Packet: I: erase_entry: dv_h: ", dv_h.ToBase64 ());
-        if (dh_h == dv_h)
+        int key_cmp = memcmp(data[i].key, key, 32);
+        if (dh_h == dv_h && key_cmp == 0)
           {
+            LogPrint (eLogDebug, "Packet: I: erase_entry: DV: ", dv_h.ToBase64 ());
             data.erase (data.begin () + i);
             nump = data.size ();
-            return true;
+            //return true;
+            return data[i].time;
           }
       }
 
-    return false;
+    return 0;
   }
 };
 
@@ -600,12 +611,73 @@ public:
   struct item
   {
     uint8_t key[32];
-    uint8_t da[32];
-    long time;
+    uint8_t DA[32];
+    int32_t time;
   };
 
   uint32_t count;
   std::vector<item> data;
+
+  bool
+  fromBuffer (const std::vector<uint8_t> &buf, bool from_net)
+  {
+    /// Because count[4] = 4
+    if (buf.size () < 4)
+      {
+        LogPrint (eLogWarning,
+                  "Packet: T: from_comm_packet: Payload is too short: ",
+                  buf.size ());
+        return false;
+      }
+    
+    uint16_t offset = 0;
+    /// Start basic part
+    std::memcpy (&type, buf.data () + offset, 1);
+    offset += 1;
+    std::memcpy (&ver, buf.data () + offset, 1);
+    offset += 1;
+    /// End basic part
+
+    std::memcpy (&count, buf.data () + offset, 4);
+    offset += 4;
+
+    if (from_net)
+      count = ntohl (count);
+
+    LogPrint (eLogDebug, "Packet: T: fromBuffer: count: ", count,
+              ", type: ", type, ", version: ", unsigned (ver));
+
+    if (count == 0)
+      return true;
+
+    for (uint32_t i = 0; i < count; i++)
+      {
+        pbote::DeletionInfoPacket::item item = {};
+        std::memcpy (&item.key, buf.data () + offset, 32);
+        offset += 32;
+
+        i2p::data::Tag<32> key (item.key);
+        LogPrint (eLogDebug, "Packet: T: fromBuffer: key: ", key.ToBase64 ());
+
+        std::memcpy (&item.DA, buf.data () + offset, 32);
+        offset += 32;
+
+        i2p::data::Tag<32> DA (item.DA);
+        LogPrint (eLogDebug, "Packet: T: fromBuffer: DA: ", DA.ToBase64 ());
+
+        uint32_t temp_time;
+        std::memcpy (&temp_time, buf.data () + offset, 4);
+        temp_time = ntohl (temp_time);
+        std::memcpy (&item.time, &temp_time, 4);
+        offset += 4;
+        
+        LogPrint (eLogDebug, "Packet: T: fromBuffer: time: ", item.time);
+        
+        data.push_back (item);
+      }
+
+    return true;
+  }
 
   std::vector<uint8_t>
   toByte ()
@@ -617,6 +689,13 @@ public:
     result.push_back (type);
     result.push_back (ver);
     /// End basic part
+
+    uint8_t v_count[4] = { static_cast<uint8_t> (count >> 24),
+                           static_cast<uint8_t> (count >> 16),
+                           static_cast<uint8_t> (count >> 8),
+                           static_cast<uint8_t> (count & 0xffff) };
+
+    result.insert (result.end (), std::begin (v_count), std::end (v_count));
 
     for (auto entry : data)
       {
@@ -635,20 +714,66 @@ public:
   PeerListPacketV4 () : DataPacket (DataL), count (0) {}
 
   uint16_t count;
-  std::vector<uint8_t> data;
+  std::vector<i2p::data::IdentityEx> data;
 
-  /*bool fromBuffer(uint8_t *buf, size_t len, bool from_net)
+  bool
+  fromBuffer(uint8_t *buf, size_t len, bool from_net)
   {
+    size_t offset = 0;
+    std::memcpy (&type, buf, 1);
+    offset += 1;
+    std::memcpy (&ver, buf + offset, 1);
+    offset += 1;
+    std::memcpy (&count, buf + offset, 2);
+    offset += 2;
 
-  }*/
+    if (from_net)
+      count = ntohs (count);
+
+    if ((type != (uint8_t)'L' && type != (uint8_t)'P') || ver != (uint8_t)4)
+      {
+        LogPrint (eLogWarning, "Packet: L: V4: Unknown packet, type: ", type,
+                  ", ver: ", unsigned (ver));
+        return false;
+      }
+
+    for (size_t i = 0; i < count; i++)
+      {
+        if (offset == len || offset + 384 > len)
+          {
+            LogPrint (eLogWarning, "Packet: L: V4: Incomplete packet!");
+            return false;
+          }
+
+        uint8_t fullKey[387];
+        memcpy (fullKey, buf + offset, 384);
+        offset += 384;
+
+        i2p::data::IdentityEx identity;
+
+        /// This is an workaround, but the current version of the
+        /// protocol does not allow determine the correct key type
+        fullKey[384] = 0;
+        fullKey[385] = 0;
+        fullKey[386] = 0;
+
+        size_t res = identity.FromBuffer (fullKey, 387);
+        if (res > 0)
+          data.push_back (identity);
+        else
+          LogPrint (eLogWarning, "Packet: L: V4: Fail to create node");
+      }
+    LogPrint (eLogDebug, "Packet: L: V4: Nodes: ", data.size ());
+
+    return true;
+  }
 
   std::vector<uint8_t>
   toByte ()
   {
     /// Start basic part
     std::vector<uint8_t> result;
-    result.reserve (4 + data.size ());
-
+    result.reserve (4 + (data.size () * 384));
     result.push_back (type);
     result.push_back (ver);
     /// End basic part
@@ -656,7 +781,17 @@ public:
     uint8_t v_count[2] = { static_cast<uint8_t> (count >> 8),
                            static_cast<uint8_t> (count & 0xff) };
     result.insert (result.end (), std::begin (v_count), std::end (v_count));
-    result.insert (result.end (), data.begin (), data.end ());
+
+    for (auto identity : data)
+    {
+      size_t sz = identity.GetFullLen ();
+      uint8_t t_key[sz] = {};
+      identity.ToBuffer (t_key, sz);
+      uint8_t cut_key[384] = {};
+      memcpy(cut_key, t_key, 384);
+      result.insert (result.end (), cut_key, cut_key + 384);
+    }
+
     return result;
   }
 };
@@ -667,12 +802,50 @@ public:
   PeerListPacketV5 () : DataPacket (DataL), count (0) { ver = version::V5; }
 
   uint16_t count;
-  std::vector<uint8_t> data;
+  std::vector<i2p::data::IdentityEx> data;
 
-  /*bool fromBuffer(uint8_t *buf, size_t len, bool from_net)
+  bool fromBuffer(uint8_t *buf, size_t len, bool from_net)
   {
+    size_t offset = 0;
+    std::memcpy (&type, buf, 1);
+    offset += 1;
+    std::memcpy (&ver, buf + offset, 1);
+    offset += 1;
+    std::memcpy (&count, buf + offset, 2);
+    offset += 2;
 
-  }*/
+    if (from_net)
+      count = ntohs (count);
+
+    if ((type != (uint8_t)'L' && type != (uint8_t)'P') || ver != (uint8_t)5)
+      {
+        LogPrint (eLogWarning,"Packet: L: V5: Unknown packet, type: ", type,
+                  ", ver: ", unsigned (ver));
+        return false;
+      }
+
+    for (size_t i = 0; i < count; i++)
+      {
+        if (offset == len || (offset + 384) > len)
+          {
+            LogPrint (eLogWarning, "Packet: L: V5: Incomplete packet");
+            return false;
+          }
+
+        i2p::data::IdentityEx identity;
+
+        size_t key_len = identity.FromBuffer (buf + offset, len - offset);
+        offset += key_len;
+
+        if (key_len > 0)
+          data.push_back (identity);
+        else
+          LogPrint (eLogWarning, "Packet: L: Fail to create node");
+      }
+    LogPrint (eLogDebug, "Packet: L: V5: Nodes: ", data.size ());
+
+    return true;
+  }
 
   std::vector<uint8_t>
   toByte ()
@@ -688,7 +861,15 @@ public:
     uint8_t v_count[2] = { static_cast<uint8_t> (count >> 8),
                            static_cast<uint8_t> (count & 0xff) };
     result.insert (result.end (), std::begin (v_count), std::end (v_count));
-    result.insert (result.end (), data.begin (), data.end ());
+
+    for (auto identity : data)
+    {
+      size_t sz = identity.GetFullLen ();
+      uint8_t t_key[sz] = {};
+      identity.ToBuffer (t_key, sz);
+      result.insert (result.end (), t_key, t_key + sz);
+    }
+
     return result;
   }
 };
@@ -789,8 +970,7 @@ public:
   bool
   fromBuffer (uint8_t *buf, size_t len, bool from_net)
   {
-    /// Because prefix[4] + type[1] + ver[1] + CID[32] == 38 byte
-    /// Because 38 + status[1] + length[2] = 41
+    /// Because COMM_DATA_LEN + status[1] + length[2] = 41
     if (len < 41)
       {
         LogPrint (eLogWarning,
@@ -815,6 +995,9 @@ public:
 
     if (from_net)
       length = ntohs (length);
+
+    LogPrint (eLogDebug, "Packet: N: fromBuffer: len: ", length,
+              ", type: ", type, ", version: ", unsigned (ver));
 
     if (status != StatusCode::OK)
       return true;
@@ -853,6 +1036,9 @@ public:
 
     if (from_net)
       length = ntohs (length);
+
+    LogPrint (eLogDebug, "Packet: N: fromBuffer: len: ", length,
+              ", type: ", type, ", version: ", unsigned (ver));
 
     /// If not OK - packet without payload, stop now
     if (status != StatusCode::OK)
@@ -945,6 +1131,29 @@ public:
 
   uint8_t dht_key[32]{};
 
+  bool
+  from_comm_packet (pbote::CommunicationPacket packet)
+  {
+    /// Because  dht_key[32] = 32
+    if (packet.payload.size () < 32)
+      {
+        LogPrint (eLogWarning,
+                  "Packet: Y: from_comm_packet: Payload is too short: ",
+                  packet.payload.size ());
+        return false;
+      }
+    
+    /// Start basic part
+    std::memcpy (&type, &packet.type, 1);
+    std::memcpy (&ver, &packet.ver, 1);
+    std::memcpy (&cid, &packet.cid, 32);
+    /// End basic part
+
+    std::memcpy (&dht_key, packet.payload.data (), 32);
+
+    return true;
+  }
+
   std::vector<uint8_t>
   toByte ()
   {
@@ -1006,6 +1215,9 @@ public:
     if (from_net)
       length = ntohs (length);
 
+    LogPrint (eLogDebug, "Packet: S: from_comm_packet: len: ", length,
+              ", type: ", type, ", version: ", unsigned (ver));
+
     data = std::vector<uint8_t> (packet.payload.data () + offset,
                                  packet.payload.data () + offset + length);
 
@@ -1049,8 +1261,7 @@ public:
   bool
   fromBuffer (uint8_t *buf, size_t len, bool from_net)
   {
-    /// Because prefix[4] + type[1] + ver[1] + CID[32] == 38 byte
-    /// 38 + key[32] + DA[32] = 102
+    /// COMM_DATA_LEN + key[32] + DA[32] = 102
     if (len < 102)
       {
         LogPrint (eLogWarning,
@@ -1068,6 +1279,9 @@ public:
     std::memcpy (&cid, buf + offset, 32);
     offset += 32;
     /// End basic part
+
+    LogPrint (eLogDebug, "Packet: D: fromBuffer: type: ", type,
+              ", version: ", unsigned (ver));
 
     std::memcpy (&key, buf + offset, 32);
     offset += 32;
@@ -1095,6 +1309,9 @@ public:
     std::memcpy (&ver, &packet.ver, 1);
     std::memcpy (&cid, &packet.cid, 32);
     /// End basic part
+
+    LogPrint (eLogDebug, "Packet: D: from_comm_packet: type: ", type,
+              ", version: ", unsigned (ver));
 
     uint16_t offset = 0;
     std::memcpy (&key, packet.payload.data () + offset, 32);
@@ -1139,8 +1356,7 @@ public:
   bool
   fromBuffer (uint8_t *buf, size_t len, bool from_net)
   {
-    /// Because prefix[4] + type[1] + ver[1] + CID[32] == 38 byte
-    /// 38 + count[1] + dht_key[32] + item[64] = 135 for min 1 item
+    /// COMM_DATA_LEN + count[1] + dht_key[32] + item[64] = 135 for min 1 item
     if (len < 135)
       {
         LogPrint (eLogWarning,
@@ -1163,6 +1379,16 @@ public:
     offset += 32;
     std::memcpy (&count, buf + offset, 1);
     offset += 1;
+
+    if (len < (size_t)(71 + (64 * count)))
+      {
+        LogPrint (eLogWarning, "Packet: X: fromBuffer: Payload is too short: ",
+                  len);
+        return false;
+      }
+
+    LogPrint (eLogDebug, "Packet: X: fromBuffer: count: ", count,
+              ", type: ", type,", version: ", unsigned (ver));
 
     for (uint32_t i = 0; i < count; i++)
       {
@@ -1216,6 +1442,9 @@ public:
                   packet.payload.size ());
         return false;
       }
+
+    LogPrint (eLogDebug, "Packet: X: from_comm_packet: count: ", count,
+              ", type: ", type,", version: ", unsigned (ver));
 
     for (uint32_t i = 0; i < count; i++)
       {

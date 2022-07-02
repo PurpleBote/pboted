@@ -29,8 +29,8 @@ namespace relay
 #define MAX_PEERS_TO_SEND 20
 
 /// Percentage of requests sent to a peer / responses received back
-#define PEER_MIN_REACHABILITY 16 //
-#define PEER_MAX_REACHABILITY 20 // ~1 day
+#define PEER_MIN_REACHABILITY 18 // 3/4 of ~1 day
+#define PEER_MAX_REACHABILITY 24 // ~1 day
 
 /// Time in minutes while we wait for responses
 #define RELAY_CHECK_TIMEOUT (2 * 60)
@@ -157,8 +157,6 @@ public:
   size_t getPeersCount ();
   size_t get_good_peer_count ();
 
-  bool receivePeerListV4 (const uint8_t *buf, size_t len);
-  bool receivePeerListV5 (const uint8_t *buf, size_t len);
   void peerListRequestV4 (const std::string &sender, const uint8_t *cid);
   void peerListRequestV5 (const std::string &sender, const uint8_t *cid);
   static pbote::PeerListRequestPacket peerListRequestPacket ();

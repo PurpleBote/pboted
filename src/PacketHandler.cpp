@@ -97,9 +97,8 @@ IncomingRequest::receiveFetchRequest (const sp_comm_pac &packet)
 bool
 IncomingRequest::receiveResponsePkt (const sp_comm_pac &packet)
 {
-  LogPrint (eLogWarning,
-            "Packet: receiveResponsePkt: Unexpected Response received");
-  LogPrint (eLogWarning, "Packet: receiveResponsePkt: Sender: ", packet->from);
+  LogPrint (eLogWarning, "Packet: Response: Unexpected Response received");
+  LogPrint (eLogWarning, "Packet: Response: Sender: ", packet->from);
 
   size_t offset = 0;
   uint8_t status;
@@ -108,24 +107,23 @@ IncomingRequest::receiveResponsePkt (const sp_comm_pac &packet)
   std::memcpy (&status, packet->payload.data (), 1);
   offset += 1;
 
-  LogPrint (eLogWarning,
-            "Packet: receiveResponsePkt: Status: ", unsigned (status),
+  LogPrint (eLogWarning, "Packet: Response: Status: ", unsigned (status),
             ", message: ", pbote::statusToString (status));
 
   std::memcpy (&dataLen, packet->payload.data () + offset, sizeof dataLen);
   dataLen = ntohs (dataLen);
   offset += 2;
 
-  LogPrint (eLogWarning, "Packet: receiveResponsePkt: size: ",
+  LogPrint (eLogWarning, "Packet: Response: size: ",
             (packet->payload.size () - offset), ", dataLen: ", dataLen);
 
   if ((packet->payload.size () - offset) != dataLen)
-    LogPrint (eLogWarning, "Packet: receiveResponsePkt: Size mismatch: size: ",
+    LogPrint (eLogWarning, "Packet: Response: Size mismatch: size: ",
               (packet->payload.size () - offset), ", dataLen: ", dataLen);
 
   if (dataLen == 0)
     {
-      LogPrint (eLogWarning, "Packet: receiveResponsePkt: Empty packet");
+      LogPrint (eLogWarning, "Packet: Response: Empty packet");
       return true;
     }
 
@@ -138,56 +136,48 @@ IncomingRequest::receiveResponsePkt (const sp_comm_pac &packet)
     {
       if (packet->ver == (uint8_t)4)
         {
-          LogPrint (eLogWarning,
-                    "Packet: receiveResponsePkt: Peer List, type: ", data[0],
+          LogPrint (eLogWarning, "Packet: Response: Peer List, type: ", data[0],
                     ", ver: ", unsigned (data[1]));
-          return pbote::relay::relay_worker.receivePeerListV4 (
-              data.data (), dataLen);
+          return true;
         }
       else if (packet->ver == (uint8_t)5)
         {
-          LogPrint (eLogWarning,
-                    "Packet: receiveResponsePkt: Peer List, type: ", data[0],
+          LogPrint (eLogWarning, "Packet: Response: Peer List, type: ", data[0],
                     ", ver: ", unsigned (data[1]));
-          return pbote::relay::relay_worker.receivePeerListV5 (
-              data.data (), dataLen);
+          return true;
         }
       else
         {
-          LogPrint (eLogWarning,
-                    "Packet: receiveResponsePkt: Unsupported type: ", data[0],
+          LogPrint (eLogWarning, "Packet: Response: Unsupported type: ", data[0],
                     ", ver: ", unsigned (data[1]));
         }
     }
 
   /// Index Packet
-  if (data[0] == (uint8_t)'I')
+  if (data[0] == DataI)
     {
-      LogPrint (eLogWarning,
-                "Packet: receiveResponsePkt: Index Packet received");
+      LogPrint (eLogWarning, "Packet: Response: Index Packet received");
       return true;
     }
 
   /// Email Packet
-  if (data[0] == (uint8_t)'E')
+  if (data[0] == DataE)
     {
-      LogPrint (eLogWarning,
-                "Packet: receiveResponsePkt: Email Packet received");
+      LogPrint (eLogWarning, "Packet: Response: Email Packet received");
       return true;
     }
 
   /// Directory Entry Packet
-  if (data[0] == (uint8_t)'C')
+  if (data[0] == DataC)
     {
-      LogPrint (eLogWarning,
-                "Packet: receiveResponsePkt: Directory Entry Packet received");
+      LogPrint (eLogWarning, "Packet: Response: Directory Entry Packet received");
       return true;
     }
 
-  LogPrint (eLogWarning, "Packet: receiveResponsePkt: type: ", data[0],
-            ", ver: ", unsigned (data[1]));
-  LogPrint (eLogWarning,
-            "Packet: receiveResponsePkt: Unsupported data packet type");
+  LogPrint (eLogWarning, "Packet: Response: type: ", data[0], ", ver: ",
+            unsigned (data[1]));
+  LogPrint (eLogWarning, "Packet: Response: Unsupported data packet type");
+
   return false;
 }
 
@@ -197,14 +187,12 @@ IncomingRequest::receivePeerListRequest (const sp_comm_pac &packet)
   LogPrint (eLogDebug, "Packet: receivePeerListRequest");
   if (packet->ver == 4)
     {
-      pbote::relay::relay_worker.peerListRequestV4 (packet->from,
-                                                          packet->cid);
+      pbote::relay::relay_worker.peerListRequestV4 (packet->from, packet->cid);
       return true;
     }
   else if (packet->ver == 5)
     {
-      pbote::relay::relay_worker.peerListRequestV5 (packet->from,
-                                                          packet->cid);
+      pbote::relay::relay_worker.peerListRequestV5 (packet->from, packet->cid);
       return true;
     }
   else
@@ -221,11 +209,12 @@ bool
 IncomingRequest::receiveRetrieveRequest (const sp_comm_pac &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveRetrieveRequest");
-  if (packet->ver == 4 && packet->type == type::CommQ)
+  if (packet->ver >= 4 && packet->type == type::CommQ)
     {
       pbote::kademlia::DHT_worker.receiveRetrieveRequest (packet);
       return true;
     }
+
   LogPrint (eLogWarning, "Packet: receiveRetrieveRequest: Unknown, ver: ",
             unsigned (packet->ver), ", type: ", packet->type);
   return false;
@@ -236,13 +225,14 @@ IncomingRequest::receiveDeletionQueryRequest (const sp_comm_pac &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveDeletionQueryRequest");
   /// Y for mhatta
-  if (packet->ver == 4 && packet->type == type::CommY)
+  if (packet->ver >= 4 && packet->type == type::CommY)
     {
       pbote::kademlia::DHT_worker.receiveDeletionQuery (packet);
       return true;
     }
+
   /// L for str4d
-  if (packet->ver == 4 && packet->type == (uint8_t)'L')
+  if (packet->ver >= 4 && packet->type == (uint8_t)'L')
     {
       pbote::kademlia::DHT_worker.receiveDeletionQuery (packet);
       return true;
@@ -257,11 +247,12 @@ bool
 IncomingRequest::receiveStoreRequest (const sp_comm_pac &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveStoreRequest");
-  if (packet->ver == 4 && packet->type == type::CommS)
+  if (packet->ver >= 4 && packet->type == type::CommS)
     {
       pbote::kademlia::DHT_worker.receiveStoreRequest (packet);
       return true;
     }
+
   LogPrint (eLogWarning, "Packet: receiveStoreRequest: Unknown, ver: ",
             unsigned (packet->ver), ", type: ", packet->type);
   return false;
@@ -271,11 +262,12 @@ bool
 IncomingRequest::receiveEmailPacketDeleteRequest (const sp_comm_pac &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveEmailPacketDeleteRequest");
-  if (packet->ver == 4 && packet->type == type::CommD)
+  if (packet->ver >= 4 && packet->type == type::CommD)
     {
       pbote::kademlia::DHT_worker.receiveEmailPacketDeleteRequest (packet);
       return true;
     }
+
   LogPrint (eLogWarning,
             "Packet: receiveEmailPacketDeleteRequest: Unknown, ver: ",
             unsigned (packet->ver), ", type: ", packet->type);
@@ -286,11 +278,12 @@ bool
 IncomingRequest::receiveIndexPacketDeleteRequest (const sp_comm_pac &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveIndexPacketDeleteRequest");
-  if (packet->ver == 4 && packet->type == type::CommX)
+  if (packet->ver >= 4 && packet->type == type::CommX)
     {
       pbote::kademlia::DHT_worker.receiveIndexPacketDeleteRequest (packet);
       return true;
     }
+
   LogPrint (eLogWarning,
             "Packet: receiveIndexPacketDeleteRequest: Unknown, ver: ",
             unsigned (packet->ver), ", type: ", packet->type);
@@ -301,14 +294,13 @@ bool
 IncomingRequest::receiveFindClosePeersRequest (const sp_comm_pac &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveFindClosePeersRequest");
-  if ((packet->ver == 4 || packet->ver == 5) && packet->type == type::CommF)
+  if (packet->ver >= 4 && packet->type == type::CommF)
     {
       pbote::kademlia::DHT_worker.receiveFindClosePeers (packet);
       return true;
     }
 
-  LogPrint (eLogWarning,
-            "Packet: receiveFindClosePeersRequest: Unknown, ver: ",
+  LogPrint (eLogWarning, "Packet: receiveFindClosePeersRequest: Unknown, ver: ",
             unsigned (packet->ver), ", type: ", packet->type);
   return false;
 }
@@ -355,15 +347,14 @@ RequestHandler::run ()
   LogPrint (eLogInfo, "PacketHandler: Started");
   while (started_)
     {
-      auto queuePacket
-        = m_recvQueue->GetNextWithTimeout (PACKET_RECEIVE_TIMEOUT);
+      auto new_packet = m_recvQueue->GetNextWithTimeout (PACKET_RECEIVE_TIMEOUT);
 
-      if (!queuePacket)
+      if (!new_packet)
         continue;
 
       IncomingRequest newSession;
 
-      if (!newSession.handleNewPacket (queuePacket))
+      if (!newSession.handleNewPacket (new_packet))
         {
           LogPrint (eLogWarning, "PacketHandler: Parsing failed");
 
@@ -373,7 +364,7 @@ RequestHandler::run ()
           auto data = response.toByte ();
 
           m_sendQueue->Put (std::make_shared<PacketForQueue> (
-              queuePacket->destination, data.data (), data.size ()));
+              new_packet->destination, data.data (), data.size ()));
         }
     }
 }

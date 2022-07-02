@@ -55,6 +55,7 @@ EmailWorker::start ()
     {
       startSendEmailTask ();
       startCheckEmailTasks ();
+      start_check_delivery_task ();
     }
 
   started_ = true;
@@ -70,6 +71,7 @@ EmailWorker::stop ()
   started_ = false;
   stopSendEmailTask ();
   stopCheckEmailTasks ();
+  stop_check_delivery_task ();
 
   LogPrint (eLogWarning, "EmailWorker: Stopped");
 }
@@ -139,6 +141,33 @@ EmailWorker::stopSendEmailTask ()
     }
 
   LogPrint (eLogInfo, "EmailWorker: Send task stopped");
+  return true;
+}
+
+void
+EmailWorker::start_check_delivery_task ()
+{
+  if (!started_)
+    return;
+
+  LogPrint (eLogInfo, "EmailWorker: Start check delivery task");
+  m_check_thread_ = new std::thread ([this] { check_delivery_task (); });
+}
+
+bool
+EmailWorker::stop_check_delivery_task ()
+{
+  LogPrint (eLogInfo, "EmailWorker: Stopping check delivery task");
+
+  if (m_check_thread_ && !started_)
+    {
+      m_check_thread_->join ();
+
+      delete m_check_thread_;
+      m_check_thread_ = nullptr;
+    }
+
+  LogPrint (eLogInfo, "EmailWorker: Check delivery task stopped");
   return true;
 }
 
@@ -250,18 +279,29 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
           i2p::data::Tag<32> email_del_auth (email_packet.DA);
 
           /// We need to remove packets for all received email from nodes
-          // ToDo: check status of responses
-          DHT_worker.deleteEmail (email_dht_key, DataE, delete_email_packet);
-
-          /// Delete index packets
           // ToDo: multipart email support
-          DHT_worker.deleteIndexEntry (
-              email_identity->identity.GetIdentHash (), email_dht_key,
-              email_del_auth);
-        }
+          std::vector<std::string> responses;
+          responses = DHT_worker.deleteEmail (email_dht_key,
+                                              DataE, delete_email_packet);
 
-      // ToDo: check sent emails status -> check_email_delivery_task
-      //   if nodes sent empty response - mark as deleted (delivered)
+          if (responses.empty ())
+          {
+            LogPrint (eLogInfo, "EmailWorker: Check: ", id_name,
+                      ": Email not removed from DHT");
+          }
+
+          /// Same for Index packets
+          // ToDo: multipart email support
+          responses = DHT_worker.deleteIndexEntry (
+                      email_identity->identity.GetIdentHash (), email_dht_key,
+                      email_del_auth);
+
+          if (responses.empty ())
+          {
+            LogPrint (eLogInfo, "EmailWorker: Check: ", id_name,
+                      ": Index not removed from DHT");
+          }
+        }
 
       LogPrint (eLogInfo, "EmailWorker: Check: ", id_name, ": complete");
     }
@@ -313,8 +353,9 @@ EmailWorker::sendEmailTask ()
 
           pbote::StoreRequestPacket store_packet;
 
-          store_packet.length = email->getEncrypted ().toByte ().size ();
-          store_packet.data = email->getEncrypted ().toByte ();
+          auto encrypted_mail = email->getEncrypted ();
+          store_packet.data = encrypted_mail.toByte ();
+          store_packet.length = store_packet.data.size ();
           LogPrint (eLogDebug, "EmailWorker: Send: store_packet.length: ",
                     store_packet.length);
 
@@ -325,7 +366,7 @@ EmailWorker::sendEmailTask ()
                     store_packet.hc_length);
 
           /// Send Store Request with Encrypted Email Packet to nodes
-          i2p::data::Tag<32> email_dht_key (email->getEncrypted ().key);
+          i2p::data::Tag<32> email_dht_key (encrypted_mail.key);
           nodes = DHT_worker.store (email_dht_key, DataE, store_packet);
 
           /// If have no OK store responses - mark message as skipped
@@ -336,7 +377,7 @@ EmailWorker::sendEmailTask ()
               continue;
             }
 
-          DHT_worker.safe (email->getEncrypted ().toByte ());
+          DHT_worker.safe (encrypted_mail.toByte ());
           LogPrint (eLogDebug, "EmailWorker: Send: Email sent to ",
                     nodes.size (), " node(s)");
         }
@@ -355,7 +396,6 @@ EmailWorker::sendEmailTask ()
                   recipient->GetIdentHash ().data (), 32);
 
           // ToDo: for test, need to rewrite
-          new_index_packet.nump = 1;
           // for (const auto &email : encryptedEmailPackets) {
           pbote::IndexPacket::Entry entry{};
           memcpy (entry.key, email->getEncrypted ().key, 32);
@@ -368,6 +408,7 @@ EmailWorker::sendEmailTask ()
 
           new_index_packet.data.push_back (entry);
           //}
+          new_index_packet.nump = new_index_packet.data.size ();
 
           pbote::StoreRequestPacket store_index_packet;
 
@@ -383,8 +424,7 @@ EmailWorker::sendEmailTask ()
           store_index_packet.data = index_packet;
 
           /// Send Store Request with Index Packet to nodes
-          nodes = DHT_worker.store (recipient->GetIdentHash (),
-                                    new_index_packet.type,
+          nodes = DHT_worker.store (recipient->GetIdentHash (), DataI,
                                     store_index_packet);
 
           /// If have no OK store responses - mark message as skipped
@@ -419,6 +459,30 @@ EmailWorker::sendEmailTask ()
         }
 
       LogPrint (eLogInfo, "EmailWorker: Send: Round complete");
+    }
+}
+
+void
+EmailWorker::check_delivery_task ()
+{
+  LogPrint (eLogInfo, "EmailWorker: Check delivery started");
+  // Check Sent directory
+  while (started_)
+    {
+      // If empty - sleep 5 min
+      std::this_thread::sleep_for (std::chrono::seconds (CHECK_EMAIL_INTERVAL));
+
+      // Read meta data from sent email
+
+      // Make DeletionQuery to DHT
+      // std::vector<std::shared_ptr<pbote::DeletionInfoPacket> > results;
+      // results = DHT_worker.deletion_query (key);
+
+      // Compare DeletionInfoPacket in results with Email meta (key, DA)
+
+      // If have more than one valid DeletionInfoPacket - mark delivered
+
+      LogPrint (eLogInfo, "EmailWorker: Check delivery: Round complete");
     }
 }
 

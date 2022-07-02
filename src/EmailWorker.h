@@ -47,10 +47,15 @@ public:
 
   void startCheckEmailTasks ();
   bool stopCheckEmailTasks ();
+
   void startIncompleteEmailTask ();
   bool stopIncompleteEmailTask ();
+
   void startSendEmailTask ();
   bool stopSendEmailTask ();
+
+  void start_check_delivery_task ();
+  bool stop_check_delivery_task ();
 
   v_sp_email check_inbox ();
 
@@ -60,6 +65,7 @@ private:
   void checkEmailTask (const sp_id_full &identity);
   void incompleteEmailTask ();
   void sendEmailTask ();
+  void check_delivery_task ();
 
   std::vector<pbote::IndexPacket> retrieveIndex (const sp_id_full &identity);
   std::vector<pbote::EmailEncryptedPacket>
@@ -79,6 +85,7 @@ private:
   bool started_;
   std::thread *m_send_thread_;
   std::thread *m_worker_thread_;
+  std::thread *m_check_thread_;
   thread_map m_check_threads_;
 };
 
