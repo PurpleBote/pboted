@@ -1155,7 +1155,7 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
   StoreRequestPacket store_packet;
 
   pbote::ResponsePacket response;
-  memcpy (response.cid, store_packet.cid, 32);
+  memcpy (response.cid, packet->cid, 32);
   response.length = 0;
 
   bool parsed = store_packet.from_comm_packet (*packet, true);

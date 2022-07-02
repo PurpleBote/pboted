@@ -443,8 +443,8 @@ public:
 
   struct Entry
   {
-    uint8_t key[32];
-    uint8_t dv[32];
+    uint8_t key[32]{0};
+    uint8_t dv[32]{0};
     int32_t time;
 
     bool
@@ -610,8 +610,8 @@ public:
 
   struct item
   {
-    uint8_t key[32];
-    uint8_t DA[32];
+    uint8_t key[32]{0};
+    uint8_t DA[32]{0};
     int32_t time;
   };
 
@@ -879,14 +879,14 @@ struct DirectoryEntryPacket : public DataPacket
 public:
   DirectoryEntryPacket () : DataPacket (DataC) {}
 
-  uint8_t key[32]{};
-  uint16_t dest_length{};
+  uint8_t key[32]{0};
+  uint16_t dest_length{0};
   std::vector<uint8_t> dest_data;
-  uint32_t salt{};
-  uint16_t pic_length{};
+  uint32_t salt{0};
+  uint16_t pic_length{0};
   std::vector<uint32_t> pic;
-  uint8_t compress{};
-  uint16_t text_length{};
+  uint8_t compress{0};
+  uint16_t text_length{0};
   std::vector<uint8_t> text;
 
   std::vector<uint8_t>
@@ -917,7 +917,7 @@ public:
   uint8_t prefix[4];
   uint8_t type;
   uint8_t ver;
-  uint8_t cid[32]{};
+  uint8_t cid[32]{0};
   std::string from;
   std::vector<uint8_t> payload;
 };
@@ -933,26 +933,32 @@ public:
   uint8_t prefix[4];
   uint8_t type;
   uint8_t ver;
-  uint8_t cid[32]{};
+  uint8_t cid[32]{0};
 };
 
 /// not implemented
-/*struct RelayRequestPacket : public CleanCommunicationPacket{
+/*
+struct RelayRequestPacket : public CleanCommunicationPacket{
  public:
   RelayRequestPacket() : CleanCommunicationPacket(CommR) {}
-};*/
+};
+*/
 
 /// not implemented
-/*struct RelayReturnRequestPacket : public CleanCommunicationPacket{
+/*
+struct RelayReturnRequestPacket : public CleanCommunicationPacket{
  public:
   RelayReturnRequestPacket() : CleanCommunicationPacket(CommK) {}
-};*/
+};
+*/
 
 /// not implemented
-/*struct FetchRequestPacket : public CleanCommunicationPacket{
+/*
+struct FetchRequestPacket : public CleanCommunicationPacket{
  public:
   FetchRequestPacket() : CleanCommunicationPacket(CommF) {}
-};*/
+};
+*/
 
 struct ResponsePacket : public CleanCommunicationPacket
 {
@@ -960,7 +966,7 @@ public:
   ResponsePacket () : CleanCommunicationPacket (CommN) {}
 
   StatusCode status{StatusCode::OK};
-  uint16_t length{};
+  uint16_t length{0};
   // 'I' = Index Packet
   // 'C' = Directory Entry
   // 'E' = Email Packet
@@ -1105,8 +1111,8 @@ struct RetrieveRequestPacket : public CleanCommunicationPacket
 public:
   RetrieveRequestPacket () : CleanCommunicationPacket (CommQ) {}
 
-  uint8_t data_type{};
-  uint8_t key[32]{};
+  uint8_t data_type{0};
+  uint8_t key[32]{0};
 
   std::vector<uint8_t>
   toByte ()
@@ -1129,7 +1135,7 @@ struct DeletionQueryPacket : public CleanCommunicationPacket
 public:
   DeletionQueryPacket () : CleanCommunicationPacket (CommY) {}
 
-  uint8_t dht_key[32]{};
+  uint8_t dht_key[32]{0};
 
   bool
   from_comm_packet (pbote::CommunicationPacket packet)
@@ -1175,9 +1181,9 @@ struct StoreRequestPacket : public CleanCommunicationPacket
 public:
   StoreRequestPacket () : CleanCommunicationPacket (CommS) {}
 
-  uint16_t hc_length{};
+  uint16_t hc_length{0};
   std::vector<uint8_t> hashcash;
-  uint16_t length{};
+  uint16_t length{0};
   std::vector<uint8_t> data;
 
   bool
@@ -1203,7 +1209,7 @@ public:
     offset += 2;
 
     if (from_net)
-      hc_length = ntohl (hc_length);
+      hc_length = ntohs (hc_length);
 
     hashcash = std::vector<uint8_t> (packet.payload.data () + offset,
                                      packet.payload.data () + offset + hc_length);
@@ -1255,8 +1261,8 @@ struct EmailDeleteRequestPacket : public CleanCommunicationPacket
 public:
   EmailDeleteRequestPacket () : CleanCommunicationPacket (CommD) {}
 
-  uint8_t key[32]{};
-  uint8_t DA[32]{};
+  uint8_t key[32]{0};
+  uint8_t DA[32]{0};
 
   bool
   fromBuffer (uint8_t *buf, size_t len, bool from_net)
@@ -1345,12 +1351,12 @@ public:
 
   struct item
   {
-    uint8_t key[32]{};
-    uint8_t da[32]{};
+    uint8_t key[32]{0};
+    uint8_t da[32]{0};
   };
 
-  uint8_t dht_key[32]{};
-  uint8_t count{};
+  uint8_t dht_key[32]{0};
+  uint8_t count{0};
   std::vector<item> data;
 
   bool
@@ -1497,7 +1503,7 @@ struct FindClosePeersRequestPacket : public CleanCommunicationPacket
 public:
   FindClosePeersRequestPacket () : CleanCommunicationPacket (CommF) {}
 
-  uint8_t key[32]{};
+  uint8_t key[32]{0};
 
   std::vector<uint8_t>
   toByte ()
