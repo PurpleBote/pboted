@@ -464,11 +464,11 @@ RelayWorker::get_good_peer_count ()
 }
 
 void
-RelayWorker::peerListRequestV4 (const std::string &sender, const uint8_t *cid)
+RelayWorker::peerListRequestV4 (const sp_comm_packet &packet)
 {
   LogPrint (eLogDebug, "Relay: peerListRequestV4: request from: ",
-            sender.substr (0, 15), "...");
-  if (addPeer (sender))
+            packet->from.substr (0, 15), "...");
+  if (addPeer (packet->from))
     {
       LogPrint (eLogDebug,
                 "Relay: peerListRequestV4: Requester added to peers list");
@@ -486,24 +486,24 @@ RelayWorker::peerListRequestV4 (const std::string &sender, const uint8_t *cid)
     }
 
   pbote::ResponsePacket response;
-  memcpy (response.cid, cid, 32);
+  memcpy (response.cid, packet->cid, 32);
   response.status = StatusCode::OK;
   response.data = peer_list.toByte ();
   response.length = response.data.size ();
   auto data = response.toByte ();
 
-  context.send (PacketForQueue (sender, data.data (), data.size ()));
+  context.send (PacketForQueue (packet->from, data.data (), data.size ()));
   LogPrint (eLogInfo, "Relay: peerListRequestV4: Send response with ",
             peer_list.count, " peer(s)");
 }
 
 void
-RelayWorker::peerListRequestV5 (const std::string &sender, const uint8_t *cid)
+RelayWorker::peerListRequestV5 (const sp_comm_packet &packet)
 {
   LogPrint (eLogDebug, "Relay: peerListRequestV5: Request from: ",
-            sender.substr (0, 15), "...");
+            packet->from.substr (0, 15), "...");
 
-  if (addPeer (sender))
+  if (addPeer (packet->from))
     {
       LogPrint (eLogDebug,
                 "Relay: peerListRequestV5: Requester added to peers list");
@@ -521,13 +521,13 @@ RelayWorker::peerListRequestV5 (const std::string &sender, const uint8_t *cid)
     }
 
   pbote::ResponsePacket response;
-  memcpy (response.cid, cid, 32);
+  memcpy (response.cid, packet->cid, 32);
   response.status = StatusCode::OK;
   response.data = peer_list.toByte ();
   response.length = response.data.size ();
   auto data = response.toByte ();
 
-  context.send (PacketForQueue (sender, data.data (), data.size ()));
+  context.send (PacketForQueue (packet->from, data.data (), data.size ()));
   LogPrint (eLogInfo, "Relay: peerListRequestV5: Send response with ",
             peer_list.count, " peer(s)");
 }

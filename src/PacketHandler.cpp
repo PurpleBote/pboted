@@ -187,12 +187,12 @@ IncomingRequest::receivePeerListRequest (const sp_comm_pac &packet)
   LogPrint (eLogDebug, "Packet: receivePeerListRequest");
   if (packet->ver == 4)
     {
-      pbote::relay::relay_worker.peerListRequestV4 (packet->from, packet->cid);
+      pbote::relay::relay_worker.peerListRequestV4 (packet);
       return true;
     }
   else if (packet->ver == 5)
     {
-      pbote::relay::relay_worker.peerListRequestV5 (packet->from, packet->cid);
+      pbote::relay::relay_worker.peerListRequestV5 (packet);
       return true;
     }
   else

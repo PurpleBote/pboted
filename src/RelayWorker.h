@@ -129,6 +129,7 @@ private:
 
 using sp_peer = std::shared_ptr<RelayPeer>;
 using hash_key = i2p::data::Tag<32>;
+using sp_comm_packet = std::shared_ptr<pbote::CommunicationPacket>;
 
 class RelayWorker
 {
@@ -157,8 +158,8 @@ public:
   size_t getPeersCount ();
   size_t get_good_peer_count ();
 
-  void peerListRequestV4 (const std::string &sender, const uint8_t *cid);
-  void peerListRequestV5 (const std::string &sender, const uint8_t *cid);
+  void peerListRequestV4 (const sp_comm_packet &packet);
+  void peerListRequestV5 (const sp_comm_packet &packet);
   static pbote::PeerListRequestPacket peerListRequestPacket ();
 
 private:
