@@ -1053,6 +1053,14 @@ public:
     if (length == 0)
       return true;
 
+    if ((packet.payload.size () - offset) < length)
+      {
+        LogPrint (eLogWarning,
+                  "Packet: N: from_comm_packet: Payload is too short: ",
+                  packet.payload.size ());
+        return false;
+      }
+
     data = std::vector<uint8_t> (packet.payload.data () + offset,
                                  packet.payload.data () + offset + length);
 
@@ -1113,6 +1121,43 @@ public:
 
   uint8_t data_type{0};
   uint8_t key[32]{0};
+
+  bool
+  from_comm_packet (pbote::CommunicationPacket packet)
+  {
+    /// Because  data_type[1] + dht_key[32] = 33
+    if (packet.payload.size () < 33)
+      {
+        LogPrint (eLogWarning,
+                  "Packet: Q: from_comm_packet: Payload is too short: ",
+                  packet.payload.size ());
+        return false;
+      }
+    
+    /// Start basic part
+    std::memcpy (&type, &packet.type, 1);
+    std::memcpy (&ver, &packet.ver, 1);
+    std::memcpy (&cid, &packet.cid, 32);
+    /// End basic part
+
+    uint16_t offset = 0;
+    std::memcpy (&data_type, packet.payload.data () + offset, 1);
+
+    if (data_type != (uint8_t)'I' && data_type != (uint8_t)'E' &&
+        data_type != (uint8_t)'C')
+    {
+      LogPrint (eLogWarning,
+                "Packet: Q: from_comm_packet:Unknown packet type: ",
+                data_type);
+      return false;
+    }
+
+    offset += 1;
+    std::memcpy (&key, packet.payload.data () + offset, 32);
+    //offset += 32;
+
+    return true;
+  }
 
   std::vector<uint8_t>
   toByte ()

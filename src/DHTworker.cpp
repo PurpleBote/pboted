@@ -514,10 +514,11 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
       pbote::ResponsePacket res_packet{};
       res_packet.from_comm_packet (*response, true);
 
-      if (res_packet.status == StatusCode::OK)
+      if (res_packet.status == StatusCode::OK ||
+          res_packet.status == StatusCode::NO_DATA_FOUND)
         {
           res.push_back (response->from);
-          LogPrint (eLogDebug, "DHT: deleteEmail: OK response from: ",
+          LogPrint (eLogDebug, "DHT: deleteEmail: Valid response from: ",
                     response->from.substr (0, 15), "...");
         }
     }
@@ -621,10 +622,11 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
       pbote::ResponsePacket res_packet{};
       res_packet.from_comm_packet (*response, true);
 
-      if (res_packet.status == StatusCode::OK)
+      if (res_packet.status == StatusCode::OK ||
+          res_packet.status == StatusCode::NO_DATA_FOUND)
         {
           res.push_back (response->from);
-          LogPrint (eLogDebug, "DHT: deleteIndexEntry: OK response from: ",
+          LogPrint (eLogDebug, "DHT: deleteIndexEntry: Valid response from: ",
                     response->from.substr (0, 15), "...");
         }
     }
@@ -834,9 +836,10 @@ DHTworker::closestNodesLookupTask (HashKey key)
           continue;
         }
 
+      LogPrint (eLogDebug, "DHT: closestNodesLookup: Response from: ",
+                response->from.substr (0, 15), "...");
+
       pbote::ResponsePacket packet;
-      //bool parsed = packet.fromBuffer (response->payload.data (),
-      //                                 response->payload.size (), true);
       bool parsed = packet.from_comm_packet (*response, true);
       if (!parsed)
         {
@@ -998,69 +1001,60 @@ DHTworker::receiveRetrieveRequest (const sp_comm_packet &packet)
                 "DHT: receiveRetrieveRequest: Sender added to list");
     }
 
-  uint16_t offset = 0;
-  uint8_t dataType;
-  uint8_t key[32];
-
-  std::memcpy (&dataType, packet->payload.data (), 1);
-  offset += 1;
-  std::memcpy (&key, packet->payload.data () + offset, 32); // offset += 32;
-
   pbote::ResponsePacket response;
   memcpy (response.cid, packet->cid, 32);
 
-  if (dataType == (uint8_t)'I' || dataType == (uint8_t)'E'
-      || dataType == (uint8_t)'C')
+  pbote::RetrieveRequestPacket ret_packet;
+  bool parsed = ret_packet.from_comm_packet (*packet);
+
+  if (!parsed)
     {
-      HashKey hash (key);
-      LogPrint (eLogDebug,
-                "DHT: receiveRetrieveRequest: Request for type: ", dataType,
-                ", key: ", hash.ToBase64 ());
+      LogPrint (eLogDebug, "DHT: receiveRetrieveRequest: Can't parse packet");
+      response.status = pbote::StatusCode::INVALID_PACKET;
+      response.length = 0;
 
-      /// Try to find packet in storage
-      std::vector<uint8_t> data;
-      switch (dataType)
-        {
-        case ((uint8_t)'I'):
-          data = dht_storage_.getIndex (hash);
-          break;
-        case ((uint8_t)'E'):
-          data = dht_storage_.getEmail (hash);
-          break;
-        case ((uint8_t)'C'):
-          data = dht_storage_.getContact (hash);
-          break;
-        default:
-          break;
-        }
+      PacketForQueue q_packet (packet->from, response.toByte ().data (),
+                               response.toByte ().size ());
+      context.send (q_packet);
+      return;
+    }
 
-      if (data.empty ())
-        {
-          LogPrint (eLogDebug,
-                    "DHT: receiveRetrieveRequest: Can't find type: ", dataType,
-                    ", key: ", hash.ToBase64 ());
-          response.status = pbote::StatusCode::NO_DATA_FOUND;
-          response.length = 0;
-        }
-      else
-        {
-          LogPrint (eLogDebug,
-                    "DHT: receiveRetrieveRequest: Found data type: ", dataType,
-                    ", key: ", hash.ToBase64 ());
+  HashKey hash (ret_packet.key);
+  LogPrint (eLogDebug, "DHT: receiveRetrieveRequest: Request for type: ",
+            ret_packet.data_type, ", key: ", hash.ToBase64 ());
 
-          response.status = pbote::StatusCode::OK;
-          response.length = data.size ();
-          response.data = data;
-        }
+  /// Try to find packet in storage
+  std::vector<uint8_t> data;
+  switch (ret_packet.data_type)
+    {
+    case ((uint8_t)'I'):
+      data = dht_storage_.getIndex (hash);
+      break;
+    case ((uint8_t)'E'):
+      data = dht_storage_.getEmail (hash);
+      break;
+    case ((uint8_t)'C'):
+      data = dht_storage_.getContact (hash);
+      break;
+    default:
+      break;
+    }
+
+  if (data.empty ())
+    {
+      LogPrint (eLogDebug, "DHT: receiveRetrieveRequest: Can't find type: ",
+                ret_packet.data_type, ", key: ", hash.ToBase64 ());
+      response.status = pbote::StatusCode::NO_DATA_FOUND;
+      response.length = 0;
     }
   else
     {
-      // In case if we can't parse
-      LogPrint (
-          eLogDebug,
-          "DHT: receiveRetrieveRequest: Unknown packet type: ", dataType);
-      response.status = pbote::StatusCode::INVALID_PACKET;
-      response.length = 0;
+      LogPrint (eLogDebug, "DHT: receiveRetrieveRequest: Found data type: ",
+                ret_packet.data_type, ", key: ", hash.ToBase64 ());
+
+      response.status = pbote::StatusCode::OK;
+      response.length = data.size ();
+      response.data = data;
     }
 
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
@@ -1085,6 +1079,9 @@ DHTworker::receiveDeletionQuery (const sp_comm_packet &packet)
     LogPrint (eLogDebug, "DHT: receiveDeletionQuery: Sender added to list");
 
   pbote::ResponsePacket response{};
+  memcpy (response.cid, packet->cid, 32);
+  response.length = 0;
+
   pbote::DeletionQueryPacket del_query{};
 
   bool parsed = del_query.from_comm_packet (*packet);
@@ -1496,6 +1493,9 @@ DHTworker::receiveFindClosePeers (const sp_comm_packet &packet)
                 "DHT: receiveFindClosePeers: Sender added to list");
     }
 
+  pbote::ResponsePacket response;
+  memcpy (response.cid, packet->cid, 32);
+
   uint8_t key[32];
   std::memcpy (&key, packet->payload.data (), 32);
   HashKey t_key (key);
@@ -1515,8 +1515,6 @@ DHTworker::receiveFindClosePeers (const sp_comm_packet &packet)
       LogPrint (eLogDebug,
                 "DHT: receiveFindClosePeers: Can't find closest nodes");
 
-      pbote::ResponsePacket response;
-      memcpy (response.cid, packet->cid, 32);
       response.status = pbote::StatusCode::GENERAL_ERROR;
       response.length = 0;
 
@@ -1527,10 +1525,8 @@ DHTworker::receiveFindClosePeers (const sp_comm_packet &packet)
     }
 
   LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Got ",
-            closest_nodes.size (),
-            " node(s) closest to key: ", t_key.ToBase64 ());
-  pbote::ResponsePacket response;
-  memcpy (response.cid, packet->cid, 32);
+            closest_nodes.size (), " node(s) closest to key: ",
+            t_key.ToBase64 ());
   response.status = pbote::StatusCode::OK;
 
   if (packet->ver == 4)
