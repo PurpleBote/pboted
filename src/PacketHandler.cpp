@@ -47,22 +47,24 @@ IncomingRequest::handleNewPacket (
       return false;
     }
 
-  /// First we need to check CID in batches
-  // ToDo: check if we got Response Packet?
-  if (context.receive (packet))
+  /// First we need to check if ResponsePacket and CID in batches
+  if (packet->type == type::CommN)
     {
-      LogPrint (eLogDebug, "Packet: Pass packet ", packet->type, " to batch");
-      return true;
+      if (context.receive (packet))
+        {
+          LogPrint (eLogDebug, "Packet: Pass packet ", packet->type,
+                    " to batch");
+          return true;
+        }
     }
 
-  LogPrint (eLogDebug, "Packet: Non-batch packet with type ",
-            packet->type);
+  LogPrint (eLogDebug, "Packet: Non-batch packet with type ", packet->type);
 
   if (i_handlers_[packet->type])
     return (this->*(i_handlers_[packet->type])) (packet);
   else
     {
-      LogPrint (eLogWarning, "Packet: Got unknown packet type");
+      LogPrint (eLogWarning, "Packet: Got unknown packet type ", packet->type);
       return false;
     }
 }

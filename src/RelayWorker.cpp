@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -27,7 +27,11 @@ RelayWorker::RelayWorker ()
 {
 }
 
-RelayWorker::~RelayWorker () { stop (); }
+RelayWorker::~RelayWorker ()
+{
+  LogPrint (eLogDebug, "Relay: Stopping");
+  stop ();
+}
 
 void
 RelayWorker::start ()
@@ -51,176 +55,10 @@ RelayWorker::stop ()
     }
 }
 
-void
-RelayWorker::run ()
-{
-  // To prevent too quick start
-  std::this_thread::sleep_for (std::chrono::seconds(30));
-  bool task_status = false;
-
-  while (started_)
-    {
-      set_start_time ();
-
-      if (!m_peers_.empty ())
-        task_status = check_peers ();
-      else
-        LogPrint (eLogError, "Relay: No peers for start");
-
-      set_finish_time ();
-
-      auto delay = get_delay (task_status);
-      LogPrint (eLogDebug, "Relay: Wait for ", (delay.count () / 60), " min.");
-
-      std::this_thread::sleep_for (delay);
-    }
-}
-
-bool
-RelayWorker::check_peers ()
-{
-  LogPrint (eLogDebug, "Relay: Start new round");
-  size_t reachable_peers = 0;
-
-  auto batch
-      = std::make_shared<pbote::PacketBatch<pbote::CommunicationPacket> > ();
-  batch->owner = "relay::main";
-
-  auto peers = getAllPeers ();
-  LogPrint (eLogDebug, "Relay: Peers count: ", peers.size ());
-  for (const auto &peer : peers)
-    {
-      // If peer responde we will mark further
-      peer->reachable (false);
-
-      auto packet = peerListRequestPacket ();
-      PacketForQueue q_packet (peer->ToBase64 (), packet.toByte ().data (),
-                               packet.toByte ().size ());
-
-      std::vector<uint8_t> v_cid (std::begin (packet.cid),
-                                  std::end (packet.cid));
-      batch->addPacket (v_cid, q_packet);
-    }
-
-  LogPrint (eLogDebug, "Relay: Batch size: ", batch->packetCount ());
-  context.send (batch);
-
-  if (batch->waitLast (RELAY_CHECK_TIMEOUT))
-    LogPrint (eLogDebug, "Relay: Batch timed out or got last");
-
-  auto responses = batch->getResponses ();
-
-  if (responses.empty ())
-    {
-      LogPrint (eLogWarning, "Relay: No responses");
-      /// Rollback samples, if have no responses at all
-      /// Usually in network error case
-      for (const auto &peer : m_peers_)
-        peer.second->rollback ();
-
-      return false;
-    }
-
-  for (const auto &response : responses)
-    {
-      if (response->type != type::CommN)
-        {
-          // ToDo: looks like in case if we got request to ourself
-          // for now  we just skip it
-          LogPrint (eLogWarning,
-                    "Relay: Got non-response packet in batch, type: ",
-                    response->type, ", ver: ", unsigned (response->ver));
-          continue;
-        }
-
-      pbote::ResponsePacket res_packet;
-      bool parsed = res_packet.from_comm_packet (*response, true);
-
-      if (!parsed)
-        {
-          LogPrint (eLogWarning, "Relay: Can't parse response packet ");
-          continue;
-        }
-
-      /// Increment peer metric back, if we have valid Response Packet
-      for (const auto &m_peer : m_peers_)
-        {
-          if (m_peer.second->ToBase64 () == response->from)
-            {
-              LogPrint (eLogDebug, "Relay: Got response, mark reachable");
-              m_peer.second->reachable (true);
-              reachable_peers++;
-            }
-        }
-
-      if (res_packet.status != StatusCode::OK)
-        {
-          LogPrint (eLogWarning, "Relay: Response: ", statusToString (res_packet.status));
-          continue;
-        }
-
-      size_t added = 0, dupl = 0;
-
-      if (unsigned (res_packet.data[1]) == 5)
-        {
-          pbote::PeerListPacketV5 peer_list;
-          parsed = peer_list.fromBuffer (res_packet.data.data (),
-                                         res_packet.data.size (), true);
-          if (!parsed)
-            {
-              LogPrint (eLogWarning, "Relay: Can't parse V5 packet");
-              continue;
-            }
-
-          for (auto peer : peer_list.data)
-            {
-              if (addPeer (peer.ToBase64 ()))
-                added++;
-              else
-                dupl++;
-            }
-        }
-      else if (unsigned (res_packet.data[1]) == 4)
-        {
-          pbote::PeerListPacketV4 peer_list;
-          parsed = peer_list.fromBuffer (res_packet.data.data (),
-                                         res_packet.data.size (), true);
-          if (!parsed)
-            {
-              LogPrint (eLogWarning, "Relay: Can't parse V4 packet");
-              continue;
-            }
-
-          for (auto peer : peer_list.data)
-            {
-              if (addPeer (peer.ToBase64 ()))
-                added++;
-              else
-                dupl++;
-            }
-        }
-      else
-        {
-          LogPrint (eLogWarning, "Relay: Unknown version: ", response->ver);
-        }
-
-      LogPrint (eLogDebug, "Relay: Peers added: ", added, ", dup: ", dupl,
-                ", total: ", added + dupl);
-    }
-
-  LogPrint (eLogDebug, "Relay: Reachable peers: ", reachable_peers);
-
-  context.removeBatch (batch);
-  writePeers ();
-
-  return true;
-}
-
 bool
 RelayWorker::addPeer (const uint8_t *buf, int len)
 {
-  std::shared_ptr<i2p::data::IdentityEx> identity
-      = std::make_shared<i2p::data::IdentityEx> ();
+  sp_i2p_ident identity = std::make_shared<i2p::data::IdentityEx> ();
 
   if (identity->FromBuffer (buf, len))
     return addPeer (identity, PEER_MIN_REACHABILITY);
@@ -231,8 +69,7 @@ RelayWorker::addPeer (const uint8_t *buf, int len)
 bool
 RelayWorker::addPeer (const std::string &peer)
 {
-  std::shared_ptr<i2p::data::IdentityEx> identity
-      = std::make_shared<i2p::data::IdentityEx> ();
+  sp_i2p_ident identity = std::make_shared<i2p::data::IdentityEx> ();
 
   if (identity->FromBase64 (peer))
     return addPeer (identity, PEER_MIN_REACHABILITY);
@@ -241,8 +78,7 @@ RelayWorker::addPeer (const std::string &peer)
 }
 
 bool
-RelayWorker::addPeer (
-    const std::shared_ptr<i2p::data::IdentityEx> &identity, int samples)
+RelayWorker::addPeer (const sp_i2p_ident &identity, int samples)
 {
   if (findPeer (identity->GetIdentHash ()))
     return false;
@@ -267,6 +103,36 @@ RelayWorker::addPeers (const std::vector<sp_peer> &peers)
 {
   for (const auto &peer : peers)
     addPeer (peer, peer->samples ());
+}
+
+void
+RelayWorker::addPeers (const PeerListPacketV4 &peer_list)
+{
+  size_t added = 0, dupl = 0;
+
+  for (const auto &peer : peer_list.data)
+    if (addPeer (peer.ToBase64 ()))
+      added++;
+    else
+      dupl++;
+
+  LogPrint (eLogDebug, "Relay: addPeers: added: ", added, ", dup: ", dupl,
+            ", total: ", added + dupl);
+}
+
+void
+RelayWorker::addPeers (const PeerListPacketV5 &peer_list)
+{
+  size_t added = 0, dupl = 0;
+
+  for (const auto &peer : peer_list.data)
+    if (addPeer (peer.ToBase64 ()))
+      added++;
+    else
+      dupl++;
+
+  LogPrint (eLogDebug, "Relay: addPeers: added: ", added, ", dup: ", dupl,
+            ", total: ", added + dupl);
 }
 
 sp_peer
@@ -359,8 +225,7 @@ RelayWorker::loadPeers ()
       size_t peers_added = 0;
       for (const auto &bootstrap_address : bootstrap_addresses)
         {
-          std::shared_ptr<i2p::data::IdentityEx> new_peer
-              = std::make_shared<i2p::data::IdentityEx> ();
+          sp_i2p_ident new_peer = std::make_shared<i2p::data::IdentityEx> ();
 
           if (!bootstrap_address.empty ())
             new_peer->FromBase64 (bootstrap_address);
@@ -393,24 +258,27 @@ RelayWorker::writePeers ()
 
   peer_file << "# Each line is in the format: <dest> <samp>\n";
   peer_file << "#   dest = the I2P destination\n";
-  peer_file << "#   samp = samples from 0 to 20, depending on whether the "
+  peer_file << "#   samp = samples from 0 to 24, depending on whether the "
                "peer responded\n";
   peer_file << "# The fields are separated by a space character.\n";
   peer_file << "# Lines starting with a # are ignored.\n";
   peer_file << "# Do not edit this file while pbote is running as it will be "
                "overwritten.\n\n";
 
+  size_t saved = 0;
   for (const auto &peer : m_peers_)
     {
       peer_file << peer.second->str ();
       peer_file << "\n";
+      saved++;
     }
 
   peer_file.close ();
-  LogPrint (eLogDebug, "Relay: Peers saved to FS");
+  LogPrint (eLogDebug, "Relay: ", saved, " peer(s) saved to FS");
 }
 
 void
+//sp_peer
 RelayWorker::getRandomPeers ()
 {
 }
@@ -475,7 +343,7 @@ RelayWorker::peerListRequestV4 (const sp_comm_packet &packet)
     }
 
   auto good_peers = getGoodPeers (MAX_PEERS_TO_SEND);
-  pbote::PeerListPacketV4 peer_list;
+  PeerListPacketV4 peer_list;
   peer_list.count = good_peers.size ();
 
   for (const auto &peer : good_peers)
@@ -485,7 +353,7 @@ RelayWorker::peerListRequestV4 (const sp_comm_packet &packet)
       peer_list.data.push_back (identity);
     }
 
-  pbote::ResponsePacket response;
+  ResponsePacket response;
   memcpy (response.cid, packet->cid, 32);
   response.status = StatusCode::OK;
   response.data = peer_list.toByte ();
@@ -510,7 +378,7 @@ RelayWorker::peerListRequestV5 (const sp_comm_packet &packet)
     }
 
   auto good_peers = getGoodPeers (MAX_PEERS_TO_SEND);
-  pbote::PeerListPacketV5 peer_list;
+  PeerListPacketV5 peer_list;
   peer_list.count = good_peers.size ();
 
   for (const auto &peer : good_peers)
@@ -520,7 +388,7 @@ RelayWorker::peerListRequestV5 (const sp_comm_packet &packet)
       peer_list.data.push_back (identity);
     }
 
-  pbote::ResponsePacket response;
+  ResponsePacket response;
   memcpy (response.cid, packet->cid, 32);
   response.status = StatusCode::OK;
   response.data = peer_list.toByte ();
@@ -532,18 +400,166 @@ RelayWorker::peerListRequestV5 (const sp_comm_packet &packet)
             peer_list.count, " peer(s)");
 }
 
-pbote::PeerListRequestPacket
+PeerListRequestPacket
 RelayWorker::peerListRequestPacket ()
 {
   /// don't reuse request packets because PacketBatch will not
   /// add the same one more than once
-  pbote::PeerListRequestPacket packet;
+  PeerListRequestPacket packet;
 
   /// Java will be answer with v4, pboted - with v5,
   /// so we can determine who is who
   packet.ver = 5;
   context.random_cid (packet.cid, 32);
   return packet;
+}
+
+void
+RelayWorker::run ()
+{
+  // To prevent too quick start
+  std::this_thread::sleep_for (std::chrono::seconds(30));
+  bool task_status = false;
+
+  while (started_)
+    {
+      set_start_time ();
+
+      if (!m_peers_.empty ())
+        task_status = check_peers ();
+      else
+        LogPrint (eLogError, "Relay: No peers for start");
+
+      set_finish_time ();
+
+      auto delay = get_delay (task_status);
+      LogPrint (eLogDebug, "Relay: Wait for ", (delay.count () / 60), " min.");
+
+      std::this_thread::sleep_for (delay);
+    }
+}
+
+bool
+RelayWorker::check_peers ()
+{
+  LogPrint (eLogDebug, "Relay: Start new round");
+  size_t reachable_peers = 0;
+
+  auto batch = std::make_shared<batch_comm_packet> ();
+  batch->owner = "relay::main";
+
+  auto peers = getAllPeers ();
+  LogPrint (eLogDebug, "Relay: Peers count: ", peers.size ());
+  for (const auto &peer : peers)
+    {
+      // If peer responde we will mark further
+      peer->reachable (false);
+
+      auto packet = peerListRequestPacket ();
+      auto bytes = packet.toByte ();
+      PacketForQueue q_packet (peer->ToBase64 (), bytes.data (), bytes.size ());
+      std::vector<uint8_t> vcid (std::begin (packet.cid), std::end (packet.cid));
+      batch->addPacket (vcid, q_packet);
+    }
+
+  LogPrint (eLogDebug, "Relay: Batch size: ", batch->packetCount ());
+  context.send (batch);
+
+  if (batch->waitLast (RELAY_CHECK_TIMEOUT))
+    LogPrint (eLogDebug, "Relay: Batch timed out or got last");
+
+  context.removeBatch (batch);
+  auto responses = batch->getResponses ();
+
+  if (responses.empty ())
+    {
+      LogPrint (eLogWarning, "Relay: No responses");
+      /// Rollback samples, if have no responses at all
+      /// Usually in network error case
+      for (const auto &peer : m_peers_)
+        peer.second->rollback ();
+
+      return false;
+    }
+
+  for (const auto &response : responses)
+    {
+      if (response->type != type::CommN)
+        {
+          // ToDo: looks like in case if we got request to ourself
+          // for now  we just skip it
+          LogPrint (eLogWarning,
+                    "Relay: Got non-response packet in batch, type: ",
+                    response->type, ", ver: ", unsigned (response->ver));
+          continue;
+        }
+
+      ResponsePacket res_packet;
+      bool parsed = res_packet.from_comm_packet (*response, true);
+
+      if (!parsed)
+        {
+          LogPrint (eLogWarning, "Relay: Can't parse response packet ");
+          continue;
+        }
+
+      /// Increment peer metric back, if we have valid Response Packet
+      for (const auto &m_peer : m_peers_)
+        {
+          if (m_peer.second->ToBase64 () == response->from)
+            {
+              LogPrint (eLogDebug, "Relay: Got response, mark reachable");
+              m_peer.second->reachable (true);
+              reachable_peers++;
+            }
+        }
+
+      if (res_packet.status != StatusCode::OK)
+        {
+          LogPrint (eLogWarning, "Relay: Response status: ",
+                    statusToString (res_packet.status));
+          continue;
+        }
+
+      if (unsigned (res_packet.data[1]) == 5)
+        {
+          PeerListPacketV5 peer_list;
+          parsed = peer_list.fromBuffer (res_packet.data.data (),
+                                         res_packet.data.size (), true);
+          if (!parsed)
+            {
+              LogPrint (eLogWarning, "Relay: Can't parse V5 packet");
+              continue;
+            }
+
+          addPeers(peer_list);
+        }
+      else if (unsigned (res_packet.data[1]) == 4)
+        {
+          PeerListPacketV4 peer_list;
+          parsed = peer_list.fromBuffer (res_packet.data.data (),
+                                         res_packet.data.size (), true);
+          if (!parsed)
+            {
+              LogPrint (eLogWarning, "Relay: Can't parse V4 packet");
+              continue;
+            }
+
+          addPeers(peer_list);
+        }
+      else
+        {
+          LogPrint (eLogWarning, "Relay: Unknown version: ", response->ver);
+          continue;
+        }
+    }
+
+  LogPrint (eLogDebug, "Relay: Reachable peers: ", reachable_peers);
+
+  context.removeBatch (batch);
+  writePeers ();
+
+  return true;
 }
 
 void

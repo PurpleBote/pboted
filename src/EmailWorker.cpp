@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -224,7 +224,7 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
                     local_index_packet.size (), " local index");
 
           /// from_net is true, because we save it as is
-          pbote::IndexPacket parsed_local_index_packet;
+          IndexPacket parsed_local_index_packet;
           bool parsed = parsed_local_index_packet.fromBuffer (
               local_index_packet, true);
 
@@ -244,7 +244,7 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
       LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
                 ": Index count: ", index_packets.size ());
 
-      auto enc_mail_packets = retrieveEmailPacket (index_packets);
+      auto enc_mail_packets = retrieveEmail (index_packets);
 
       LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
                 ": Mail count: ", enc_mail_packets.size ());
@@ -268,7 +268,7 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
         {
           mail.save ("inbox");
 
-          pbote::EmailDeleteRequestPacket delete_email_packet;
+          EmailDeleteRequestPacket delete_email_packet;
 
           auto email_packet = mail.getDecrypted ();
           memcpy (delete_email_packet.DA, email_packet.DA, 32);
@@ -351,7 +351,7 @@ EmailWorker::sendEmailTask ()
               continue;
             }
 
-          pbote::StoreRequestPacket store_packet;
+          StoreRequestPacket store_packet;
 
           auto encrypted_mail = email->getEncrypted ();
           store_packet.data = encrypted_mail.toByte ();
@@ -389,7 +389,7 @@ EmailWorker::sendEmailTask ()
           if (email->skip ())
             continue;
 
-          pbote::IndexPacket new_index_packet;
+          IndexPacket new_index_packet;
 
           auto recipient = email->get_recipient ();
           memcpy (new_index_packet.hash,
@@ -397,7 +397,7 @@ EmailWorker::sendEmailTask ()
 
           // ToDo: for test, need to rewrite
           // for (const auto &email : encryptedEmailPackets) {
-          pbote::IndexPacket::Entry entry{};
+          IndexPacket::Entry entry;
           memcpy (entry.key, email->getEncrypted ().key, 32);
           memcpy (entry.dv, email->getEncrypted ().delete_hash, 32);
 
@@ -410,7 +410,7 @@ EmailWorker::sendEmailTask ()
           //}
           new_index_packet.nump = new_index_packet.data.size ();
 
-          pbote::StoreRequestPacket store_index_packet;
+          StoreRequestPacket store_index_packet;
 
           /// For now it's not checking from Java-Bote side
           store_index_packet.hashcash = email->hashcash ();
@@ -475,7 +475,7 @@ EmailWorker::check_delivery_task ()
       // Read meta data from sent email
 
       // Make DeletionQuery to DHT
-      // std::vector<std::shared_ptr<pbote::DeletionInfoPacket> > results;
+      // std::vector<std::shared_ptr<DeletionInfoPacket> > results;
       // results = DHT_worker.deletion_query (key);
 
       // Compare DeletionInfoPacket in results with Email meta (key, DA)
@@ -486,7 +486,7 @@ EmailWorker::check_delivery_task ()
     }
 }
 
-std::vector<pbote::IndexPacket>
+std::vector<IndexPacket>
 EmailWorker::retrieveIndex (const sp_id_full &identity)
 {
   auto identity_hash = identity->identity.GetIdentHash ();
@@ -506,7 +506,7 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
       return {};
     }
 
-  std::map<i2p::data::Tag<32>, pbote::IndexPacket> index_packets;
+  std::map<i2p::data::Tag<32>, IndexPacket> indices;
   /// Retrieve index packets
   for (const auto &response : results)
     {
@@ -514,67 +514,62 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
         {
           // ToDo: looks like in case if we got request to ourself, for now we
           // just skip it
-          LogPrint (eLogWarning,
-                    "EmailWorker: retrieveIndex: Got non-response packet in "
-                    "batch, type: ",
-                    response->type, ", ver: ", unsigned (response->ver));
+          LogPrint (eLogWarning, "EmailWorker: retrieveIndex: Got ",
+                    "non-response packet in batch, type: ", response->type,
+                    ", ver: ", unsigned (response->ver));
           continue;
         }
 
       LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Got response from: ",
                 response->from.substr (0, 15), "...");
-      size_t offset = 0;
-      uint8_t status;
-      uint16_t dataLen;
+      
+      ResponsePacket res_packet;
+      bool parsed = res_packet.from_comm_packet (*response, true);
 
-      std::memcpy (&status, response->payload.data (), 1);
-      offset += 1;
-      std::memcpy (&dataLen, response->payload.data () + offset, 2);
-      offset += 2;
-      dataLen = ntohs (dataLen);
-
-      if (status != StatusCode::OK)
+      if (!parsed)
         {
-          LogPrint (eLogWarning, "EmailWorker: retrieveIndex: Response status: ",
-                    statusToString (status));
+          LogPrint (eLogDebug, "EmailWorker: retrieveIndex: ",
+                    "Can't parse packet, skipped");
           continue;
         }
 
-      if (dataLen < 4)
+      if (res_packet.status != StatusCode::OK)
         {
-          LogPrint (eLogWarning, "EmailWorker: retrieveIndex: Packet without "
-                                 "payload, parsing skipped");
+          LogPrint (eLogWarning, "EmailWorker: retrieveIndex: Status: ",
+                    statusToString (res_packet.status));
           continue;
         }
 
-      std::vector<uint8_t> data (response->payload.begin () + offset,
-                                 response->payload.begin () + offset
-                                     + dataLen);
+      if (res_packet.length < 38)
+        {
+          LogPrint (eLogDebug, "EmailWorker: retrieveIndex: ",
+                    "Empty packet, skipped");
+          continue;
+        }
 
-      if (DHT_worker.safe (data))
+      if (DHT_worker.safe (res_packet.data))
         LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Index packet saved");
 
-      pbote::IndexPacket index_packet;
-      bool parsed = index_packet.fromBuffer (data, true);
+      IndexPacket index_packet;
+      parsed = index_packet.fromBuffer (res_packet.data, true);
 
-      if (parsed && !index_packet.data.empty ())
+      if (!parsed || index_packet.data.empty ())
         {
-          i2p::data::Tag<32> hash (index_packet.hash);
-          index_packets.insert (
-              std::pair<i2p::data::Tag<32>, pbote::IndexPacket> (
-                  hash, index_packet));
-        }
-      else
-        LogPrint (eLogWarning,
+          LogPrint (eLogWarning,
                   "EmailWorker: retrieveIndex: Packet without entries");
+          continue;
+        }
+
+      i2p::data::Tag<32> hash (index_packet.hash);
+      indices.insert (std::pair<i2p::data::Tag<32>, IndexPacket> (hash, index_packet));
     }
-  LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Index packets parsed: ",
-            index_packets.size ());
+  LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Indices parsed: ",
+            indices.size ());
 
-  std::vector<pbote::IndexPacket> res;
-  res.reserve (index_packets.size ());
+  std::vector<IndexPacket> res;
+  res.reserve (indices.size ());
 
-  for (const auto &packet : index_packets)
+  for (const auto &packet : indices)
     res.push_back (packet.second);
 
   // save index packets for interrupt case
@@ -583,14 +578,13 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
   return res;
 }
 
-std::vector<pbote::EmailEncryptedPacket>
-EmailWorker::retrieveEmailPacket (
-    const std::vector<pbote::IndexPacket> &index_packets)
+std::vector<EmailEncryptedPacket>
+EmailWorker::retrieveEmail (const std::vector<IndexPacket> &indices)
 {
-  std::vector<std::shared_ptr<pbote::CommunicationPacket> > responses;
-  std::vector<pbote::EmailEncryptedPacket> local_email_packets;
+  std::vector<std::shared_ptr<CommunicationPacket> > responses;
+  std::vector<EmailEncryptedPacket> local_email_packets;
 
-  for (const auto &index : index_packets)
+  for (const auto &index : indices)
     {
       for (auto entry : index.data)
         {
@@ -600,10 +594,9 @@ EmailWorker::retrieveEmailPacket (
           if (!local_email_packet.empty ())
             {
               LogPrint (eLogDebug,
-                        "EmailWorker: retrieveEmailPacket: Got local "
-                        "encrypted email for key: ",
-                        hash.ToBase64 ());
-              pbote::EmailEncryptedPacket parsed_local_email_packet;
+                        "EmailWorker: retrieveEmail: Got local "
+                        "encrypted email for key: ", hash.ToBase64 ());
+              EmailEncryptedPacket parsed_local_email_packet;
               bool parsed = parsed_local_email_packet.fromBuffer (
                   local_email_packet.data (), local_email_packet.size (),
                   true);
@@ -616,9 +609,8 @@ EmailWorker::retrieveEmailPacket (
           else
             {
               LogPrint (eLogDebug,
-                        "EmailWorker: retrieveEmailPacket: Can't find local "
-                        "encrypted email for key: ",
-                        hash.ToBase64 ());
+                        "EmailWorker: retrieveEmail: Can't find local "
+                        "encrypted email for key: ", hash.ToBase64 ());
             }
 
           auto temp_results = DHT_worker.findAll (hash, DataE);
@@ -627,10 +619,10 @@ EmailWorker::retrieveEmailPacket (
         }
     }
 
-  LogPrint (eLogDebug, "EmailWorker: retrieveEmailPacket: Responses: ",
+  LogPrint (eLogDebug, "EmailWorker: retrieveEmail: Responses: ",
             responses.size ());
 
-  std::map<i2p::data::Tag<32>, pbote::EmailEncryptedPacket> mail_packets;
+  std::map<i2p::data::Tag<32>, EmailEncryptedPacket> mail_packets;
   for (const auto &response : responses)
     {
       if (response->type != type::CommN)
@@ -638,79 +630,73 @@ EmailWorker::retrieveEmailPacket (
           // ToDo: looks like we got request to ourself, for now just skip it
           LogPrint (eLogWarning,
                     "EmailWorker: retrieveIndex: Got non-response packet in "
-                    "batch, type: ",
-                    response->type, ", ver: ", unsigned (response->ver));
+                    "batch, type: ", response->type, ", ver: ",
+                    unsigned (response->ver));
           continue;
         }
 
-      size_t offset = 0;
-      uint8_t status;
-      uint16_t dataLen;
+      ResponsePacket res_packet;
+      bool parsed = res_packet.from_comm_packet (*response, true);
 
-      std::memcpy (&status, response->payload.data (), 1);
-      offset += 1;
-      std::memcpy (&dataLen, response->payload.data () + offset, 2);
-      offset += 2;
-      dataLen = ntohs (dataLen);
-
-      if (status != StatusCode::OK)
+      if (!parsed)
         {
-          LogPrint (eLogWarning,
-                    "EmailWorker: retrieveEmailPacket: Response status: ",
-                    statusToString (status));
+          LogPrint (eLogDebug, "EmailWorker: retrieveEmail: ",
+                    "Can't parse packet, skipped");
           continue;
         }
 
-      if (dataLen == 0)
+      if (res_packet.status != StatusCode::OK)
         {
-          LogPrint (eLogWarning, "EmailWorker: retrieveEmailPacket: Packet "
-                                 "without payload, parsing skipped");
+          LogPrint (eLogWarning, "EmailWorker: retrieveEmail: Status: ",
+                    statusToString (res_packet.status));
           continue;
         }
 
-      LogPrint (
-          eLogDebug,
-          "EmailWorker: retrieveEmailPacket: Got email packet, payload size: ",
-          dataLen);
-      std::vector<uint8_t> data
-          = { response->payload.data () + offset,
-              response->payload.data () + offset + dataLen };
-
-      if (DHT_worker.safe (data))
-        LogPrint (eLogDebug, "EmailWorker: retrieveEmailPacket: Save "
-                             "encrypted email packet locally");
-
-      pbote::EmailEncryptedPacket parsed_packet;
-      bool parsed = parsed_packet.fromBuffer (data.data (), dataLen, true);
-
-      if (parsed && !parsed_packet.edata.empty ())
+      if (res_packet.length <= 0)
         {
-          i2p::data::Tag<32> hash (parsed_packet.key);
-          mail_packets.insert (
-              std::pair<i2p::data::Tag<32>, pbote::EmailEncryptedPacket> (
-                  hash, parsed_packet));
+          LogPrint (eLogDebug, "EmailWorker: retrieveEmail: ",
+                    "Empty packet, skipped");
+          continue;
         }
-      else
-        LogPrint (
-            eLogWarning,
-            "EmailWorker: retrieveEmailPacket: Mail packet without entries");
+
+      LogPrint (eLogDebug, "EmailWorker: retrieveEmail: Got email ",
+                "packet, payload size: ", res_packet.length);
+
+      if (DHT_worker.safe (res_packet.data))
+        LogPrint (eLogDebug, "EmailWorker: retrieveEmail: Encrypted ",
+                  "email packet saved locally");
+
+      EmailEncryptedPacket email_packet;
+      parsed = email_packet.fromBuffer (res_packet.data.data (),
+                                        res_packet.length, true);
+
+      if (!parsed || email_packet.edata.empty ())
+        {
+          LogPrint (eLogWarning, "EmailWorker: retrieveEmail: Mail packet",
+                    " without entries");
+          continue;
+        }
+
+      i2p::data::Tag<32> hash (email_packet.key);
+      mail_packets.insert (std::pair<i2p::data::Tag<32>, 
+                                     EmailEncryptedPacket> (hash, email_packet));
     }
-  LogPrint (eLogDebug,
-            "EmailWorker: retrieveEmailPacket: Parsed mail packets: ",
-            mail_packets.size ());
+
+  LogPrint (eLogDebug, "EmailWorker: retrieveEmail: Parsed mail ",
+            "packets: ",mail_packets.size ());
 
   for (auto local_packet : local_email_packets)
     {
       i2p::data::Tag<32> hash (local_packet.key);
       mail_packets.insert (
-          std::pair<i2p::data::Tag<32>, pbote::EmailEncryptedPacket> (
+          std::pair<i2p::data::Tag<32>, EmailEncryptedPacket> (
               hash, local_packet));
     }
 
-  LogPrint (eLogDebug, "EmailWorker: retrieveEmailPacket: Mail packets: ",
+  LogPrint (eLogDebug, "EmailWorker: retrieveEmail: Mail packets: ",
             mail_packets.size ());
 
-  std::vector<pbote::EmailEncryptedPacket> res;
+  std::vector<EmailEncryptedPacket> res;
   res.reserve (mail_packets.size ());
 
   for (const auto &packet : mail_packets)
@@ -722,14 +708,14 @@ EmailWorker::retrieveEmailPacket (
   return res;
 }
 
-std::vector<pbote::EmailUnencryptedPacket>
+std::vector<EmailUnencryptedPacket>
 EmailWorker::loadLocalIncompletePacket ()
 {
   // ToDo: TBD
   // ToDo: move to ?
   /*std::string indexPacketPath = pbote::fs::DataDirPath("incomplete");
   std::vector<std::string> packets_path;
-  std::vector<pbote::EmailUnencryptedPacket> indexPackets;
+  std::vector<EmailUnencryptedPacket> indexPackets;
   auto result = pbote::fs::ReadDir(indexPacketPath, packets_path);
   if (result) {
     for (const auto &packet_path : packets_path) {
@@ -787,7 +773,7 @@ EmailWorker::checkOutbox (v_sp_email &emails)
                                   (std::istreambuf_iterator<char> ()));
       file.close ();
 
-      pbote::Email mailPacket;
+      Email mailPacket;
       mailPacket.fromMIME (bytes);
 
       if (mailPacket.length () > 0)
@@ -900,14 +886,14 @@ EmailWorker::checkOutbox (v_sp_email &emails)
         }
 
       if (recipient->GetKeyType () == KEY_TYPE_X25519_ED25519_SHA512_AES256CBC)
-        mailPacket.compress (pbote::Email::CompressionAlgorithm::ZLIB);
+        mailPacket.compress (Email::CompressionAlgorithm::ZLIB);
       else
-        mailPacket.compress (pbote::Email::CompressionAlgorithm::UNCOMPRESSED);
+        mailPacket.compress (Email::CompressionAlgorithm::UNCOMPRESSED);
 
       // ToDo: slice big packet after compress
 
       if (!mailPacket.empty ())
-        emails.push_back (std::make_shared<pbote::Email> (mailPacket));
+        emails.push_back (std::make_shared<Email> (mailPacket));
     }
 
   LogPrint (eLogInfo, "EmailWorker: checkOutbox: Got ", emails.size (),
@@ -934,7 +920,7 @@ EmailWorker::check_inbox ()
                                       (std::istreambuf_iterator<char> ()));
           file.close ();
 
-          pbote::Email mailPacket;
+          Email mailPacket;
           mailPacket.fromMIME (bytes);
 
           if (mailPacket.length () > 0)
@@ -956,7 +942,7 @@ EmailWorker::check_inbox ()
           mailPacket.filename (mail_path);
 
           if (!mailPacket.empty ())
-            emails.push_back (std::make_shared<pbote::Email> (mailPacket));
+            emails.push_back (std::make_shared<Email> (mailPacket));
         }
     }
 
@@ -966,15 +952,15 @@ EmailWorker::check_inbox ()
   return emails;
 }
 
-std::vector<pbote::Email>
+std::vector<Email>
 EmailWorker::processEmail (
     const sp_id_full &identity,
-    const std::vector<pbote::EmailEncryptedPacket> &mail_packets)
+    const std::vector<EmailEncryptedPacket> &mail_packets)
 {
   // ToDo: move to incompleteEmailTask?
   LogPrint (eLogDebug, "EmailWorker: processEmail: Emails for process: ",
             mail_packets.size ());
-  std::vector<pbote::Email> emails;
+  std::vector<Email> emails;
 
   for (auto enc_mail : mail_packets)
     {
@@ -995,7 +981,7 @@ EmailWorker::processEmail (
           continue;
         }
 
-      pbote::Email temp_mail (unencrypted_email_data, true);
+      Email temp_mail (unencrypted_email_data, true);
 
       if (!temp_mail.verify (enc_mail.delete_hash))
         {

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -25,11 +25,11 @@
 #include <utility>
 #include <vector>
 
+#include "Logging.h"
+
 // libi2pd
 #include "Identity.h"
 #include "Tag.h"
-
-#include "Logging.h"
 
 namespace pbote
 {
@@ -228,8 +228,17 @@ template <typename T> struct PacketBatch
   waitFist (long timeout_sec)
   {
     std::chrono::duration<long> timeout = std::chrono::seconds (timeout_sec);
-    std::unique_lock<std::mutex> l (m_batchMutex);
-    m_first.wait_for (l, timeout);
+    std::unique_lock<std::mutex> lk (m_batchMutex);
+
+    auto status = m_first.wait_for (lk, timeout);
+
+    if (status == std::cv_status::no_timeout)
+      LogPrint (eLogDebug, "Packet: Batch ", owner, " got first");
+
+    if (status == std::cv_status::timeout)
+      LogPrint (eLogDebug, "Packet: Batch ", owner, " timed out");
+
+    lk.unlock ();
     return true;
   }
 
@@ -237,8 +246,17 @@ template <typename T> struct PacketBatch
   waitLast (long timeout_sec)
   {
     std::chrono::duration<long> timeout = std::chrono::seconds (timeout_sec);
-    std::unique_lock<std::mutex> l (m_batchMutex);
-    m_last.wait_for (l, timeout);
+    std::unique_lock<std::mutex> lk (m_batchMutex);
+
+    auto status = m_last.wait_for (lk, timeout);
+
+    if (status == std::cv_status::no_timeout)
+      LogPrint (eLogDebug, "Packet: Batch ", owner, " got last");
+
+    if (status == std::cv_status::timeout)
+      LogPrint (eLogDebug, "Packet: Batch ", owner, " timed out");
+
+    lk.unlock ();
     return true;
   }
 };
@@ -250,7 +268,7 @@ struct DataPacket
 public:
   explicit DataPacket (uint8_t type_) : type (type_), ver (version::V4) {}
   uint8_t type;
-  uint8_t ver;
+  uint8_t ver = version::V4;
 };
 
 struct EmailEncryptedPacket : public DataPacket
@@ -258,11 +276,11 @@ struct EmailEncryptedPacket : public DataPacket
 public:
   EmailEncryptedPacket () : DataPacket (DataE) {}
 
-  uint8_t key[32]{0};
-  int32_t stored_time{0};
-  uint8_t delete_hash[32]{0};
-  uint8_t alg{0};
-  uint16_t length{0};
+  uint8_t key[32] = {0};
+  int32_t stored_time = 0;
+  uint8_t delete_hash[32] = {0};
+  uint8_t alg = 0;
+  uint16_t length = 0;
   std::vector<uint8_t> edata;
 
   bool
@@ -382,7 +400,7 @@ public:
   da_valid (const uint8_t dht_key[32], const uint8_t da[32])
   {
     /// Get hash of Delete Auth
-    uint8_t delHash[32]{};
+    uint8_t delHash[32] = {0};
     SHA256 (da, 32, delHash);
 
     return ((memcmp (delete_hash, delHash, 32) == 0) &&
@@ -397,11 +415,11 @@ public:
       : DataPacket (DataU), fr_id (0), fr_count (0), length (0)
   {
   }
-  uint8_t mes_id[32]{0};
-  uint8_t DA[32]{0};
-  uint16_t fr_id;
-  uint16_t fr_count;
-  uint16_t length;
+  uint8_t mes_id[32] = {0};
+  uint8_t DA[32] = {0};
+  uint16_t fr_id = 0;
+  uint16_t fr_count = 0;
+  uint16_t length = 0;
   std::vector<uint8_t> data;
 
   std::vector<uint8_t>
@@ -443,9 +461,9 @@ public:
 
   struct Entry
   {
-    uint8_t key[32]{0};
-    uint8_t dv[32]{0};
-    int32_t time;
+    uint8_t key[32] = {0};
+    uint8_t dv[32] = {0};
+    int32_t time = 0;
 
     bool
     operator== (const Entry &rhs)
@@ -455,8 +473,8 @@ public:
     }
   };
 
-  uint8_t hash[32]{0};
-  uint32_t nump{0};
+  uint8_t hash[32] = {0};
+  uint32_t nump = 0;
   std::vector<Entry> data;
 
   bool
@@ -512,7 +530,7 @@ public:
 
     for (uint32_t i = 0; i < nump; i++)
       {
-        pbote::IndexPacket::Entry entry = {};
+        IndexPacket::Entry entry = {};
         std::memcpy (&entry.key, buf.data () + offset, 32);
         offset += 32;
         //i2p::data::Tag<32> key (entry.key);
@@ -610,9 +628,9 @@ public:
 
   struct item
   {
-    uint8_t key[32]{0};
-    uint8_t DA[32]{0};
-    int32_t time;
+    uint8_t key[32] = {0};
+    uint8_t DA[32] = {0};
+    int32_t time = 0;
   };
 
   uint32_t count;
@@ -652,7 +670,7 @@ public:
 
     for (uint32_t i = 0; i < count; i++)
       {
-        pbote::DeletionInfoPacket::item item = {};
+        DeletionInfoPacket::item item;
         std::memcpy (&item.key, buf.data () + offset, 32);
         offset += 32;
 
@@ -785,9 +803,9 @@ public:
     for (auto identity : data)
     {
       size_t sz = identity.GetFullLen ();
-      uint8_t t_key[sz] = {};
+      uint8_t t_key[sz] = {0};
       identity.ToBuffer (t_key, sz);
-      uint8_t cut_key[384] = {};
+      uint8_t cut_key[384] = {0};
       memcpy(cut_key, t_key, 384);
       result.insert (result.end (), cut_key, cut_key + 384);
     }
@@ -865,7 +883,7 @@ public:
     for (auto identity : data)
     {
       size_t sz = identity.GetFullLen ();
-      uint8_t t_key[sz] = {};
+      uint8_t t_key[sz] = {0};
       identity.ToBuffer (t_key, sz);
       result.insert (result.end (), t_key, t_key + sz);
     }
@@ -879,14 +897,14 @@ struct DirectoryEntryPacket : public DataPacket
 public:
   DirectoryEntryPacket () : DataPacket (DataC) {}
 
-  uint8_t key[32]{0};
-  uint16_t dest_length{0};
+  uint8_t key[32] = {0};
+  uint16_t dest_length = 0;
   std::vector<uint8_t> dest_data;
-  uint32_t salt{0};
-  uint16_t pic_length{0};
+  uint32_t salt = 0;
+  uint16_t pic_length = 0;
   std::vector<uint32_t> pic;
-  uint8_t compress{0};
-  uint16_t text_length{0};
+  uint8_t compress = 0;
+  uint16_t text_length = 0;
   std::vector<uint8_t> text;
 
   std::vector<uint8_t>
@@ -914,10 +932,10 @@ public:
   {
   }
 
-  uint8_t prefix[4];
+  uint8_t prefix[4] = { 0x6D, 0x30, 0x52, 0xE9 };
   uint8_t type;
   uint8_t ver;
-  uint8_t cid[32]{0};
+  uint8_t cid[32] = {0};
   std::string from;
   std::vector<uint8_t> payload;
 };
@@ -930,15 +948,16 @@ public:
   {
   }
 
-  uint8_t prefix[4];
+  uint8_t prefix[4] = { 0x6D, 0x30, 0x52, 0xE9 };
   uint8_t type;
-  uint8_t ver;
-  uint8_t cid[32]{0};
+  uint8_t ver = version::V4;
+  uint8_t cid[32] = {0};
 };
 
 /// not implemented
 /*
-struct RelayRequestPacket : public CleanCommunicationPacket{
+struct RelayRequestPacket : public CleanCommunicationPacket
+{
  public:
   RelayRequestPacket() : CleanCommunicationPacket(CommR) {}
 };
@@ -946,7 +965,8 @@ struct RelayRequestPacket : public CleanCommunicationPacket{
 
 /// not implemented
 /*
-struct RelayReturnRequestPacket : public CleanCommunicationPacket{
+struct RelayReturnRequestPacket : public CleanCommunicationPacket
+{
  public:
   RelayReturnRequestPacket() : CleanCommunicationPacket(CommK) {}
 };
@@ -954,7 +974,8 @@ struct RelayReturnRequestPacket : public CleanCommunicationPacket{
 
 /// not implemented
 /*
-struct FetchRequestPacket : public CleanCommunicationPacket{
+struct FetchRequestPacket : public CleanCommunicationPacket
+{
  public:
   FetchRequestPacket() : CleanCommunicationPacket(CommF) {}
 };
@@ -965,8 +986,8 @@ struct ResponsePacket : public CleanCommunicationPacket
 public:
   ResponsePacket () : CleanCommunicationPacket (CommN) {}
 
-  StatusCode status{StatusCode::OK};
-  uint16_t length{0};
+  StatusCode status = StatusCode::OK;
+  uint16_t length = 0;
   // 'I' = Index Packet
   // 'C' = Directory Entry
   // 'E' = Email Packet
@@ -1017,7 +1038,7 @@ public:
   }
 
   bool
-  from_comm_packet (pbote::CommunicationPacket packet, bool from_net)
+  from_comm_packet (CommunicationPacket packet, bool from_net)
   {
     /// Because  status[1] + length[2] = 3
     if (packet.payload.size () < 3)
@@ -1098,6 +1119,29 @@ struct PeerListRequestPacket : public CleanCommunicationPacket
 public:
   PeerListRequestPacket () : CleanCommunicationPacket (CommA) {}
 
+  bool
+  fromBuffer (uint8_t *buf, size_t len, bool from_net)
+  {
+    if (len < COMM_DATA_LEN)
+      {
+        LogPrint (eLogWarning,
+                  "Packet: A: fromBuffer: Payload is too short: ", len);
+        return false;
+      }
+    /// Skipping prefix
+    uint16_t offset = 4;
+    /// Start basic part
+    std::memcpy (&type, buf + offset, 1);
+    offset += 1;
+    std::memcpy (&ver, buf + offset, 1);
+    offset += 1;
+    std::memcpy (&cid, buf + offset, 32);
+    offset += 32;
+    /// End basic part
+
+    return true;
+  }
+
   std::vector<uint8_t>
   toByte ()
   {
@@ -1119,11 +1163,11 @@ struct RetrieveRequestPacket : public CleanCommunicationPacket
 public:
   RetrieveRequestPacket () : CleanCommunicationPacket (CommQ) {}
 
-  uint8_t data_type{0};
-  uint8_t key[32]{0};
+  uint8_t data_type = 0;
+  uint8_t key[32] = {0};
 
   bool
-  from_comm_packet (pbote::CommunicationPacket packet)
+  from_comm_packet (CommunicationPacket packet)
   {
     /// Because  data_type[1] + dht_key[32] = 33
     if (packet.payload.size () < 33)
@@ -1180,10 +1224,10 @@ struct DeletionQueryPacket : public CleanCommunicationPacket
 public:
   DeletionQueryPacket () : CleanCommunicationPacket (CommY) {}
 
-  uint8_t dht_key[32]{0};
+  uint8_t dht_key[32] = {0};
 
   bool
-  from_comm_packet (pbote::CommunicationPacket packet)
+  from_comm_packet (CommunicationPacket packet)
   {
     /// Because  dht_key[32] = 32
     if (packet.payload.size () < 32)
@@ -1226,13 +1270,13 @@ struct StoreRequestPacket : public CleanCommunicationPacket
 public:
   StoreRequestPacket () : CleanCommunicationPacket (CommS) {}
 
-  uint16_t hc_length{0};
+  uint16_t hc_length = 0;
   std::vector<uint8_t> hashcash;
-  uint16_t length{0};
+  uint16_t length = 0;
   std::vector<uint8_t> data;
 
   bool
-  from_comm_packet (pbote::CommunicationPacket packet, bool from_net)
+  from_comm_packet (CommunicationPacket packet, bool from_net)
   {
     /// Because  hc_length[2] + length[2] = 4
     if (packet.payload.size () < 4)
@@ -1306,8 +1350,8 @@ struct EmailDeleteRequestPacket : public CleanCommunicationPacket
 public:
   EmailDeleteRequestPacket () : CleanCommunicationPacket (CommD) {}
 
-  uint8_t key[32]{0};
-  uint8_t DA[32]{0};
+  uint8_t key[32] = {0};
+  uint8_t DA[32] = {0};
 
   bool
   fromBuffer (uint8_t *buf, size_t len, bool from_net)
@@ -1342,7 +1386,7 @@ public:
   }
 
   bool
-  from_comm_packet (pbote::CommunicationPacket packet)
+  from_comm_packet (CommunicationPacket packet)
   {
     /// Because  key[32] + DA[32] = 64
     if (packet.payload.size () < 64)
@@ -1396,12 +1440,12 @@ public:
 
   struct item
   {
-    uint8_t key[32]{0};
-    uint8_t da[32]{0};
+    uint8_t key[32] = {0};
+    uint8_t da[32] = {0};
   };
 
-  uint8_t dht_key[32]{0};
-  uint8_t count{0};
+  uint8_t dht_key[32] = {0};
+  uint8_t count = 0;
   std::vector<item> data;
 
   bool
@@ -1443,7 +1487,7 @@ public:
 
     for (uint32_t i = 0; i < count; i++)
       {
-        pbote::IndexDeleteRequestPacket::item item = {};
+        IndexDeleteRequestPacket::item item;
         std::memcpy (&item.key, buf + offset, 32);
         offset += 32;
         i2p::data::Tag<32> key (item.key);
@@ -1463,7 +1507,7 @@ public:
   }
 
   bool
-  from_comm_packet (pbote::CommunicationPacket packet)
+  from_comm_packet (CommunicationPacket packet)
   {
     /// Because count[1] + dht_key[32] + item[64] = 97
     if (packet.payload.size () < 97)
@@ -1499,7 +1543,7 @@ public:
 
     for (uint32_t i = 0; i < count; i++)
       {
-        pbote::IndexDeleteRequestPacket::item item = {};
+        IndexDeleteRequestPacket::item item;
         std::memcpy (&item.key, packet.payload.data () + offset, 32);
         offset += 32;
         i2p::data::Tag<32> key (item.key);
@@ -1548,7 +1592,7 @@ struct FindClosePeersRequestPacket : public CleanCommunicationPacket
 public:
   FindClosePeersRequestPacket () : CleanCommunicationPacket (CommF) {}
 
-  uint8_t key[32]{0};
+  uint8_t key[32] = {0};
 
   std::vector<uint8_t>
   toByte ()
@@ -1586,22 +1630,30 @@ parseCommPacket (const std::shared_ptr<PacketForQueue> &packet)
       LogPrint (eLogWarning, "Packet: Have no payload");
       return nullptr;
     }
-  
-  std::array<std::uint8_t, 4> payloadPrefix = {};
 
-  if (packet->payload.size () > 4)
-    payloadPrefix = { packet->payload[0], packet->payload[1],
-                      packet->payload[2], packet->payload[3] };
+  if (packet->payload.size () < COMM_DATA_LEN)
+    {
+      LogPrint (eLogWarning, "Packet: Payload is too short");
+      return nullptr;
+    }
 
-  if (payloadPrefix != COMM_PREFIX)
+  if (memcmp(packet->payload.data (), COMM_PREFIX.data(), 4) != 0)
     {
       LogPrint (eLogWarning, "Packet: Bad prefix");
       return nullptr;
     }
 
-  /// Just for init empty packet for memcpy
-  CleanCommunicationPacket data (CommA);
-  memcpy (&data, packet->payload.data (), COMM_DATA_LEN);
+  CommunicationPacket data (CommA);
+
+  /// Skipping prefix
+  size_t offset = 4;
+
+  std::memcpy (&data.type, packet->payload.data () + offset, 1);
+  offset += 1;
+  std::memcpy (&data.ver, packet->payload.data () + offset, 1);
+  offset += 1;
+  std::memcpy (&data.cid, packet->payload.data () + offset, 32);
+  offset += 32;
 
   auto found_type = std::find (std::begin (PACKET_TYPE),
                                std::end (PACKET_TYPE), data.type);
@@ -1621,25 +1673,23 @@ parseCommPacket (const std::shared_ptr<PacketForQueue> &packet)
       return nullptr;
     }
 
-  long clean_payload_size = (long)packet->payload.size () - COMM_DATA_LEN;
+  long clean_payload_size = (long)packet->payload.size () - offset;
   if (clean_payload_size < 0)
     {
-      LogPrint (eLogWarning, "Packet: Payload too short");
+      LogPrint (eLogWarning, "Packet: Payload is too short");
       return nullptr;
     }
 
-  CommunicationPacket res (data.type);
-  res.ver = data.ver;
-  memcpy (res.cid, data.cid, 32);
+  //CommunicationPacket res (data.type);
+  //res.ver = data.ver;
+  //memcpy (res.cid, data.cid, 32);
 
-  res.from = std::move (packet->destination);
-  std::vector<uint8_t> v_payload (packet->payload.begin ()
-                                  + (long)packet->payload.size ()
-                                  - clean_payload_size,
-                                  packet->payload.end ());
-  res.payload = v_payload;
+  data.from = std::move (packet->destination);
 
-  return std::make_shared<CommunicationPacket> (res);
+  data.payload = std::vector<uint8_t> (packet->payload.begin () + offset,
+                                       packet->payload.end ());
+
+  return std::make_shared<CommunicationPacket> (data);
 }
 
 } // namespace pbote

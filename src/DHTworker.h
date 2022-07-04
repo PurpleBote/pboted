@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -81,7 +81,7 @@ namespace kademlia
 
 #define DEFAULT_NODE_FILE_NAME "nodes.txt"
 
-using batch_comm_packet = pbote::PacketBatch<pbote::CommunicationPacket>;
+using batch_comm_packet = PacketBatch<CommunicationPacket>;
 
 /**
  * Terms:
@@ -172,7 +172,7 @@ struct Node : i2p::data::IdentityEx
 };
 
 using sp_node = std::shared_ptr<Node>;
-using sp_comm_packet = std::shared_ptr<pbote::CommunicationPacket>;
+using sp_comm_packet = std::shared_ptr<CommunicationPacket>;
 using HashKey = i2p::data::Tag<32>;
 
 class DHTworker
@@ -210,15 +210,15 @@ public:
   std::vector<sp_comm_packet> find (HashKey hash, uint8_t type,
                                     bool exhaustive);
   std::vector<std::string> store (HashKey hash, uint8_t type,
-                                  pbote::StoreRequestPacket packet);
+                                  StoreRequestPacket packet);
 
   std::vector<std::string>
   deleteEmail (HashKey hash, uint8_t type,
-               pbote::EmailDeleteRequestPacket packet);
+               EmailDeleteRequestPacket packet);
   std::vector<std::string> deleteIndexEntry (HashKey index_dht_key,
                                              HashKey email_dht_key,
                                              HashKey del_auth);
-  std::vector<std::shared_ptr<pbote::DeletionInfoPacket> >
+  std::vector<std::shared_ptr<DeletionInfoPacket> >
   deletion_query (const HashKey &key);
 
   std::vector<sp_node> closestNodesLookupTask (HashKey key);
@@ -270,9 +270,9 @@ private:
 
   void calc_locks (std::vector<sp_comm_packet> responses);
 
-  static pbote::FindClosePeersRequestPacket findClosePeersPacket (HashKey key);
-  static pbote::RetrieveRequestPacket retrieveRequestPacket (uint8_t data_type,
-                                                             HashKey key);
+  static FindClosePeersRequestPacket findClosePeersPacket (HashKey key);
+  static RetrieveRequestPacket retrieveRequestPacket (uint8_t data_type,
+                                                      HashKey key);
 
   bool
   isStarted () const
@@ -296,7 +296,7 @@ private:
   // ToDo: K-bucket/routing table and S-bucket (NEED MORE DISCUSSION)
 
   // pbote::fs::HashedStorage m_storage_;
-  pbote::kademlia::DHTStorage dht_storage_;
+  kademlia::DHTStorage dht_storage_;
 };
 
 extern DHTworker DHT_worker;

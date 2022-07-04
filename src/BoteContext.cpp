@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -88,10 +88,12 @@ void BoteContext::send(const PacketForQueue &packet)
   m_sendQueue->Put(std::make_shared<PacketForQueue>(packet));
 }
 
-void BoteContext::send(const std::shared_ptr<PacketBatch<pbote::CommunicationPacket>>& batch)
+void BoteContext::send(const std::shared_ptr<PacketBatch<CommunicationPacket>>& batch)
 {
   size_t count = 0;
   runningBatches.push_back(batch);
+  LogPrint(eLogDebug, "Context: send: Running batches: ", runningBatches.size ());
+
   auto packets = batch->getPackets();
   for (const auto& packet: packets)
     {
@@ -101,7 +103,7 @@ void BoteContext::send(const std::shared_ptr<PacketBatch<pbote::CommunicationPac
   LogPrint(eLogDebug, "Context: send: Sent ", count, " packets from batch ", batch->owner);
 }
 
-bool BoteContext::receive(const std::shared_ptr<pbote::CommunicationPacket>& packet)
+bool BoteContext::receive(const std::shared_ptr<CommunicationPacket>& packet)
 {
   std::vector<uint8_t> v_cid(packet->cid, packet->cid + 32);
   for (const auto& batch: runningBatches)
@@ -118,19 +120,24 @@ bool BoteContext::receive(const std::shared_ptr<pbote::CommunicationPacket>& pac
   return false;
 }
 
-void BoteContext::removeBatch(const std::shared_ptr<PacketBatch<pbote::CommunicationPacket>>& r_batch)
+void BoteContext::removeBatch(const std::shared_ptr<PacketBatch<CommunicationPacket>>& r_batch)
 {
+  for (auto batch : runningBatches)
+    LogPrint(eLogDebug, "Context: Batch: ", batch->owner);
+
   for (auto batch_it = runningBatches.begin(); batch_it != runningBatches.end(); batch_it++)
     {
       if (r_batch == *batch_it)
         {
+          LogPrint(eLogDebug, "Context: Removing batch ", r_batch->owner);
           runningBatches.erase(batch_it);
+          LogPrint(eLogDebug, "Context: Running batches: ", runningBatches.size ());
           break;
         }
     }
 }
 
-std::shared_ptr<pbote::BoteIdentityFull> BoteContext::identityByName(const std::string &name)
+std::shared_ptr<BoteIdentityFull> BoteContext::identityByName(const std::string &name)
 {
   // ToDo: well is it really better?
   //return std::find_if(email_identities.begin(), email_identities.end(), [&name](std::shared_ptr<pbote::EmailIdentityFull> i){ return i->publicName == name; }).operator*();

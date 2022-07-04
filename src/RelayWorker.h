@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -29,7 +29,7 @@ namespace relay
 #define MAX_PEERS_TO_SEND 20
 
 /// Percentage of requests sent to a peer / responses received back
-#define PEER_MIN_REACHABILITY 18 // 3/4 of ~1 day
+#define PEER_MIN_REACHABILITY 18 // 4/5 of ~1 day
 #define PEER_MAX_REACHABILITY 24 // ~1 day
 
 /// Time in minutes while we wait for responses
@@ -128,8 +128,10 @@ private:
 };
 
 using sp_peer = std::shared_ptr<RelayPeer>;
+using sp_i2p_ident = std::shared_ptr<i2p::data::IdentityEx>;
 using hash_key = i2p::data::Tag<32>;
-using sp_comm_packet = std::shared_ptr<pbote::CommunicationPacket>;
+using sp_comm_packet = std::shared_ptr<CommunicationPacket>;
+using batch_comm_packet = PacketBatch<CommunicationPacket>;
 
 class RelayWorker
 {
@@ -142,14 +144,15 @@ public:
 
   bool addPeer (const uint8_t *buf, int len);
   bool addPeer (const std::string &peer);
-  bool addPeer (const std::shared_ptr<i2p::data::IdentityEx> &identity,
-                int samples);
+  bool addPeer (const sp_i2p_ident &identity, int samples);
   void addPeers (const std::vector<sp_peer> &peers);
+  void addPeers (const PeerListPacketV4 &peer_list);
+  void addPeers (const PeerListPacketV5 &peer_list);
 
   sp_peer findPeer (const hash_key &ident) const;
   static std::vector<std::string> readPeers ();
-  void writePeers ();
   bool loadPeers ();
+  void writePeers ();
 
   void getRandomPeers ();
   std::vector<sp_peer> getGoodPeers ();
@@ -160,7 +163,7 @@ public:
 
   void peerListRequestV4 (const sp_comm_packet &packet);
   void peerListRequestV5 (const sp_comm_packet &packet);
-  static pbote::PeerListRequestPacket peerListRequestPacket ();
+  static PeerListRequestPacket peerListRequestPacket ();
 
 private:
   void run ();

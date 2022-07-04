@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (c) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -595,16 +595,16 @@ long identitiesStorage::loadIdentities(const std::string &path)
             }
         }
 
-      LogPrint(eLogDebug, "identitiesStorage: loadIdentities: name: ", temp_ident.publicName);
+      LogPrint(eLogDebug, "identitiesStorage: loadIdentities: name: \"", temp_ident.publicName, "\"");
       LogPrint(eLogDebug, "identitiesStorage: loadIdentities: full_key: ", temp_ident.full_key);
-      LogPrint(eLogDebug, "identitiesStorage: loadIdentities: description: ", temp_ident.description);
-      LogPrint(eLogDebug, "identitiesStorage: loadIdentities: picture: ", temp_ident.picture);
-      LogPrint(eLogDebug, "identitiesStorage: loadIdentities: text: ", temp_ident.text);
+      LogPrint(eLogDebug, "identitiesStorage: loadIdentities: description: \"", temp_ident.description, "\"");
+      //LogPrint(eLogDebug, "identitiesStorage: loadIdentities: picture: ", temp_ident.picture);
+      //LogPrint(eLogDebug, "identitiesStorage: loadIdentities: text: \"", temp_ident.text, "\"");
       LogPrint(eLogDebug, "identitiesStorage: loadIdentities: size: ", temp_ident.full_key.size());
 
       bool parse_success = false;
       std::string format_prefix = temp_ident.full_key.substr(0, temp_ident.full_key.find(".") + 1);
-      LogPrint(eLogDebug, "identitiesStorage: loadIdentities: format_prefix: ", format_prefix);
+      LogPrint(eLogDebug, "identitiesStorage: loadIdentities: format_prefix: \"", format_prefix, "\"");
 
       if (format_prefix.compare(ADDRESS_B32_PREFIX) == 0)
         parse_success = parse_identity_v1(&temp_ident);
@@ -631,9 +631,9 @@ std::string identitiesStorage::getParam(std::string line, const std::string& pre
 
   line.erase (0, prefix.length ());
 
-  //LogPrint(eLogDebug, "identitiesStorage: getParam: prefix: ", prefix);
-  //LogPrint(eLogDebug, "identitiesStorage: getParam: line_start: ", line_start);
-  //LogPrint(eLogDebug, "identitiesStorage: getParam: line erased: ", line);
+  //LogPrint(eLogDebug, "identitiesStorage: getParam: prefix: \"", prefix, "\"");
+  //LogPrint(eLogDebug, "identitiesStorage: getParam: line_start: \"", line_start, "\"");
+  //LogPrint(eLogDebug, "identitiesStorage: getParam: line erased: \"", line, "\"");
 
   return line;
 }

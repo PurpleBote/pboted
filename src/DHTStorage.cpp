@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -209,7 +209,7 @@ DHTStorage::getPacket(pbote::type type, i2p::data::Tag<32> key)
   LogPrint(eLogDebug, "DHTStorage: getPacket: try to find packet");
   for (const auto& filename : local_list)
     {
-      i2p::data::Tag<32> filekey = {};
+      i2p::data::Tag<32> filekey;
       filekey.FromBase64(filename);
       if ( filekey == key)
         {
@@ -230,7 +230,7 @@ DHTStorage::getPacket(pbote::type type, i2p::data::Tag<32> key)
           return bytes;
         }
     }
-  LogPrint(eLogWarning, "DHTStorage: getPacket: have no file type: ", uint8_t(type), ", key: ", key.ToBase64());
+  LogPrint(eLogDebug, "DHTStorage: getPacket: have no file type: ", uint8_t(type), ", key: ", key.ToBase64());
   return {};
 }
 
@@ -316,7 +316,7 @@ DHTStorage::safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data)
       return STORE_FILE_OPEN_ERROR;
     }
 
-  EmailEncryptedPacket email_packet = {};
+  EmailEncryptedPacket email_packet;
   email_packet.fromBuffer(const_cast<uint8_t *>(data.data()), data.size(), true);
   const auto time_now = std::chrono::system_clock::now();
   email_packet.stored_time = (int32_t)std::chrono::duration_cast<std::chrono::seconds>(time_now.time_since_epoch()).count();
@@ -665,10 +665,10 @@ DHTStorage::remove_old_packets()
           continue;
         }
 
-      uint8_t type;
-      uint8_t version;
-      uint8_t key[32]{};
-      int32_t stored_time{};
+      uint8_t type = 0;
+      uint8_t version = 0;
+      uint8_t key[32] = {0};
+      int32_t stored_time = 0;
 
       size_t offset = 0;
       memcpy(&type, bytes, 1);

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -31,10 +31,10 @@ namespace kademlia
 
 #define CHECK_EMAIL_INTERVAL (5 * 60)
 
-using sp_id_full = std::shared_ptr<pbote::BoteIdentityFull>;
+using sp_id_full = std::shared_ptr<BoteIdentityFull>;
 using thread_map
     = std::unordered_map<std::string, std::shared_ptr<std::thread> >;
-using v_sp_email = std::vector<std::shared_ptr<pbote::Email> >;
+using v_sp_email = std::vector<std::shared_ptr<Email> >;
 
 class EmailWorker
 {
@@ -67,18 +67,17 @@ private:
   void sendEmailTask ();
   void check_delivery_task ();
 
-  std::vector<pbote::IndexPacket> retrieveIndex (const sp_id_full &identity);
-  std::vector<pbote::EmailEncryptedPacket>
-  retrieveEmailPacket (const std::vector<pbote::IndexPacket> &index_packets);
+  std::vector<IndexPacket> retrieveIndex (const sp_id_full &identity);
+  std::vector<EmailEncryptedPacket>
+  retrieveEmail (const std::vector<IndexPacket> &indices);
 
-  static std::vector<pbote::EmailUnencryptedPacket>
-  loadLocalIncompletePacket ();
+  static std::vector<EmailUnencryptedPacket> loadLocalIncompletePacket ();
 
   static void checkOutbox (v_sp_email &emails);
 
-  std::vector<pbote::Email>
+  std::vector<Email>
   processEmail (const sp_id_full &identity,
-                const std::vector<pbote::EmailEncryptedPacket> &mail_packets);
+                const std::vector<EmailEncryptedPacket> &mail_packets);
 
   bool check_thread_exist (const std::string &identity_name);
 

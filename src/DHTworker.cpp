@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -319,7 +319,7 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
 
   for (const auto &response : responses)
     {
-      ResponsePacket response_packet = {};
+      ResponsePacket response_packet;
       bool parsed = response_packet.from_comm_packet (*response, true);
       if (!parsed)
         {
@@ -408,7 +408,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 
   for (const auto &response : responses)
     {
-      ResponsePacket response_packet = {};
+      ResponsePacket response_packet;
       bool parsed = response_packet.from_comm_packet (*response, true);
       if (!parsed)
         {
@@ -511,7 +511,7 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
   res.reserve (responses.size ());
   for (const auto &response : responses)
     {
-      pbote::ResponsePacket res_packet{};
+      pbote::ResponsePacket res_packet;
       res_packet.from_comm_packet (*response, true);
 
       if (res_packet.status == StatusCode::OK ||
@@ -574,7 +574,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
 
       memcpy (packet.dht_key, index_dht_key.data (), 32);
       packet.count = 1;
-      pbote::IndexDeleteRequestPacket::item item{};
+      pbote::IndexDeleteRequestPacket::item item;
       memcpy (item.key, email_dht_key.data (), 32);
       memcpy (item.da, del_auth.data (), 32);
 
@@ -619,7 +619,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
 
   for (const auto &response : responses)
     {
-      pbote::ResponsePacket res_packet{};
+      pbote::ResponsePacket res_packet;
       res_packet.from_comm_packet (*response, true);
 
       if (res_packet.status == StatusCode::OK ||
@@ -719,7 +719,7 @@ DHTworker::deletion_query (const HashKey &key)
 
   for (const auto &response : responses)
     {
-      pbote::ResponsePacket res_packet{};
+      pbote::ResponsePacket res_packet;
       res_packet.from_comm_packet (*response, true);
 
       if (res_packet.status == StatusCode::OK)
@@ -727,7 +727,7 @@ DHTworker::deletion_query (const HashKey &key)
           LogPrint (eLogDebug, "DHT: deletion_query: OK response from: ",
                     response->from.substr (0, 15), "...");
 
-          pbote::DeletionInfoPacket del_info_packet{};
+          pbote::DeletionInfoPacket del_info_packet;
           del_info_packet.fromBuffer (res_packet.data, true);
           results.push_back (std::make_shared<pbote::DeletionInfoPacket>(del_info_packet));
         }
@@ -742,8 +742,6 @@ DHTworker::deletion_query (const HashKey &key)
 std::vector<sp_node>
 DHTworker::closestNodesLookupTask (HashKey key)
 {
-  //check_closest_mutex.lock ();
-
   auto batch = std::make_shared<batch_comm_packet> ();
   batch->owner = "DHT::closestNodesLookup";
 
@@ -765,15 +763,13 @@ DHTworker::closestNodesLookupTask (HashKey key)
       auto packet = findClosePeersPacket (key);
       auto bytes = packet.toByte ();
 
-      PacketForQueue q_packet (node->ToBase64 (), bytes.data (),
-                               bytes.size ());
-      std::vector<uint8_t> v_cid (std::begin (packet.cid),
-                                  std::end (packet.cid));
+      PacketForQueue q_packet (node->ToBase64 (), bytes.data (), bytes.size ());
+      std::vector<uint8_t> vcid (std::begin (packet.cid), std::end (packet.cid));
 
       /// Copy packet to pending task for check timeout later
       active_requests.insert (
-          std::pair<std::vector<uint8_t>, sp_node> (v_cid, node));
-      batch->addPacket (v_cid, q_packet);
+          std::pair<std::vector<uint8_t>, sp_node> (vcid, node));
+      batch->addPacket (vcid, q_packet);
     }
 
   unsigned long current_time
@@ -789,39 +785,40 @@ DHTworker::closestNodesLookupTask (HashKey key)
 
       context.send (batch);
       batch->waitLast (RESPONSE_TIMEOUT);
+      context.removeBatch (batch);
       responses = batch->getResponses ();
 
-      if (!responses.empty ())
-        {
-          LogPrint (eLogDebug, "DHT: closestNodesLookup: Got ",
-                    responses.size (), " responses for key ", key.ToBase64 ());
-
-          for (const auto &response : responses)
-            {
-              std::vector<uint8_t> v_cid (std::begin (response->cid),
-                                          std::end (response->cid));
-              /// Check if we sent requests with this CID
-              if (active_requests.find (v_cid) != active_requests.end ())
-                {
-                  /// Mark that the node sent response
-                  auto peer = active_requests[v_cid];
-                  /// Remove node from active requests and from batch
-                  active_requests.erase (v_cid);
-                  batch->removePacket (v_cid);
-                }
-            }
-        }
-      else
+      if (responses.empty ())
         {
           LogPrint (eLogWarning, "DHT: closestNodesLookup: Not enough "
                                  "responses, resend batch");
-          context.removeBatch (batch);
+          continue;
+        }
+
+      LogPrint (eLogDebug, "DHT: closestNodesLookup: Got ",responses.size (),
+                " responses for key ", key.ToBase64 ());
+
+      for (const auto &response : responses)
+        {
+          std::vector<uint8_t> vcid (std::begin (response->cid),
+                                     std::end (response->cid));
+          /// Check if we sent requests with this CID
+          if (active_requests.find (vcid) != active_requests.end ())
+            {
+              /// Mark that the node sent response
+              auto peer = active_requests[vcid];
+              /// Remove node from active requests and from batch
+              active_requests.erase (vcid);
+              batch->removePacket (vcid);
+            }
         }
 
       current_time
           = std::chrono::system_clock::now ().time_since_epoch ().count ();
       exec_duration = (current_time - task_start_time) / 1000000000;
     }
+
+  context.removeBatch (batch);
 
   /// If we have at least one response
   for (const auto &response : responses)
@@ -851,7 +848,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
       if (packet.status != StatusCode::OK)
         {
           LogPrint (eLogWarning, "DHT: closestNodesLookup: Response status: ",
-                    statusToString (packet.status));
+                    statusToString (packet.status), ", parsing skipped");
           continue;
         }
 
@@ -863,12 +860,10 @@ DHTworker::closestNodesLookupTask (HashKey key)
         }
 
       size_t nodes_added = 0, nodes_dup = 0;
-      std::vector<sp_node> peers_list;
+      std::vector<sp_node> node_list;
 
-      if (unsigned (packet.data[1]) == 4 &&
-          (packet.data[0] == (uint8_t)'L' || packet.data[0] == (uint8_t)'P'))
+      if (unsigned (packet.data[1]) == 4)
         {
-          //peers_list = receivePeerListV4 (packet.data.data (), packet.length);
           pbote::PeerListPacketV4 peer_list;
           bool parsed = peer_list.fromBuffer (packet.data.data (),
                                               packet.length, true);
@@ -886,17 +881,15 @@ DHTworker::closestNodesLookupTask (HashKey key)
                 nodes_added++;
               else
                 nodes_dup++;
-              peers_list.emplace_back (std::make_shared<Node> (node.ToBase64 ()));
+              node_list.emplace_back (std::make_shared<Node> (node.ToBase64 ()));
             }
           LogPrint (eLogDebug, "DHT: closestNodesLookup: V4 nodes: ",
-                    peers_list.size (), ", added: ", nodes_added,
+                    node_list.size (), ", added: ", nodes_added,
                     ", dup: ", nodes_dup);
         }
 
-      if (unsigned (packet.data[1]) == 5 &&
-          (packet.data[0] == (uint8_t)'L' || packet.data[0] == (uint8_t)'P'))
+      if (unsigned (packet.data[1]) == 5)
         {
-          //peers_list = receivePeerListV5 (packet.data.data (), packet.length);
           pbote::PeerListPacketV5 peer_list;
           bool parsed = peer_list.fromBuffer (packet.data.data (),
                                               packet.length, true);
@@ -914,23 +907,23 @@ DHTworker::closestNodesLookupTask (HashKey key)
                 nodes_added++;
               else
                 nodes_dup++;
-              peers_list.emplace_back (std::make_shared<Node> (node.ToBase64 ()));
+              node_list.emplace_back (std::make_shared<Node> (node.ToBase64 ()));
             }
           LogPrint (eLogDebug, "DHT: closestNodesLookup: V5 nodes: ",
-                    peers_list.size (), ", added: ", nodes_added,
+                    node_list.size (), ", added: ", nodes_added,
                     ", dup: ", nodes_dup);
         }
 
-      if (peers_list.empty ())
+      if (node_list.empty ())
         {
-          LogPrint (eLogDebug, "DHT: closestNodesLookup: peers_list empty");
+          LogPrint (eLogDebug, "DHT: closestNodesLookup: node_list empty");
           continue;
         }
 
-      LogPrint (eLogDebug, "DHT: closestNodesLookup: peers_list size: ",
-                peers_list.size ());
+      LogPrint (eLogDebug, "DHT: closestNodesLookup: node_list size: ",
+                node_list.size ());
 
-      for (const auto &peer : peers_list)
+      for (const auto &peer : node_list)
         {
           auto it = closestNodes.find (peer->GetIdentHash ());
           if (it == closestNodes.end ())
@@ -976,8 +969,6 @@ DHTworker::closestNodesLookupTask (HashKey key)
 
   LogPrint (eLogDebug, "DHT: closestNodesLookup: Finished, count: ",
             result.size ());
-
-  //check_closest_mutex.unlock ();
 
   return result;
 }
@@ -1078,11 +1069,11 @@ DHTworker::receiveDeletionQuery (const sp_comm_packet &packet)
   if (addNode (packet->from))
     LogPrint (eLogDebug, "DHT: receiveDeletionQuery: Sender added to list");
 
-  pbote::ResponsePacket response{};
+  pbote::ResponsePacket response;
   memcpy (response.cid, packet->cid, 32);
   response.length = 0;
 
-  pbote::DeletionQueryPacket del_query{};
+  pbote::DeletionQueryPacket del_query;
 
   bool parsed = del_query.from_comm_packet (*packet);
   if (!parsed)
@@ -1118,7 +1109,7 @@ DHTworker::receiveDeletionQuery (const sp_comm_packet &packet)
   //    LogPrint (eLogDebug, "DHT: receiveDeletionQuery: found key: ",
   //              t_key.ToBase64 ());
 
-  //    pbote::DeletionInfoPacket del_packet{};
+  //    pbote::DeletionInfoPacket del_packet;
   //    del_packet.fromBuffer (res_packet.data, true);
 
   //    int key_cmp = memcmp (packet.key, del_packet.data[0].key, 32);
@@ -1235,7 +1226,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
   memcpy (response.cid, packet->cid, 32);
   response.length = 0;
 
-  pbote::EmailDeleteRequestPacket delete_packet{};
+  pbote::EmailDeleteRequestPacket delete_packet;
   bool parsed = delete_packet.from_comm_packet (*packet);
   if (!parsed)
     {
@@ -1266,11 +1257,11 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
 
   LogPrint (eLogDebug, "DHT: EmailPacketDelete: Found: ", t_key.ToBase64 ());
 
-  pbote::EmailEncryptedPacket email_packet{};
+  pbote::EmailEncryptedPacket email_packet;
   parsed = email_packet.fromBuffer (email_packet_data.data (),
                                     email_packet_data.size (), true);
 
-  uint8_t delHash[32]{};
+  uint8_t delHash[32] = {0};
   SHA256 (delete_packet.DA, 32, delHash);
 
   HashKey da_h (delete_packet.DA),
@@ -1298,7 +1289,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
     {
       LogPrint (eLogDebug, "DHT: EmailPacketDelete: Packet removed");
 
-      pbote::DeletionInfoPacket deleted_packet{};
+      pbote::DeletionInfoPacket deleted_packet;
       deleted_packet.count = 1; // only 1 email packet in request
       pbote::DeletionInfoPacket::item item;
       memcpy(item.key, delete_packet.key, 32);
@@ -1347,7 +1338,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
   memcpy (response.cid, packet->cid, 32);
   response.length = 0;
 
-  pbote::IndexDeleteRequestPacket delete_packet {};
+  pbote::IndexDeleteRequestPacket delete_packet;
   bool parsed = delete_packet.from_comm_packet (*packet);
   if (!parsed)
     {
@@ -1390,7 +1381,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
       return;
     }
 
-  pbote::DeletionInfoPacket deleted_packet{};
+  pbote::DeletionInfoPacket deleted_packet;
 
   bool erased = false;
   for (auto item : delete_packet.data)
@@ -1695,14 +1686,16 @@ DHTworker::writeNodes ()
                 "overwritten.\n\n";
   std::unique_lock<std::mutex> l (m_nodes_mutex_);
 
+  size_t saved = 0;
   for (const auto &node : m_nodes_)
     {
       nodes_file << node.second->ToBase64 ();
       nodes_file << "\n";
+      saved++;
     }
 
   nodes_file.close ();
-  LogPrint (eLogDebug, "DHT: writeNodes: nodes saved to FS");
+  LogPrint (eLogDebug, "DHT: writeNodes: ", saved, " node(s) saved to FS");
 }
 
 void

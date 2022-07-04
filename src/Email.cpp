@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -11,10 +11,11 @@
 #include <fstream>
 #include <cstdio>
 
-#include "Gzip.h"
-
 #include "BoteContext.h"
 #include "Email.h"
+
+// libi2pd
+#include "Gzip.h"
 
 namespace pbote
 {
@@ -276,7 +277,7 @@ Email::get_to_addresses ()
 bool
 Email::verify (uint8_t *hash)
 {
-  uint8_t da_h[32]{0};
+  uint8_t da_h[32] = {0};
   SHA256 (packet.DA, 32, da_h);
   //* For debug
   i2p::data::Tag<32> ver_hash (hash), cur_da (packet.DA), cur_hash (da_h);
@@ -387,7 +388,7 @@ Email::compose ()
   LogPrint (eLogDebug, "Email: compose: Message-ID bytes: ",
             get_message_id_bytes ().ToBase64 ());
 
-  uint8_t zero_array[32]{0};
+  uint8_t zero_array[32] = {0};
 
   if (memcmp(packet.DA, zero_array, 32) == 0)
     context.random_cid (packet.DA, 32);
