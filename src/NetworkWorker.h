@@ -102,7 +102,7 @@ private:
   std::string f_addr;
   struct addrinfo *f_addrinfo{};
 
-  uint8_t m_DatagramRecvBuffer[MAX_DATAGRAM_SIZE + 1]{};
+  uint8_t m_DatagramRecvBuffer[MAX_DATAGRAM_SIZE + 1] = {0};
   queue_type m_recvQueue;
 };
 
