@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -153,6 +153,7 @@ void DaemonLinux::run() {
 
     if (pbote::network::network_worker.is_sick ())
       {
+        LogPrint(eLogError, "Daemon: SAM session is sick, try to re-connect");
         pbote::network::network_worker.init ();
         pbote::network::network_worker.start ();
       }
