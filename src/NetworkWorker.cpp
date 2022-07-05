@@ -1,11 +1,12 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
+#include <errno.h>
 #include <utility>
 
 #include "NetworkWorker.h"
@@ -105,58 +106,55 @@ UDPReceiver::run ()
     handle_receive ();
 }
 
-long
+ssize_t
 UDPReceiver::recv ()
 {
-  return ::recv (f_socket, m_DatagramRecvBuffer, MAX_DATAGRAM_SIZE, 0);
+  return ::recv (f_socket, UDP_recv_buffer, MAX_DATAGRAM_SIZE, 0);
 }
 
 void
 UDPReceiver::handle_receive ()
 {
-  std::size_t bytes_transferred = recv ();
+  ssize_t bytes_transferred = recv ();
 
-  if (bytes_transferred > 0)
-    context.add_recv_byte_count (bytes_transferred);
-
-  m_DatagramRecvBuffer[bytes_transferred] = 0;
-
-  // ToDo: bad code! Need rewrite with strchr or memcpy for example
-  std::vector<uint8_t> v_destination;
-  std::vector<uint8_t> v_data;
-  bool isData = false;
-
-  for (u_int i = 0; i < bytes_transferred; i++)
+  if (bytes_transferred < 1)
     {
-      if (m_DatagramRecvBuffer[i] == 0x0a)
-        isData = true;
-      else
+      if (bytes_transferred == 0)
         {
-          if (isData)
-            v_data.push_back (m_DatagramRecvBuffer[i]);
-          else
-            v_destination.push_back (m_DatagramRecvBuffer[i]);
+          LogPrint (eLogWarning, "Network: UDPReceiver: Zero-length datagram");
+          return;
         }
+
+      LogPrint (eLogError, "Network: UDPReceiver: Receive error: ", strerror(errno));
+      return;
     }
 
-  std::string s_destination (v_destination.begin (), v_destination.end ());
-  std::string s_data (v_data.begin (), v_data.end ());
+  /// Count total receive bytes
+  context.add_recv_byte_count (bytes_transferred);
+  /// Terminating array
+  UDP_recv_buffer[bytes_transferred] = 0;
+  /// Get newline char position
+  char *eol = strchr ((char *)UDP_recv_buffer, '\n');
 
-  char *eol = strchr ((char *)m_DatagramRecvBuffer, '\n');
-
-  if (eol)
+  if (!eol)
     {
-      *eol = 0;
-      eol++;
-      size_t payloadLen
-          = bytes_transferred - ((uint8_t *)eol - m_DatagramRecvBuffer);
-
-      auto packet = std::make_shared<PacketForQueue> (
-          s_destination, (uint8_t *)eol, payloadLen);
-      m_recvQueue->Put (packet);
+      LogPrint (eLogWarning, "Network: UDPReceiver: Malformed datagram");
+      return;
     }
-  else
-    LogPrint (eLogError, "Network: UDPReceiver: Invalid datagram");
+
+  *eol = 0;
+  eol++;
+  size_t payload_len = bytes_transferred - ((uint8_t *)eol - UDP_recv_buffer);
+  size_t dest_len = bytes_transferred - payload_len;
+
+  std::string dest (&UDP_recv_buffer[0], &UDP_recv_buffer[dest_len]);
+
+  LogPrint (eLogDebug, "Network: UDPReceiver: Datagram received, dest: ",
+            dest, ", size: ", payload_len);
+
+  auto packet = std::make_shared<PacketForQueue> (dest, (uint8_t *)eol,
+                                                  payload_len);
+  m_recvQueue->Put (packet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -258,18 +256,22 @@ UDPSender::send ()
   size_t bytes_transferred
       = sendto (f_socket, message.c_str (), message.size (), 0,
                 f_addrinfo->ai_addr, f_addrinfo->ai_addrlen);
-  handle_send (bytes_transferred);
+
+  //handle_send (bytes_transferred);
+
+  context.add_sent_byte_count (bytes_transferred);
 }
 
+/*
 void
 UDPSender::handle_send (
-    /*const boost::system::error_code &error,*/
+    //const boost::system::error_code &error,
     std::size_t bytes_transferred)
 {
+  context.add_sent_byte_count (bytes_transferred);
   // ToDo: error handler
-  if (bytes_transferred > 0)
-    context.add_sent_byte_count (bytes_transferred);
 }
+*/
 
 void
 UDPSender::check_session()
@@ -327,7 +329,8 @@ NetworkWorker::start ()
   LogPrint (eLogInfo, "Network: SAM UDP endpoint: ", routerAddress_, ":",
             routerPortUDP_);
 
-  // we can init with empty listen port for auto port and use it in SAM init
+  // ToDo: we can init with empty listen port for auto port
+  //   and use it in SAM init
   m_RecvHandler->start ();
 
   LogPrint (eLogInfo, "Network: Starting SAM session");
@@ -415,7 +418,7 @@ NetworkWorker::createSAMSession ()
   if (router_session_->isSick ())
     LogPrint (eLogError, "Network: SAM session is sick");
   else
-    LogPrint (eLogDebug, "Network: SAM session is OK");
+    LogPrint (eLogInfo, "Network: SAM session is OK");
 
   LogPrint (eLogInfo, "Network: SAM session created, nickname: ", m_nickname_,
             ", sessionID: ", router_session_->getSessionID ());

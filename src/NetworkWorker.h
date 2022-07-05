@@ -32,7 +32,7 @@ namespace network
 
 /// Timeout in msec
 #define UDP_SEND_TIMEOUT 500
-
+/// 32 KiB
 #define MAX_DATAGRAM_SIZE 32768
 
 #define SAM_DEFAULT_NICKNAME "pboted"
@@ -90,7 +90,7 @@ public:
 
 private:
   void run ();
-  long recv ();
+  ssize_t recv ();
   // int timed_recv(/*char *msg, size_t max_size,*/ int max_wait_ms);
   void handle_receive ();
 
@@ -102,7 +102,7 @@ private:
   std::string f_addr;
   struct addrinfo *f_addrinfo{};
 
-  uint8_t m_DatagramRecvBuffer[MAX_DATAGRAM_SIZE + 1] = {0};
+  uint8_t UDP_recv_buffer[MAX_DATAGRAM_SIZE + 1] = {0};
   queue_type m_recvQueue;
 };
 
@@ -166,7 +166,7 @@ public:
 private:
   void run ();
   void send ();
-  void handle_send (std::size_t bytes_transferred);
+  //void handle_send (std::size_t bytes_transferred);
 
   void check_session();
 
