@@ -204,6 +204,7 @@ RelayWorker::loadPeers ()
             continue;
 
           peer.samples ((size_t)std::stoi (peer_str));
+          peer.last_seen (ts_now ());
           LogPrint (eLogDebug, "Relay: peer: ", peer.short_str ());
           peers.push_back (std::make_shared<RelayPeer> (peer));
         }
@@ -464,11 +465,9 @@ RelayWorker::check_peers ()
 
   LogPrint (eLogDebug, "Relay: Batch size: ", batch->packetCount ());
   context.send (batch);
-
-  if (batch->waitLast (RELAY_CHECK_TIMEOUT))
-    LogPrint (eLogDebug, "Relay: Batch timed out or got last");
-
+  batch->waitLast (RELAY_CHECK_TIMEOUT);
   context.removeBatch (batch);
+
   auto responses = batch->getResponses ();
 
   if (responses.empty ())
@@ -557,6 +556,24 @@ RelayWorker::check_peers ()
   LogPrint (eLogDebug, "Relay: Reachable peers: ", reachable_peers);
 
   context.removeBatch (batch);
+
+  size_t removed = 0;
+  for (auto peer : m_peers_)
+    {
+      long peer_ls = peer.second->last_seen ();
+      long sec_now = ts_now ();
+      if (((sec_now - peer_ls) > ONE_DAY_SECONDS) &&
+          peer.second->samples () == 0)
+        {
+          //m_peers_.erase (peer.first);
+          removed++;
+          LogPrint (eLogDebug, "Relay: Remove unseen peer: ",
+                    peer.second->short_str ());
+        }
+    }
+
+  LogPrint (eLogDebug, "Relay: Unseen peers removed: ", removed);
+
   writePeers ();
 
   return true;
@@ -565,21 +582,13 @@ RelayWorker::check_peers ()
 void
 RelayWorker::set_start_time ()
 {
-  auto current_time = std::chrono::system_clock::now ();
-  auto current_epoch = current_time.time_since_epoch ();
-  auto current_sec =
-    std::chrono::duration_cast<std::chrono::seconds> (current_epoch);
-  exec_start_t = current_sec.count ();
+  exec_start_t = ts_now ();
 }
 
 void
 RelayWorker::set_finish_time ()
 {
-  auto current_time = std::chrono::system_clock::now ();
-  auto current_epoch = current_time.time_since_epoch ();
-  auto current_sec =
-    std::chrono::duration_cast<std::chrono::seconds> (current_epoch);
-  exec_finish_t = current_sec.count ();
+  exec_finish_t = ts_now ();
 }
 
 std::chrono::seconds
@@ -604,6 +613,14 @@ RelayWorker::get_delay (bool exec_status)
     return std::chrono::seconds(interval - duration);
 
   return std::chrono::seconds(1);
+}
+
+long
+RelayWorker::ts_now ()
+{
+  const auto ts = std::chrono::system_clock::now ();
+  const auto epoch = ts.time_since_epoch ();
+  return std::chrono::duration_cast<std::chrono::seconds> (epoch).count ();
 }
 
 } // relay

@@ -43,6 +43,9 @@ namespace relay
 /// peer is known
 #define UPDATE_INTERVAL_LONG 60
 
+/// 24*60*60
+#define ONE_DAY_SECONDS 86400
+
 /// Default filename for peers file
 #define PEER_FILE_NAME "peers.txt"
 
@@ -79,6 +82,10 @@ public:
   void
   reachable (bool result)
   {
+    const auto ts = std::chrono::system_clock::now ();
+    const auto epoch = ts.time_since_epoch ();
+    lastseen = std::chrono::duration_cast<std::chrono::seconds> (epoch).count ();
+
     if (result && samples_ < PEER_MAX_REACHABILITY - 1)
       samples_ += 2;
     else if (result && samples_ < PEER_MAX_REACHABILITY)
@@ -123,8 +130,21 @@ public:
     return this->GetIdentHash ().ToBase64 () + " " + std::to_string (samples_);
   }
 
+  long
+  last_seen ()
+  {
+    return lastseen;
+  }
+
+  void
+  last_seen (long ts)
+  {
+    lastseen = ts;
+  }
+
 private:
   size_t samples_;
+  long lastseen = 0;
 };
 
 using sp_peer = std::shared_ptr<RelayPeer>;
@@ -172,6 +192,8 @@ private:
   void set_start_time ();
   void set_finish_time ();
   std::chrono::seconds get_delay (bool exec_status);
+
+  long ts_now ();
 
   bool started_;
   std::thread *m_worker_thread_;
