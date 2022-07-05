@@ -52,10 +52,6 @@ DHTStorage::update ()
               ", contacts: ", local_contact_packets.size ());
   }
 
-  loadLocalIndexPackets ();
-  loadLocalEmailPackets ();
-  loadLocalContactPackets ();
-
   update_storage_usage ();
 
   update_counter++;
@@ -619,6 +615,10 @@ DHTStorage::update_storage_usage()
       std::string e_what(e.what());
       LogPrint(eLogError, "DHTStorage: update_storage_usage: ", e_what);
     }
+
+  loadLocalIndexPackets ();
+  loadLocalEmailPackets ();
+  loadLocalContactPackets ();
 }
 
 void
