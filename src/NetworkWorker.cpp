@@ -145,7 +145,7 @@ UDPReceiver::handle_receive ()
   *eol = 0;
   eol++;
   size_t payload_len = bytes_transferred - ((uint8_t *)eol - UDP_recv_buffer);
-  size_t dest_len = bytes_transferred - payload_len;
+  size_t dest_len = bytes_transferred - payload_len - 1;
 
   std::string dest (&UDP_recv_buffer[0], &UDP_recv_buffer[dest_len]);
 
