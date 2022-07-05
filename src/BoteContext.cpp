@@ -112,7 +112,7 @@ bool BoteContext::receive(const std::shared_ptr<CommunicationPacket>& packet)
       {
         batch->addResponse(packet);
         LogPrint(eLogDebug, "Context: receive: Response for batch ", batch->owner,
-                 ", remain count: ", batch->remain_responses);
+                 ", remain count: ", batch->remain ());
                
         return true;
       }
@@ -123,10 +123,18 @@ bool BoteContext::receive(const std::shared_ptr<CommunicationPacket>& packet)
 void BoteContext::removeBatch(const std::shared_ptr<PacketBatch<CommunicationPacket>>& r_batch)
 {
   for (auto batch : runningBatches)
-    LogPrint(eLogDebug, "Context: Batch: ", batch->owner);
+    {
+      if (batch)
+        LogPrint(eLogDebug, "Context: Batch: ", batch->owner);
+      else
+        LogPrint(eLogError, "Context: Batch ERROR ERROR");
+    }
 
   for (auto batch_it = runningBatches.begin(); batch_it != runningBatches.end(); batch_it++)
     {
+      if (!*batch_it)
+        continue;
+
       if (r_batch == *batch_it)
         {
           LogPrint(eLogDebug, "Context: Removing batch ", r_batch->owner);

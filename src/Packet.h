@@ -139,7 +139,7 @@ template <typename T> struct PacketBatch
   std::mutex m_batchMutex;
   std::condition_variable m_first, m_last;
   std::string owner;
-  size_t remain_responses = 0;
+  size_t removed = 0;
 
   bool
   operator== (const PacketBatch &other) const
@@ -182,18 +182,25 @@ template <typename T> struct PacketBatch
     return incomingPackets.size ();
   }
 
+  size_t
+  remain ()
+  {
+    size_t total_requests = packetCount () + removed;
+    return total_requests - responseCount ();
+  }
+
   void
   addPacket (const std::vector<uint8_t> &id, const PacketForQueue &packet)
   {
     outgoingPackets.insert (
         std::pair<std::vector<uint8_t>, PacketForQueue> (id, packet));
-    remain_responses++;
   }
 
   void
   removePacket (const std::vector<uint8_t> &cid)
   {
-    outgoingPackets.erase (cid);
+    if (outgoingPackets.erase (cid) > 0)
+      removed++;
   }
 
   void
@@ -204,6 +211,7 @@ template <typename T> struct PacketBatch
         if (it->second.destination == to)
           {
             outgoingPackets.erase (it->first);
+            removed++;
             return;
           }
       }
@@ -214,13 +222,10 @@ template <typename T> struct PacketBatch
   {
     incomingPackets.push_back (packet);
 
-    if (remain_responses > 0)
-      remain_responses--;
-
     if (incomingPackets.size () == 1)
       m_first.notify_one ();
 
-    if (incomingPackets.size () == outgoingPackets.size ())
+    if (remain () == 0)
       m_last.notify_one ();
   }
 
