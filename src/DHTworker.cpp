@@ -775,11 +775,13 @@ DHTworker::closestNodesLookupTask (HashKey key)
   unsigned long current_time
       = std::chrono::system_clock::now ().time_since_epoch ().count ();
   unsigned long exec_duration = (current_time - task_start_time) / 1000000000;
+  size_t counter = 1;
 
   /// While we have unanswered requests and timeout not reached
   while (!active_requests.empty ()
          && exec_duration < CLOSEST_NODES_LOOKUP_TIMEOUT)
     {
+      LogPrint (eLogDebug, "DHT: closestNodesLookup: Request #", counter);
       LogPrint (eLogDebug, "DHT: closestNodesLookup: Batch size: ",
                 batch->packetCount ());
 
@@ -806,7 +808,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
           if (active_requests.find (vcid) != active_requests.end ())
             {
               /// Mark that the node sent response
-              auto peer = active_requests[vcid];
+              //auto peer = active_requests[vcid];
               /// Remove node from active requests and from batch
               active_requests.erase (vcid);
               batch->removePacket (vcid);
@@ -816,6 +818,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
       current_time
           = std::chrono::system_clock::now ().time_since_epoch ().count ();
       exec_duration = (current_time - task_start_time) / 1000000000;
+      counter++;
     }
 
   context.removeBatch (batch);
