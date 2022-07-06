@@ -530,7 +530,7 @@ DHTStorage::loadLocalContactPackets()
 size_t
 DHTStorage::suffix_to_multiplier(const std::string &size_str)
 {
-  std::vector<std::string> sizes = { "B", "KB", "MB", "GB", "TB" };
+  std::vector<std::string> sizes = { "B", "KiB", "MiB", "GiB", "TiB" };
   std::string suffix = size_str;
   std::size_t pos = suffix.find(' ');
 
@@ -543,7 +543,7 @@ DHTStorage::suffix_to_multiplier(const std::string &size_str)
       LogPrint(eLogError,
                "DHTStorage: suffix_to_multiplier: can't parse data size suffix: ",
                size_str);
-      suffix = "MB";
+      suffix = "MiB";
     }
 
   size_t iexp = 0;

@@ -1,6 +1,6 @@
 /**
- * Copyright (c) 2013-2017, The PurpleI2P Project
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2013-2017, The PurpleI2P Project
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted project and licensed under BSD3
  *
@@ -44,11 +44,11 @@ void Init() {
       ("loglevel",value<std::string>()->default_value("info"),"Set the minimal level of log messages (debug, info, warn, error, none)")
       ("logclftime",bool_switch()->default_value(false),"Write full CLF-formatted date and time to log (default: disabled, write only time)")
       ("datadir",value<std::string>()->default_value(""),"Path to storage of pboted data (keys, peer, packets, etc.) (default: try ~/.pboted/ or /var/lib/pboted/)")
-      ("host", value<std::string>()->default_value("0.0.0.0"), "External IP")
-      ("port", value<uint16_t>()->default_value(5050), "Port to listen for incoming connections (default: auto)")
+      ("host", value<std::string>()->default_value("0.0.0.0"), "External IP fot incomming UDP listener (default: 0.0.0.0)")
+      ("port", value<uint16_t>()->default_value(5050), "Port to listen for incoming connections (default: 5050)")
       ("daemon", bool_switch()->default_value(false), "Router will go to background after start (default: disabled)")
       ("service",bool_switch()->default_value(false),"Service will use system folders like '/var/lib/pboted' (default: disabled)")
-      ("storage", value<std::string>()->default_value("50 MB"), "Limit for local storage usage (default: 50 MB)");
+      ("storage", value<std::string>()->default_value("50 MiB"), "Limit for local storage usage (default: 50 MiB)");
   options_description sam("SAM options");
   sam.add_options()
   ("sam.name", value<std::string>()->default_value("pboted"), "What name we send to I2P router (default: pboted)")
@@ -81,13 +81,13 @@ void Init() {
   smtp.add_options()
   ("smtp.enabled", bool_switch()->default_value(true), "Allow connect via SMTP (default: true)")
   ("smtp.address", value<std::string>()->default_value("127.0.0.1"), "SMTP listen address (default: 127.0.0.1)")
-  ("smtp.port", value<uint16_t>()->default_value(25), "SMTP listen port (default: 25)")
+  ("smtp.port", value<uint16_t>()->default_value(9025), "SMTP listen port (default: 9025)")
   ;
   options_description pop3("POP3 options");
   pop3.add_options()
   ("pop3.enabled", bool_switch()->default_value(true), "Allow connect via POP3 (default: true)")
   ("pop3.address", value<std::string>()->default_value("127.0.0.1"), "POP3 listen address (default: 127.0.0.1)")
-  ("pop3.port", value<uint16_t>()->default_value(110), "POP3 listen port (default: 110)")
+  ("pop3.port", value<uint16_t>()->default_value(9110), "POP3 listen port (default: 9110)")
   ;
   /*options_description imap("IMAP options");
   imap.add_options()
