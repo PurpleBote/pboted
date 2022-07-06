@@ -23,7 +23,7 @@ Transition to **beta** planned in version **0.9.X**
 
 - Sending and receiving emails
 - Support for short recipient names (alias)
-- [End-to-End encryption](https://pboted.readthedocs.io/en/latest/bote/v5/cryptography/))
+- [End-to-End encryption](https://pboted.readthedocs.io/en/latest/bote/v5/cryptography/)
 - Runnable as daemon
 - [CLI utility](https://github.com/polistern/pbotectl) (work in progress)
 - SMTP / POP3 support (tested with [Mozilla Thunderbird](https://www.thunderbird.net/en-US/))
