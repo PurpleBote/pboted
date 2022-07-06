@@ -946,6 +946,14 @@ DHTworker::closestNodesLookupTask (HashKey key)
 
   context.removeBatch (batch);
 
+  /// If we have no responses - try with known nodes
+  if (responses.empty ())
+    {
+      LogPrint (eLogWarning, "DHT: closestNodesLookup: Not enough "
+                "responses, will use known nodes");
+      return getClosestNodes (key, 20, false);
+    }
+
   /// Now we can lock nodes
   calc_locks (responses);
 
