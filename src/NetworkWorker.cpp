@@ -67,22 +67,25 @@ UDPReceiver::UDPReceiver (const std::string &address, int port)
 
 UDPReceiver::~UDPReceiver ()
 {
-  m_RecvThread->join ();
+  stop ();
 
-  delete m_RecvThread;
-  m_RecvThread = nullptr;
+  if (m_recvQueue)
+    {
+      m_recvQueue = nullptr;
+    }
 
   freeaddrinfo (f_addrinfo);
   close (f_socket);
-
-  m_recvQueue = nullptr;
 }
 
 void
 UDPReceiver::start ()
 {
-  if (running_)
-    return;
+  if (m_RecvThread)
+    {
+      delete m_RecvThread;
+      m_RecvThread = nullptr;
+    }
 
   running_ = true;
   m_RecvThread = new std::thread ([this] { run (); });
@@ -91,8 +94,15 @@ UDPReceiver::start ()
 void
 UDPReceiver::stop ()
 {
-  if (!running_)
-    running_ = false;
+  running_ = false;
+
+  if (m_RecvThread)
+    {
+      m_RecvThread->join ();
+
+      delete m_RecvThread;
+      m_RecvThread = nullptr;
+    }
 
   LogPrint (eLogInfo, "Network: UDPReceiver: Stopped");
 }
@@ -103,7 +113,9 @@ UDPReceiver::run ()
   LogPrint (eLogInfo, "Network: UDPReceiver: Started");
 
   while (running_)
-    handle_receive ();
+    {
+      handle_receive ();
+    }
 }
 
 ssize_t
@@ -199,22 +211,25 @@ UDPSender::UDPSender (const std::string &addr, int port)
 
 UDPSender::~UDPSender ()
 {
-  m_SendThread->join ();
+  stop ();
 
-  delete m_SendThread;
-  m_SendThread = nullptr;
+  if (m_sendQueue)
+    {
+      m_sendQueue = nullptr;
+    }
 
   freeaddrinfo (f_addrinfo);
   close (f_socket);
-
-  m_sendQueue = nullptr;
 }
 
 void
 UDPSender::start ()
 {
-  if (running_)
-    return;
+  if (m_SendThread)
+    {
+      delete m_SendThread;
+      m_SendThread = nullptr;
+    }
 
   running_ = true;
   m_SendThread = new std::thread ([this] { run (); });
@@ -223,8 +238,15 @@ UDPSender::start ()
 void
 UDPSender::stop ()
 {
-  if (running_)
-    running_ = false;
+  running_ = false;
+
+  if (m_SendThread)
+    {
+      m_SendThread->join ();
+
+      delete m_SendThread;
+      m_SendThread = nullptr;
+    }
 
   LogPrint (eLogInfo, "Network: UDPSender: Stopped");
 }
@@ -235,7 +257,9 @@ UDPSender::run ()
   LogPrint (eLogInfo, "Network: UDPSender: Started");
 
   while (running_)
-    send ();
+    {
+      send ();
+    }
 }
 
 void
@@ -253,25 +277,24 @@ UDPSender::send ()
       = SAM::Message::datagramSend (m_sessionID_, packet->destination);
   message.append (payload);
 
-  size_t bytes_transferred
+  ssize_t bytes_transferred
       = sendto (f_socket, message.c_str (), message.size (), 0,
                 f_addrinfo->ai_addr, f_addrinfo->ai_addrlen);
 
-  //handle_send (bytes_transferred);
+  if (bytes_transferred < 1)
+    {
+      if (bytes_transferred == 0)
+        {
+          LogPrint (eLogWarning, "Network: UDPSender: Zero-length datagram");
+          return;
+        }
+
+      LogPrint (eLogError, "Network: UDPSender: Send error: ", strerror(errno));
+      return;
+    }
 
   context.add_sent_byte_count (bytes_transferred);
 }
-
-/*
-void
-UDPSender::handle_send (
-    //const boost::system::error_code &error,
-    std::size_t bytes_transferred)
-{
-  context.add_sent_byte_count (bytes_transferred);
-  // ToDo: error handler
-}
-*/
 
 void
 UDPSender::check_session()
@@ -284,7 +307,6 @@ UDPSender::check_session()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// ToDo: Need some optimization
 
 NetworkWorker::NetworkWorker ()
   : listenPortUDP_ (0), routerPortTCP_ (0), routerPortUDP_ (0),
@@ -383,6 +405,17 @@ NetworkWorker::stop ()
   LogPrint (eLogInfo, "Network: Stopped");
 }
 
+void
+NetworkWorker::running ()
+{
+  bool recv_run = m_RecvHandler->running ();
+  bool send_run = m_SendHandler->running ();
+  LogPrint (recv_run ? eLogDebug : eLogError, "Network: UDPReceiver: running: ",
+            recv_run ? "true" : "false");
+  LogPrint (send_run ? eLogDebug : eLogError, "Network: UDPSender: running: ",
+            send_run ? "true" : "false");
+}
+
 std::shared_ptr<i2p::data::PrivateKeys>
 NetworkWorker::createSAMSession ()
 {
@@ -415,10 +448,9 @@ NetworkWorker::createSAMSession ()
       return {};
     }
 
-  if (router_session_->isSick ())
-    LogPrint (eLogError, "Network: SAM session is sick");
-  else
-    LogPrint (eLogInfo, "Network: SAM session is OK");
+  bool sick = router_session_->isSick ();
+  LogPrint (sick ? eLogError : eLogInfo, "Network: SAM session: ",
+            sick ? "Sick" : "OK");
 
   LogPrint (eLogInfo, "Network: SAM session created, nickname: ", m_nickname_,
             ", sessionID: ", router_session_->getSessionID ());

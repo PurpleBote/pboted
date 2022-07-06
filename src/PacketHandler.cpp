@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -43,7 +43,7 @@ IncomingRequest::handleNewPacket (
   sp_comm_pac packet = pbote::parseCommPacket (queuePacket);
   if (!packet)
     {
-      LogPrint (eLogWarning, "Packet: can't parse packet");
+      LogPrint (eLogWarning, "Packet: Can't parse packet");
       return false;
     }
 
@@ -102,83 +102,62 @@ IncomingRequest::receiveResponsePkt (const sp_comm_pac &packet)
   LogPrint (eLogWarning, "Packet: Response: Unexpected Response received");
   LogPrint (eLogWarning, "Packet: Response: Sender: ", packet->from);
 
-  size_t offset = 0;
-  uint8_t status;
-  uint16_t dataLen;
+  ResponsePacket response;
+  bool parsed = response.from_comm_packet (*packet, true);
+  if (!parsed)
+    {
+      LogPrint (eLogWarning, "Packet: Response: Can't parse packet");
+      return false;
+    }
 
-  std::memcpy (&status, packet->payload.data (), 1);
-  offset += 1;
+  LogPrint (eLogWarning, "Packet: Response: Status: ", unsigned (response.status),
+            ", message: ", pbote::statusToString (response.status));
 
-  LogPrint (eLogWarning, "Packet: Response: Status: ", unsigned (status),
-            ", message: ", pbote::statusToString (status));
-
-  std::memcpy (&dataLen, packet->payload.data () + offset, sizeof dataLen);
-  dataLen = ntohs (dataLen);
-  offset += 2;
-
-  LogPrint (eLogWarning, "Packet: Response: size: ",
-            (packet->payload.size () - offset), ", dataLen: ", dataLen);
-
-  if ((packet->payload.size () - offset) != dataLen)
-    LogPrint (eLogWarning, "Packet: Response: Size mismatch: size: ",
-              (packet->payload.size () - offset), ", dataLen: ", dataLen);
-
-  if (dataLen == 0)
+  if (response.length == 0)
     {
       LogPrint (eLogWarning, "Packet: Response: Empty packet");
       return true;
     }
 
-  std::vector<byte> data = { packet->payload.data () + offset,
-                             packet->payload.data () + offset + dataLen };
-
   /// Peer List
   /// L for mhatta, P for str4d
-  if (data[0] == (uint8_t)'L' || data[0] == (uint8_t)'P')
+  if (response.data[0] == (uint8_t)'L' || response.data[0] == (uint8_t)'P')
     {
-      if (packet->ver == (uint8_t)4)
+      if (response.ver == (uint8_t)4)
         {
-          LogPrint (eLogWarning, "Packet: Response: Peer List, type: ", data[0],
-                    ", ver: ", unsigned (data[1]));
+          LogPrint (eLogWarning, "Packet: Response: Peer List V4");
           return true;
         }
-      else if (packet->ver == (uint8_t)5)
+      else if (response.ver == (uint8_t)5)
         {
-          LogPrint (eLogWarning, "Packet: Response: Peer List, type: ", data[0],
-                    ", ver: ", unsigned (data[1]));
+          LogPrint (eLogWarning, "Packet: Response: Peer List V5");
           return true;
-        }
-      else
-        {
-          LogPrint (eLogWarning, "Packet: Response: Unsupported type: ", data[0],
-                    ", ver: ", unsigned (data[1]));
         }
     }
 
   /// Index Packet
-  if (data[0] == DataI)
+  if (response.data[0] == DataI)
     {
       LogPrint (eLogWarning, "Packet: Response: Index Packet received");
       return true;
     }
 
   /// Email Packet
-  if (data[0] == DataE)
+  if (response.data[0] == DataE)
     {
       LogPrint (eLogWarning, "Packet: Response: Email Packet received");
       return true;
     }
 
   /// Directory Entry Packet
-  if (data[0] == DataC)
+  if (response.data[0] == DataC)
     {
       LogPrint (eLogWarning, "Packet: Response: Directory Entry Packet received");
       return true;
     }
 
-  LogPrint (eLogWarning, "Packet: Response: type: ", data[0], ", ver: ",
-            unsigned (data[1]));
-  LogPrint (eLogWarning, "Packet: Response: Unsupported data packet type");
+  LogPrint (eLogWarning, "Packet: Response: Unsupported, type: ",
+            response.data[0], ", ver: ", unsigned (response.data[1]));
 
   return false;
 }
@@ -324,14 +303,17 @@ RequestHandler::~RequestHandler ()
 void
 RequestHandler::start ()
 {
-  if (!started_)
+  m_recvQueue = context.getRecvQueue ();
+  m_sendQueue = context.getSendQueue ();
+  started_ = true;
+
+  if (m_PHandlerThread)
     {
-      m_recvQueue = context.getRecvQueue ();
-      m_sendQueue = context.getSendQueue ();
-      started_ = true;
-      m_PHandlerThread
-          = new std::thread (std::bind (&RequestHandler::run, this));
+      delete m_PHandlerThread;
+      m_PHandlerThread = nullptr;
     }
+
+  m_PHandlerThread = new std::thread (std::bind (&RequestHandler::run, this));
 }
 
 void
@@ -347,6 +329,7 @@ void
 RequestHandler::run ()
 {
   LogPrint (eLogInfo, "PacketHandler: Started");
+
   while (started_)
     {
       auto new_packet = m_recvQueue->GetNextWithTimeout (PACKET_RECEIVE_TIMEOUT);
@@ -354,20 +337,22 @@ RequestHandler::run ()
       if (!new_packet)
         continue;
 
-      IncomingRequest newSession;
+      LogPrint (eLogDebug, "PacketHandler: Got new packet");
 
-      if (!newSession.handleNewPacket (new_packet))
-        {
-          LogPrint (eLogWarning, "PacketHandler: Parsing failed");
+      IncomingRequest handler;
+      /// If successful, we move on to processing the next packet
+      if (handler.handleNewPacket (new_packet))
+        continue;
 
-          pbote::ResponsePacket response;
-          response.status = pbote::StatusCode::INVALID_PACKET;
-          response.length = 0;
-          auto data = response.toByte ();
+      LogPrint (eLogWarning, "PacketHandler: Parsing failed");
 
-          m_sendQueue->Put (std::make_shared<PacketForQueue> (
-              new_packet->destination, data.data (), data.size ()));
-        }
+      pbote::ResponsePacket response;
+      response.status = pbote::StatusCode::INVALID_PACKET;
+      response.length = 0;
+      auto data = response.toByte ();
+
+      m_sendQueue->Put (std::make_shared<PacketForQueue> (
+          new_packet->destination, data.data (), data.size ()));
     }
 }
 

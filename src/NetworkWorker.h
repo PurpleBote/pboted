@@ -91,7 +91,6 @@ public:
 private:
   void run ();
   ssize_t recv ();
-  // int timed_recv(/*char *msg, size_t max_size,*/ int max_wait_ms);
   void handle_receive ();
 
   bool running_;
@@ -166,7 +165,6 @@ public:
 private:
   void run ();
   void send ();
-  //void handle_send (std::size_t bytes_transferred);
 
   void check_session();
 
@@ -195,6 +193,7 @@ public:
   void start ();
   void stop ();
 
+  void running ();
   bool is_sick() { return router_session_->isSick (); };
 
 private:
