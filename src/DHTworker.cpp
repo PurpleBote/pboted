@@ -229,19 +229,19 @@ DHTworker::getUnlockedNodes ()
   return res;
 }
 
-std::vector<sp_comm_packet>
+std::vector<sp_comm_pkt>
 DHTworker::findOne (HashKey hash, uint8_t type)
 {
   return find (hash, type, false);
 }
 
-std::vector<sp_comm_packet>
+std::vector<sp_comm_pkt>
 DHTworker::findAll (HashKey hash, uint8_t type)
 {
   return find (hash, type, true);
 }
 
-std::vector<sp_comm_packet>
+std::vector<sp_comm_pkt>
 DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
 {
   LogPrint (eLogDebug, "DHT: find: Start for type: ", type,
@@ -314,7 +314,7 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
   context.removeBatch (batch);
   auto responses = batch->getResponses ();
 
-  std::vector<sp_comm_packet> result;
+  std::vector<sp_comm_pkt> result;
   result.reserve (responses.size ());
 
   for (const auto &response : responses)
@@ -746,7 +746,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
   batch->owner = "DHT::closestNodesLookup";
 
   std::map<HashKey, sp_node> closestNodes;
-  std::vector<sp_comm_packet> responses;
+  std::vector<sp_comm_pkt> responses;
   std::map<std::vector<uint8_t>, sp_node> active_requests;
 
   /// Set start time
@@ -985,7 +985,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
 }
 
 void
-DHTworker::receiveRetrieveRequest (const sp_comm_packet &packet)
+DHTworker::receiveRetrieveRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "DHT: receiveRetrieveRequest: Request from: ",
             packet->from.substr (0, 15), "...");
@@ -1065,7 +1065,7 @@ DHTworker::receiveRetrieveRequest (const sp_comm_packet &packet)
 }
 
 void
-DHTworker::receiveDeletionQuery (const sp_comm_packet &packet)
+DHTworker::receiveDeletionQuery (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "DHT: receiveDeletionQuery: request from: ",
             packet->from.substr (0, 15), "...");
@@ -1137,7 +1137,7 @@ DHTworker::receiveDeletionQuery (const sp_comm_packet &packet)
 }
 
 void
-DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
+DHTworker::receiveStoreRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "DHT: StoreRequest: request from: ",
             packet->from.substr (0, 15), "...");
@@ -1211,7 +1211,7 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
       response.status = pbote::StatusCode::INVALID_PACKET;
     }
 
-  LogPrint (eLogWarning, "DHT: StoreRequest: Send status: ",
+  LogPrint (eLogDebug, "DHT: StoreRequest: Send status: ",
             statusToString (response.status));
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
@@ -1219,7 +1219,7 @@ DHTworker::receiveStoreRequest (const sp_comm_packet &packet)
 }
 
 void
-DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
+DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "DHT: EmailPacketDelete: request from: ",
             packet->from.substr (0, 15), "...");
@@ -1331,7 +1331,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_packet &packet)
 }
 
 void
-DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
+DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "DHT: IndexPacketDelete: Request from: ",
             packet->from.substr (0, 15), "...");
@@ -1477,7 +1477,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_packet &packet)
 }
 
 void
-DHTworker::receiveFindClosePeers (const sp_comm_packet &packet)
+DHTworker::receiveFindClosePeers (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Request from: ",
             packet->from.substr (0, 15), "...");
@@ -1710,7 +1710,7 @@ DHTworker::writeNodes ()
 }
 
 void
-DHTworker::calc_locks (std::vector<sp_comm_packet> responses)
+DHTworker::calc_locks (std::vector<sp_comm_pkt> responses)
 {
   size_t counter = 0;
   for (const auto &node : m_nodes_)

@@ -337,7 +337,7 @@ EmailWorker::sendEmailTask ()
         {
           if (email->skip ())
             {
-              LogPrint (eLogDebug, "EmailWorker: Send: Email skipped");
+              LogPrint (eLogWarning, "EmailWorker: Send: Email skipped");
               continue;
             }
 
@@ -347,7 +347,7 @@ EmailWorker::sendEmailTask ()
 
           if (email->skip ())
             {
-              LogPrint (eLogDebug, "EmailWorker: Send: Email skipped");
+              LogPrint (eLogWarning, "EmailWorker: Send: Email skipped");
               continue;
             }
 

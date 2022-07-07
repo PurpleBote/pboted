@@ -150,8 +150,6 @@ private:
 using sp_peer = std::shared_ptr<RelayPeer>;
 using sp_i2p_ident = std::shared_ptr<i2p::data::IdentityEx>;
 using hash_key = i2p::data::Tag<32>;
-using sp_comm_packet = std::shared_ptr<CommunicationPacket>;
-using batch_comm_packet = PacketBatch<CommunicationPacket>;
 
 class RelayWorker
 {
@@ -181,8 +179,8 @@ public:
   size_t getPeersCount ();
   size_t get_good_peer_count ();
 
-  void peerListRequestV4 (const sp_comm_packet &packet);
-  void peerListRequestV5 (const sp_comm_packet &packet);
+  void peerListRequestV4 (const sp_comm_pkt &packet);
+  void peerListRequestV5 (const sp_comm_pkt &packet);
   static PeerListRequestPacket peerListRequestPacket ();
 
 private:

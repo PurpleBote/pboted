@@ -333,7 +333,7 @@ RelayWorker::get_good_peer_count ()
 }
 
 void
-RelayWorker::peerListRequestV4 (const sp_comm_packet &packet)
+RelayWorker::peerListRequestV4 (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Relay: peerListRequestV4: request from: ",
             packet->from.substr (0, 15), "...");
@@ -367,7 +367,7 @@ RelayWorker::peerListRequestV4 (const sp_comm_packet &packet)
 }
 
 void
-RelayWorker::peerListRequestV5 (const sp_comm_packet &packet)
+RelayWorker::peerListRequestV5 (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Relay: peerListRequestV5: Request from: ",
             packet->from.substr (0, 15), "...");

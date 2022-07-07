@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -30,13 +30,11 @@ namespace packet
 /// Timeout in msec
 #define PACKET_RECEIVE_TIMEOUT 500
 
-using sp_comm_pac = std::shared_ptr<pbote::CommunicationPacket>;
-
 class IncomingRequest;
 
 typedef bool (IncomingRequest::*incomingPacketHandler) (
-    const sp_comm_pac &packet);
-// typedef bool (OutgoingRequest::*outgoingPacketHandler)(const sp_comm_pac
+    const sp_comm_pkt &packet);
+// typedef bool (OutgoingRequest::*outgoingPacketHandler)(const sp_comm_pkt
 // &packet);
 
 class IncomingRequest
@@ -44,21 +42,21 @@ class IncomingRequest
 public:
   IncomingRequest ();
 
-  bool handleNewPacket (const std::shared_ptr<PacketForQueue> &packet);
+  bool handleNewPacket (const sp_queue_pkt &packet);
 
 private:
-  bool receiveRelayRequest (const sp_comm_pac &packet);
-  bool receiveRelayReturnRequest (const sp_comm_pac &packet);
-  bool receiveFetchRequest (const sp_comm_pac &packet);
-  bool receiveResponsePkt (const sp_comm_pac &packet);
-  bool receivePeerListRequest (const sp_comm_pac &packet);
+  bool receiveRelayRequest (const sp_comm_pkt &packet);
+  bool receiveRelayReturnRequest (const sp_comm_pkt &packet);
+  bool receiveFetchRequest (const sp_comm_pkt &packet);
+  bool receiveResponsePkt (const sp_comm_pkt &packet);
+  bool receivePeerListRequest (const sp_comm_pkt &packet);
   ///
-  bool receiveRetrieveRequest (const sp_comm_pac &packet);
-  bool receiveDeletionQueryRequest (const sp_comm_pac &packet);
-  bool receiveStoreRequest (const sp_comm_pac &packet);
-  bool receiveEmailPacketDeleteRequest (const sp_comm_pac &packet);
-  bool receiveIndexPacketDeleteRequest (const sp_comm_pac &packet);
-  bool receiveFindClosePeersRequest (const sp_comm_pac &packet);
+  bool receiveRetrieveRequest (const sp_comm_pkt &packet);
+  bool receiveDeletionQueryRequest (const sp_comm_pkt &packet);
+  bool receiveStoreRequest (const sp_comm_pkt &packet);
+  bool receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet);
+  bool receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet);
+  bool receiveFindClosePeersRequest (const sp_comm_pkt &packet);
 
   incomingPacketHandler i_handlers_[256];
 };

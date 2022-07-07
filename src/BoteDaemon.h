@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -13,11 +13,15 @@
 #include <ostream>
 #include <string>
 
-namespace pbote {
-namespace util {
+namespace pbote
+{
+namespace util
+{
 
 class Daemon_Singleton_Private;
-class Daemon_Singleton {
+
+class Daemon_Singleton
+{
 public:
   virtual bool init(int argc, char *argv[],
                     std::shared_ptr<std::ostream> logstream);
@@ -41,12 +45,14 @@ protected:
 };
 
 #define Daemon pbote::util::DaemonLinux::Instance()
-class DaemonLinux : public Daemon_Singleton {
+class DaemonLinux : public Daemon_Singleton
+{
 public:
-  static DaemonLinux &Instance() {
-    static DaemonLinux instance;
-    return instance;
-  }
+  static DaemonLinux &Instance()
+    {
+      static DaemonLinux instance;
+      return instance;
+    }
   // DaemonLinux();
   //~DaemonLinux();
 

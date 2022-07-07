@@ -267,6 +267,13 @@ template <typename T> struct PacketBatch
 };
 
 /// Packets
+
+struct CommunicationPacket;
+
+using sp_queue_pkt = std::shared_ptr<PacketForQueue>;
+using sp_comm_pkt = std::shared_ptr<CommunicationPacket>;
+using batch_comm_packet = PacketBatch<CommunicationPacket>;
+
 /// Data packets
 struct DataPacket
 {
@@ -1627,8 +1634,8 @@ ToHex (const std::string &s, bool upper_case)
   return ret.str ();
 }
 
-inline std::shared_ptr<CommunicationPacket>
-parseCommPacket (const std::shared_ptr<PacketForQueue> &packet)
+inline sp_comm_pkt
+parseCommPacket (const sp_queue_pkt &packet)
 {
   if (packet->payload.empty ())
     {

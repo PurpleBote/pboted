@@ -35,7 +35,7 @@ namespace kademlia
 #define BIT_SIZE 256
 
 /// Number of redundant storage nodes
-// ToDo: chnge to 20 on release 0.9.0
+// ToDo: change to 20 on release 0.9.0
 #ifdef NDEBUG
 #define KADEMLIA_CONSTANT_K 4
 #else
@@ -45,9 +45,10 @@ namespace kademlia
 /// The size of the sibling list for S/Kademlia
 #define KADEMLIA_CONSTANT_S 100
 
+// ToDo: Not used
 // 5 is the value from the original Kademlia paper.
 /// #define KADEMLIA_CONSTANT_B 5
-#define KADEMLIA_CONSTANT_B 1
+/// #define KADEMLIA_CONSTANT_B 1
 
 /// According to the literature, 3 is the optimum choice,
 /// but until the network becomes significantly larger than S,
@@ -80,15 +81,6 @@ namespace kademlia
 #endif // NDEBUG
 
 #define DEFAULT_NODE_FILE_NAME "nodes.txt"
-
-using batch_comm_packet = PacketBatch<CommunicationPacket>;
-
-/**
- * Terms:
- * peer - any I2P router endpoint with Bote, filled with Relay Worker
- * node - I2P route endpoint close to KEY, filled with CloseNodesLookupTask
- * Both started filling up with bootstrap nodes!
- */
 
 struct Node : i2p::data::IdentityEx
 {
@@ -172,7 +164,6 @@ struct Node : i2p::data::IdentityEx
 };
 
 using sp_node = std::shared_ptr<Node>;
-using sp_comm_packet = std::shared_ptr<CommunicationPacket>;
 using HashKey = i2p::data::Tag<32>;
 
 class DHTworker
@@ -205,16 +196,14 @@ public:
     return getUnlockedNodes ().size ();
   }
 
-  std::vector<sp_comm_packet> findOne (HashKey hash, uint8_t type);
-  std::vector<sp_comm_packet> findAll (HashKey hash, uint8_t type);
-  std::vector<sp_comm_packet> find (HashKey hash, uint8_t type,
-                                    bool exhaustive);
+  std::vector<sp_comm_pkt> findOne (HashKey hash, uint8_t type);
+  std::vector<sp_comm_pkt> findAll (HashKey hash, uint8_t type);
+  std::vector<sp_comm_pkt> find (HashKey hash, uint8_t type, bool exhaustive);
   std::vector<std::string> store (HashKey hash, uint8_t type,
                                   StoreRequestPacket packet);
 
-  std::vector<std::string>
-  deleteEmail (HashKey hash, uint8_t type,
-               EmailDeleteRequestPacket packet);
+  std::vector<std::string> deleteEmail (HashKey hash, uint8_t type,
+                                        EmailDeleteRequestPacket packet);
   std::vector<std::string> deleteIndexEntry (HashKey index_dht_key,
                                              HashKey email_dht_key,
                                              HashKey del_auth);
@@ -223,12 +212,12 @@ public:
 
   std::vector<sp_node> closestNodesLookupTask (HashKey key);
 
-  void receiveRetrieveRequest (const sp_comm_packet &packet);
-  void receiveDeletionQuery (const sp_comm_packet &packet);
-  void receiveStoreRequest (const sp_comm_packet &packet);
-  void receiveEmailPacketDeleteRequest (const sp_comm_packet &packet);
-  void receiveIndexPacketDeleteRequest (const sp_comm_packet &packet);
-  void receiveFindClosePeers (const sp_comm_packet &packet);
+  void receiveRetrieveRequest (const sp_comm_pkt &packet);
+  void receiveDeletionQuery (const sp_comm_pkt &packet);
+  void receiveStoreRequest (const sp_comm_pkt &packet);
+  void receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet);
+  void receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet);
+  void receiveFindClosePeers (const sp_comm_pkt &packet);
 
   /// Storage interfaces
   float
@@ -268,7 +257,7 @@ private:
   bool loadNodes ();
   void writeNodes ();
 
-  void calc_locks (std::vector<sp_comm_packet> responses);
+  void calc_locks (std::vector<sp_comm_pkt> responses);
 
   static FindClosePeersRequestPacket findClosePeersPacket (HashKey key);
   static RetrieveRequestPacket retrieveRequestPacket (uint8_t data_type,

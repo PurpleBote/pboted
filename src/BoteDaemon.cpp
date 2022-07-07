@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -26,7 +26,8 @@ namespace pbote
 namespace util
 {
 
-class Daemon_Singleton::Daemon_Singleton_Private {
+class Daemon_Singleton::Daemon_Singleton_Private
+{
  public:
   Daemon_Singleton_Private() {};
   ~Daemon_Singleton_Private() {};
@@ -37,22 +38,33 @@ class Daemon_Singleton::Daemon_Singleton_Private {
 };
 
 Daemon_Singleton::Daemon_Singleton()
-    : isDaemon(false), running(true), d(*new Daemon_Singleton_Private()) {}
+    : isDaemon(false), running(true), d(*new Daemon_Singleton_Private())
+{
+}
 
-Daemon_Singleton::~Daemon_Singleton() { delete &d; }
+Daemon_Singleton::~Daemon_Singleton()
+{
+  delete &d;
+}
 
-bool Daemon_Singleton::IsService() const {
+bool
+Daemon_Singleton::IsService() const
+{
   bool service = false;
   pbote::config::GetOption("service", service);
   return service;
 }
 
-bool Daemon_Singleton::init(int argc, char *argv[]) {
+bool
+Daemon_Singleton::init(int argc, char *argv[])
+{
   return init(argc, argv, nullptr);
 }
 
-bool Daemon_Singleton::init(int argc, char *argv[],
-                            std::shared_ptr<std::ostream> logstream) {
+bool
+Daemon_Singleton::init(int argc, char *argv[],
+                       std::shared_ptr<std::ostream> logstream)
+{
   pbote::config::Init();
   pbote::config::ParseCmdline(argc, argv);
 
@@ -64,11 +76,12 @@ bool Daemon_Singleton::init(int argc, char *argv[],
   pbote::fs::Init();
 
   datadir = pbote::fs::GetDataDir();
-  if (config.empty()) {
-    config = pbote::fs::DataDirPath("pboted.conf");
-    if (!pbote::fs::Exists(config))
-      config = "";
-  }
+  if (config.empty())
+    {
+      config = pbote::fs::DataDirPath("pboted.conf");
+      if (!pbote::fs::Exists(config))
+        config = "";
+    }
 
   pbote::config::ParseConfig(config);
   pbote::config::Finalize();
@@ -92,20 +105,27 @@ bool Daemon_Singleton::init(int argc, char *argv[],
     logs = "file";
 
   pbote::log::Logger().SetLogLevel(loglevel);
-  if (logstream) {
-    LogPrint(eLogInfo, "Log: Will send messages to std::ostream");
-    pbote::log::Logger().SendTo(logstream);
-  } else if (logs == "file") {
-    if (logfile.empty())
-      logfile = pbote::fs::DataDirPath("pboted.log");
-    LogPrint(eLogInfo, "Log: Will send messages to ", logfile);
-    pbote::log::Logger().SendTo(logfile);
-  } else if (logs == "syslog") {
-    LogPrint(eLogInfo, "Log: Will send messages to syslog");
-    pbote::log::Logger().SendTo("pboted", LOG_DAEMON);
-  } else {
-    // use stdout -- default
-  }
+  if (logstream)
+    {
+      LogPrint(eLogInfo, "Log: Will send messages to std::ostream");
+      pbote::log::Logger().SendTo(logstream);
+    }
+  else if (logs == "file")
+    {
+      if (logfile.empty())
+        logfile = pbote::fs::DataDirPath("pboted.log");
+      LogPrint(eLogInfo, "Log: Will send messages to ", logfile);
+      pbote::log::Logger().SendTo(logfile);
+    }
+  else if (logs == "syslog")
+    {
+      LogPrint(eLogInfo, "Log: Will send messages to syslog");
+      pbote::log::Logger().SendTo("pboted", LOG_DAEMON);
+    }
+  else
+    {
+      // use stdout -- default
+    }
 
 #ifdef NDEBUG
   LogPrint(eLogInfo, CODENAME, " v", VERSION, "r starting");
@@ -126,7 +146,9 @@ bool Daemon_Singleton::init(int argc, char *argv[],
   return true;
 }
 
-int Daemon_Singleton::start() {
+int
+Daemon_Singleton::start()
+{
   LogPrint(eLogDebug, "Daemon: Start services");
   pbote::log::Logger().Start();
 
@@ -145,81 +167,95 @@ int Daemon_Singleton::start() {
   LogPrint(eLogInfo, "Daemon: Starting Email");
   pbote::kademlia::email_worker.start();
 
-  if (isDaemon) {
-    LogPrint(eLogInfo, "Daemon: Starting control socket");
-    d.control_server = std::make_unique<bote::BoteControl>("/run/pboted/pboted.sock");
-    d.control_server->start();
-  }
+  if (isDaemon)
+    {
+      LogPrint(eLogInfo, "Daemon: Starting control socket");
+      d.control_server = std::make_unique<bote::BoteControl>("/run/pboted/pboted.sock");
+      d.control_server->start();
+    }
 
   bool smtp;
   pbote::config::GetOption("smtp.enabled", smtp);
-  if (smtp) {
-    std::string SMTPaddr;
-    uint16_t SMTPport;
-    pbote::config::GetOption("smtp.address", SMTPaddr);
-    pbote::config::GetOption("smtp.port", SMTPport);
-    LogPrint(eLogInfo, "Daemon: Starting SMTP server at ",
-             SMTPaddr, ":", SMTPport);
+  if (smtp)
+    {
+      std::string SMTPaddr;
+      uint16_t SMTPport;
+      pbote::config::GetOption("smtp.address", SMTPaddr);
+      pbote::config::GetOption("smtp.port", SMTPport);
+      LogPrint(eLogInfo, "Daemon: Starting SMTP server at ",
+               SMTPaddr, ":", SMTPport);
 
-    try {
-      d.SMTPserver = std::make_unique<bote::smtp::SMTP>(SMTPaddr, SMTPport);
-      d.SMTPserver->start();
-    } catch (std::exception &ex) {
-      LogPrint(eLogError, "Daemon: Failed to start SMTP server: ",
-               ex.what());
-      ThrowFatal("Unable to start SMTP server at ",
-                 SMTPaddr, ":", SMTPport, ": ", ex.what());
+      try
+        {
+          d.SMTPserver = std::make_unique<bote::smtp::SMTP>(SMTPaddr, SMTPport);
+          d.SMTPserver->start();
+        }
+      catch (std::exception &ex)
+        {
+          LogPrint(eLogError, "Daemon: Failed to start SMTP server: ",
+                   ex.what());
+          ThrowFatal("Unable to start SMTP server at ",
+                     SMTPaddr, ":", SMTPport, ": ", ex.what());
+        }
     }
-  }
 
   bool pop3;
   pbote::config::GetOption("pop3.enabled", pop3);
-  if (pop3) {
-    std::string POP3addr;
-    uint16_t POP3port;
-    pbote::config::GetOption("pop3.address", POP3addr);
-    pbote::config::GetOption("pop3.port", POP3port);
-    LogPrint(eLogInfo, "Daemon: Starting POP3 server at ",
-             POP3addr, ":", POP3port);
+  if (pop3)
+    {
+      std::string POP3addr;
+      uint16_t POP3port;
+      pbote::config::GetOption("pop3.address", POP3addr);
+      pbote::config::GetOption("pop3.port", POP3port);
+      LogPrint(eLogInfo, "Daemon: Starting POP3 server at ",
+               POP3addr, ":", POP3port);
 
-    try {
-      d.POP3server = std::make_unique<bote::pop3::POP3>(POP3addr, POP3port);
-      d.POP3server->start();
-    } catch (std::exception &ex) {
-      LogPrint(eLogError, "Daemon: Failed to start POP3 server: ",
-               ex.what());
-      ThrowFatal("Unable to start POP3 server at ",
-                 POP3addr, ":", POP3port, ": ", ex.what());
+      try
+        {
+          d.POP3server = std::make_unique<bote::pop3::POP3>(POP3addr, POP3port);
+          d.POP3server->start();
+        }
+      catch (std::exception &ex)
+        {
+          LogPrint(eLogError, "Daemon: Failed to start POP3 server: ",
+                   ex.what());
+          ThrowFatal("Unable to start POP3 server at ",
+                     POP3addr, ":", POP3port, ": ", ex.what());
+        }
     }
-  }
 
   LogPrint(eLogInfo, "Daemon: Started");
 
   return EXIT_SUCCESS;
 }
 
-bool Daemon_Singleton::stop() {
+bool
+Daemon_Singleton::stop()
+{
   LogPrint(eLogInfo, "Daemon: Start shutting down");
 
-  if (d.SMTPserver) {
-    LogPrint(eLogInfo, "Daemon: Stopping SMTP server");
-    d.SMTPserver->stop();
-    d.SMTPserver = nullptr;
-    LogPrint(eLogInfo, "Daemon: SMTP server stopped");
-  }
+  if (d.SMTPserver)
+    {
+      LogPrint(eLogInfo, "Daemon: Stopping SMTP server");
+      d.SMTPserver->stop();
+      d.SMTPserver = nullptr;
+      LogPrint(eLogInfo, "Daemon: SMTP server stopped");
+    }
 
-  if (d.POP3server) {
-    LogPrint(eLogInfo, "Daemon: Stopping POP3 server");
-    d.POP3server->stop();
-    d.POP3server = nullptr;
-    LogPrint(eLogInfo, "Daemon: POP3 server stopped");
-  }
+  if (d.POP3server)
+    {
+      LogPrint(eLogInfo, "Daemon: Stopping POP3 server");
+      d.POP3server->stop();
+      d.POP3server = nullptr;
+      LogPrint(eLogInfo, "Daemon: POP3 server stopped");
+    }
 
-  if (isDaemon) {
-    LogPrint(eLogInfo, "Daemon: Stopping control socket");
-    d.control_server->stop();
-    LogPrint(eLogInfo, "Daemon: Control socket stopped");
-  }
+  if (isDaemon)
+    {
+      LogPrint(eLogInfo, "Daemon: Stopping control socket");
+      d.control_server->stop();
+      LogPrint(eLogInfo, "Daemon: Control socket stopped");
+    }
 
   LogPrint(eLogInfo, "Daemon: Stopping Email worker");
   pbote::kademlia::email_worker.stop();

@@ -22,24 +22,30 @@
 #include "Logging.h"
 #include "RelayWorker.h"
 
-void handle_signal(int sig) {
-  switch (sig) {
-    case SIGHUP:LogPrint(eLogInfo, "Daemon: Got SIGHUP, reload configuration...");
-      // pbote::context.ReloadConfig();
-      break;
-    case SIGUSR1:LogPrint(eLogInfo, "Daemon: Got SIGUSR1, reopening logs...");
-      pbote::log::Logger().Reopen();
-      break;
-    case SIGINT:
-    case SIGABRT:
-    case SIGTERM:
-      Daemon.running = false; // Exit loop
-      break;
-    case SIGPIPE:LogPrint(eLogInfo, "Daemon: Got SIGPIPE received");
-      break;
-    default:LogPrint(eLogWarning, "Daemon: Unknown signal received: ", sig);
-      break;
-  }
+void handle_signal(int sig)
+{
+  switch (sig)
+    {
+      case SIGHUP:
+        LogPrint(eLogInfo, "Daemon: Got SIGHUP, reload configuration...");
+        // pbote::context.ReloadConfig();
+        break;
+      case SIGUSR1:
+        LogPrint(eLogInfo, "Daemon: Got SIGUSR1, reopening logs...");
+        pbote::log::Logger().Reopen();
+        break;
+      case SIGINT:
+      case SIGABRT:
+      case SIGTERM:
+        Daemon.running = false; // Exit loop
+        break;
+      case SIGPIPE:
+        LogPrint(eLogInfo, "Daemon: Got SIGPIPE received");
+        break;
+      default:
+        LogPrint(eLogWarning, "Daemon: Unknown signal received: ", sig);
+        break;
+    }
 }
 
 namespace pbote
@@ -47,19 +53,23 @@ namespace pbote
 namespace util
 {
 
-int DaemonLinux::start() {
-  if (isDaemon) {
+int DaemonLinux::start()
+{
+  if (isDaemon)
+  {
     LogPrint(eLogDebug, "Daemon: Run as daemon");
 
-    if (daemon(true, false) == -1) {
-      return EXIT_FAILURE;
-    }
+    if (daemon(true, false) == -1)
+      {
+        return EXIT_FAILURE;
+      }
 
     const std::string& d = pbote::fs::GetDataDir();
-    if (chdir(d.c_str()) != 0) {
-      LogPrint(eLogError, "Daemon: Could not chdir: ", strerror(errno));
-      return EXIT_FAILURE;
-    }
+    if (chdir(d.c_str()) != 0)
+      {
+        LogPrint(eLogError, "Daemon: Could not chdir: ", strerror(errno));
+        return EXIT_FAILURE;
+      }
   }
 
   // set proc limits
@@ -67,59 +77,66 @@ int DaemonLinux::start() {
   uint16_t nfiles = 0;
   pbote::config::GetOption("limits.openfiles", nfiles);
   getrlimit(RLIMIT_NOFILE, &limit);
-  if (nfiles == 0) {
+  if (nfiles == 0)
     LogPrint(eLogInfo, "Daemon: Using system limit in ", limit.rlim_cur," max open files");
-  } else if (nfiles <= limit.rlim_max) {
-    limit.rlim_cur = nfiles;
-    if (setrlimit(RLIMIT_NOFILE, &limit) == 0) {
-      LogPrint(eLogInfo, "Daemon: Set max number of open files to ", nfiles, " (system limit is ", limit.rlim_max, ")");
-    } else {
-      LogPrint(eLogError,"Daemon: Can't set max number of open files: ", strerror(errno));
+  else if (nfiles <= limit.rlim_max)
+    {
+      limit.rlim_cur = nfiles;
+      if (setrlimit(RLIMIT_NOFILE, &limit) == 0)
+        LogPrint(eLogInfo, "Daemon: Set max number of open files to ", nfiles, " (system limit is ", limit.rlim_max, ")");
+      else
+        LogPrint(eLogError,"Daemon: Can't set max number of open files: ", strerror(errno));
     }
-  } else {
+  else
     LogPrint(eLogError,"Daemon: limits.openfiles exceeds system limit: ", limit.rlim_max);
-  }
+
   uint32_t cfsize = 0;
   pbote::config::GetOption("limits.coresize", cfsize);
   if (cfsize) // core file size set
   {
     cfsize *= 1024;
     getrlimit(RLIMIT_CORE, &limit);
-    if (cfsize <= limit.rlim_max) {
-      limit.rlim_cur = cfsize;
-      if (setrlimit(RLIMIT_CORE, &limit) != 0) {
-        LogPrint(eLogError,"Daemon: Can't set max size of coredump: ", strerror(errno));
-      } else if (cfsize == 0) {
-        LogPrint(eLogInfo, "Daemon: Coredumps disabled");
-      } else {
-        LogPrint(eLogInfo, "Daemon: Set max size of core files to ", cfsize / 1024, "Kb");
+    if (cfsize <= limit.rlim_max)
+      {
+        limit.rlim_cur = cfsize;
+        if (setrlimit(RLIMIT_CORE, &limit) != 0)
+          LogPrint(eLogError,"Daemon: Can't set max size of coredump: ", strerror(errno));
+        else if (cfsize == 0)
+          LogPrint(eLogInfo, "Daemon: Coredumps disabled");
+        else
+          LogPrint(eLogInfo, "Daemon: Set max size of core files to ", cfsize / 1024, "KiB");
       }
-    } else {
+    else
       LogPrint(eLogError, "Daemon: limits.coresize exceeds system limit: ", limit.rlim_max);
-    }
   }
 
   // Pidfile
   // this code is c-styled and a bit ugly, but we need fd for locking pidfile
   pbote::config::GetOption("pidfile", pidfile);
-  if (pidfile.empty()) {
-    pidfile = pbote::fs::DataDirPath("pbote.pid");
-  }
-  if (!pidfile.empty()) {
-    pidFH = open(pidfile.c_str(), O_RDWR | O_CREAT, 0600);
-    if (pidFH < 0) {
-      LogPrint(eLogError, "Daemon: Could not create pidfile ", pidfile, ": ", strerror(errno));
-      return EXIT_FAILURE;
+  if (pidfile.empty())
+    {
+      pidfile = pbote::fs::DataDirPath("pbote.pid");
+    }
+  if (!pidfile.empty())
+    {
+      pidFH = open(pidfile.c_str(), O_RDWR | O_CREAT, 0600);
+      if (pidFH < 0)
+        {
+          LogPrint(eLogError, "Daemon: Could not create pidfile ", pidfile,
+                   ": ", strerror(errno));
+          return EXIT_FAILURE;
+        }
+
+      char pid[10];
+      sprintf(pid, "%d\n", getpid());
+      ftruncate(pidFH, 0);
+      if (write(pidFH, pid, strlen(pid)) < 0)
+        {
+          LogPrint(eLogError, "Daemon: Can't write pidfile: ", strerror(errno));
+          return EXIT_FAILURE;
+        }
     }
 
-    char pid[10];
-    sprintf(pid, "%d\n", getpid());
-    ftruncate(pidFH, 0);
-    if (write(pidFH, pid, strlen(pid)) < 0) {
-      LogPrint(eLogError, "Daemon: Could not write pidfile: ", strerror(errno));
-      return EXIT_FAILURE;
-    }
-  }
   gracefulShutdownInterval = 0; // not specified
 
   // Signal handler
@@ -137,7 +154,8 @@ int DaemonLinux::start() {
   return Daemon_Singleton::start();
 }
 
-bool DaemonLinux::stop() {
+bool DaemonLinux::stop()
+{
   if (running)
     running = false;
 
@@ -146,20 +164,24 @@ bool DaemonLinux::stop() {
   return Daemon_Singleton::stop();
 }
 
-void DaemonLinux::run() {
-  while (running) {
-    // ToDo: check status of network, DHT, relay, etc. and try restart on error
-    std::this_thread::sleep_for(std::chrono::seconds(10));
+void DaemonLinux::run()
+{
+  while (running)
+    {
+      // ToDo: check status of network, DHT, relay, etc. and try restart on error
+      std::this_thread::sleep_for(std::chrono::seconds(10));
 
-    pbote::network::network_worker.running ();
+#ifndef NDEBUG
+      pbote::network::network_worker.running ();
+#endif // NDEBUG
 
-    if (pbote::network::network_worker.is_sick ())
-      {
-        LogPrint(eLogError, "Daemon: SAM session is sick, try to re-connect");
-        pbote::network::network_worker.init ();
-        pbote::network::network_worker.start ();
-      }
-  }
+      if (pbote::network::network_worker.is_sick ())
+        {
+          LogPrint(eLogError, "Daemon: SAM session is sick, try to re-connect");
+          pbote::network::network_worker.init ();
+          pbote::network::network_worker.start ();
+        }
+    }
 }
 
 } // namespace util

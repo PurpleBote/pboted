@@ -27,7 +27,7 @@ IncomingRequest::IncomingRequest ()
   // i_handlers_[type::CommF] = &IncomingRequest::receiveFetchRequest;
   i_handlers_[type::CommN] = &IncomingRequest::receiveResponsePkt;
   i_handlers_[type::CommA] = &IncomingRequest::receivePeerListRequest;
-
+  ///
   i_handlers_[type::CommQ] = &IncomingRequest::receiveRetrieveRequest;
   i_handlers_[type::CommY] = &IncomingRequest::receiveDeletionQueryRequest;
   i_handlers_[type::CommS] = &IncomingRequest::receiveStoreRequest;
@@ -37,10 +37,9 @@ IncomingRequest::IncomingRequest ()
 }
 
 bool
-IncomingRequest::handleNewPacket (
-    const std::shared_ptr<PacketForQueue> &queuePacket)
+IncomingRequest::handleNewPacket (const sp_queue_pkt &queuePacket)
 {
-  sp_comm_pac packet = pbote::parseCommPacket (queuePacket);
+  sp_comm_pkt packet = pbote::parseCommPacket (queuePacket);
   if (!packet)
     {
       LogPrint (eLogWarning, "Packet: Can't parse packet");
@@ -71,7 +70,7 @@ IncomingRequest::handleNewPacket (
 
 /// not implemented
 bool
-IncomingRequest::receiveRelayRequest (const sp_comm_pac &packet)
+IncomingRequest::receiveRelayRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveRelayRequest");
   // ToDo
@@ -80,7 +79,7 @@ IncomingRequest::receiveRelayRequest (const sp_comm_pac &packet)
 
 /// not implemented
 bool
-IncomingRequest::receiveRelayReturnRequest (const sp_comm_pac &packet)
+IncomingRequest::receiveRelayReturnRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveRelayReturnRequest");
   // ToDo
@@ -89,7 +88,7 @@ IncomingRequest::receiveRelayReturnRequest (const sp_comm_pac &packet)
 
 /// not implemented
 bool
-IncomingRequest::receiveFetchRequest (const sp_comm_pac &packet)
+IncomingRequest::receiveFetchRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveFetchRequest");
   // ToDo
@@ -97,7 +96,7 @@ IncomingRequest::receiveFetchRequest (const sp_comm_pac &packet)
 }
 
 bool
-IncomingRequest::receiveResponsePkt (const sp_comm_pac &packet)
+IncomingRequest::receiveResponsePkt (const sp_comm_pkt &packet)
 {
   LogPrint (eLogWarning, "Packet: Response: Unexpected Response received");
   LogPrint (eLogWarning, "Packet: Response: Sender: ", packet->from);
@@ -163,7 +162,7 @@ IncomingRequest::receiveResponsePkt (const sp_comm_pac &packet)
 }
 
 bool
-IncomingRequest::receivePeerListRequest (const sp_comm_pac &packet)
+IncomingRequest::receivePeerListRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: receivePeerListRequest");
   if (packet->ver == 4)
@@ -187,7 +186,7 @@ IncomingRequest::receivePeerListRequest (const sp_comm_pac &packet)
 ///////////////////////////////////////////////////////////////////////////////
 
 bool
-IncomingRequest::receiveRetrieveRequest (const sp_comm_pac &packet)
+IncomingRequest::receiveRetrieveRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveRetrieveRequest");
   if (packet->ver >= 4 && packet->type == type::CommQ)
@@ -202,7 +201,7 @@ IncomingRequest::receiveRetrieveRequest (const sp_comm_pac &packet)
 }
 
 bool
-IncomingRequest::receiveDeletionQueryRequest (const sp_comm_pac &packet)
+IncomingRequest::receiveDeletionQueryRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveDeletionQueryRequest");
   /// Y for mhatta
@@ -225,7 +224,7 @@ IncomingRequest::receiveDeletionQueryRequest (const sp_comm_pac &packet)
 }
 
 bool
-IncomingRequest::receiveStoreRequest (const sp_comm_pac &packet)
+IncomingRequest::receiveStoreRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveStoreRequest");
   if (packet->ver >= 4 && packet->type == type::CommS)
@@ -240,7 +239,7 @@ IncomingRequest::receiveStoreRequest (const sp_comm_pac &packet)
 }
 
 bool
-IncomingRequest::receiveEmailPacketDeleteRequest (const sp_comm_pac &packet)
+IncomingRequest::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveEmailPacketDeleteRequest");
   if (packet->ver >= 4 && packet->type == type::CommD)
@@ -256,7 +255,7 @@ IncomingRequest::receiveEmailPacketDeleteRequest (const sp_comm_pac &packet)
 }
 
 bool
-IncomingRequest::receiveIndexPacketDeleteRequest (const sp_comm_pac &packet)
+IncomingRequest::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveIndexPacketDeleteRequest");
   if (packet->ver >= 4 && packet->type == type::CommX)
@@ -272,7 +271,7 @@ IncomingRequest::receiveIndexPacketDeleteRequest (const sp_comm_pac &packet)
 }
 
 bool
-IncomingRequest::receiveFindClosePeersRequest (const sp_comm_pac &packet)
+IncomingRequest::receiveFindClosePeersRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: receiveFindClosePeersRequest");
   if (packet->ver >= 4 && packet->type == type::CommF)
