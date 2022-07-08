@@ -189,12 +189,15 @@ DHTworker::getClosestNodes (HashKey key, size_t num, bool to_us)
       if (i >= num)
         break;
 
+      /// For debug only
+      /*
       std::stringstream ss;
       for (int k = 0;k<3;k++)
         ss << std::setw(3) << std::setfill('0') << unsigned(it.metric.metric[k]);
 
       LogPrint (eLogDebug, "DHT: getClosestNodes: node: ",
                 it.node->GetIdentHash ().ToBase32 (), ", metric: ", ss.str());
+      */
 
       result.push_back (it.node);
       i++;

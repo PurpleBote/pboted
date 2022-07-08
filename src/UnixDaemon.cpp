@@ -171,10 +171,6 @@ void DaemonLinux::run()
       // ToDo: check status of network, DHT, relay, etc. and try restart on error
       std::this_thread::sleep_for(std::chrono::seconds(10));
 
-#ifndef NDEBUG
-      pbote::network::network_worker.running ();
-#endif // NDEBUG
-
       if (pbote::network::network_worker.is_sick ())
         {
           LogPrint(eLogError, "Daemon: SAM session is sick, try to re-connect");
