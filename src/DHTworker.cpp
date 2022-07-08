@@ -151,51 +151,53 @@ DHTworker::getClosestNodes (HashKey key, size_t num, bool to_us)
             ", num: ", num, ", to_us: ", to_us ? "true" : "false");
 
   std::set<sortable_node> sorted_nodes;
-  i2p::data::XORMetric minMetric = {};
 
+  i2p::data::XORMetric our_metric;
   if (to_us)
-    minMetric = key ^ local_node_->GetIdentHash ();
-  else
-    minMetric.SetMax ();
+    our_metric = key ^ local_node_->GetIdentHash ();
 
-  std::unique_lock<std::mutex> l (m_nodes_mutex_);
-  for (const auto &it : m_nodes_)
-    {
-      if (!it.second->locked ())
-        {
-          /// The XOR result for two hashes will be the larger,
-          /// the more they differ by byte.
-          /// In this case, we are interested in the minimum difference
-          /// (distance).
-          // ToDo: Think how to print metric
-          i2p::data::XORMetric metric = key ^ it.second->GetIdentHash ();
+  {
+    std::unique_lock<std::mutex> l (m_nodes_mutex_);
+    for (const auto &it : m_nodes_)
+      {
+        if (it.second->locked ())
+          continue;
+        /// Distance - XOR result for two hashes.
+        /// Will be than larger, the more they differ.
+        /// We are interested in the minimum difference (distance).
+        i2p::data::XORMetric metric = key ^ it.second->GetIdentHash ();
 
-          if (metric < minMetric)
-            minMetric = metric;
+        if (to_us && our_metric < metric)
+          continue;
 
-          if (sorted_nodes.size () < num)
-            {
-              sorted_nodes.insert ({ it.second, metric });
-            }
-          else if (metric < sorted_nodes.rbegin ()->metric)
-            {
-              sorted_nodes.insert ({ it.second, metric });
-              sorted_nodes.erase (std::prev (sorted_nodes.end ()));
-            }
-        }
-    }
+        if (sorted_nodes.size () < num)
+          sorted_nodes.insert ({ it.second, metric });
+        else if (metric < sorted_nodes.rbegin ()->metric)
+          {
+            /// If current metric less than biggest in sorted node
+            ///   add current and remove one from the end
+            sorted_nodes.insert ({ it.second, metric });
+            sorted_nodes.erase (std::prev (sorted_nodes.end ()));
+          }
+      }
+  }
 
   std::vector<sp_node> result;
   size_t i = 0;
   for (const auto &it : sorted_nodes)
     {
-      if (i < num)
-        {
-          result.push_back (it.node);
-          i++;
-        }
-      else
+      if (i >= num)
         break;
+
+      std::stringstream ss;
+      for (int k = 0;k<3;k++)
+        ss << std::setw(3) << std::setfill('0') << unsigned(it.metric.metric[k]);
+
+      LogPrint (eLogDebug, "DHT: getClosestNodes: node: ",
+                it.node->GetIdentHash ().ToBase32 (), ", metric: ", ss.str());
+
+      result.push_back (it.node);
+      i++;
     }
 
   return result;
@@ -387,7 +389,9 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 
   int counter = 0;
 
-  while (batch->responseCount () < KADEMLIA_CONSTANT_K && counter <= 5)
+  // ToDo:
+  //while (batch->responseCount () < KADEMLIA_CONSTANT_K && counter <= 5)
+  while (batch->responseCount () < 2 && counter <= 5)
     {
       LogPrint (eLogWarning, "DHT: store: No responses, resend: #", counter);
       context.removeBatch (batch);
@@ -807,8 +811,6 @@ DHTworker::closestNodesLookupTask (HashKey key)
           /// Check if we sent requests with this CID
           if (active_requests.find (vcid) != active_requests.end ())
             {
-              /// Mark that the node sent response
-              //auto peer = active_requests[vcid];
               /// Remove node from active requests and from batch
               active_requests.erase (vcid);
               batch->removePacket (vcid);
@@ -938,11 +940,6 @@ DHTworker::closestNodesLookupTask (HashKey key)
             }
         }
     }
-  /// If there are no more requests to send and
-  /// no more responses to wait for - we're finished
-  std::vector<sp_node> result;
-  for (auto node : closestNodes)
-    result.push_back (node.second);
 
   context.removeBatch (batch);
 
@@ -978,10 +975,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
   for (const auto &node : closestNodes)
     addNode (node.second->ToBase64 ());
 
-  LogPrint (eLogDebug, "DHT: closestNodesLookup: Finished, count: ",
-            result.size ());
-
-  return result;
+  return getClosestNodes (key, 20, false);
 }
 
 void
@@ -1505,12 +1499,9 @@ DHTworker::receiveFindClosePeers (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Got request for key: ",
             t_key.ToBase64 ());
 
-  auto closest_nodes = getClosestNodes (t_key, KADEMLIA_CONSTANT_K, false);
-  for (const auto &test : closest_nodes)
-    {
-      LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Node: ",
-                test->GetIdentHash ().ToBase32 ());
-    }
+  // ToDo:
+  //auto closest_nodes = getClosestNodes (t_key, KADEMLIA_CONSTANT_K, false);
+  auto closest_nodes = getClosestNodes (t_key, 20, false);
 
   if (closest_nodes.empty ())
     {
