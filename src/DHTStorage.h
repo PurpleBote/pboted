@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -44,16 +44,15 @@ class DHTStorage {
 
   void update();
   int safe(const std::vector<uint8_t>& data);
-  bool deleteIndex(i2p::data::Tag<32> key);
-  bool deleteEmail(i2p::data::Tag<32> key);
+  bool Delete(pbote::type type, const i2p::data::Tag<32>& key);
 
   std::vector<uint8_t> getIndex(i2p::data::Tag<32> key);
   std::vector<uint8_t> getEmail(i2p::data::Tag<32> key);
   std::vector<uint8_t> getContact(i2p::data::Tag<32> key);
 
-  std::vector<std::string> getIndexList() {return local_index_packets;}
-  std::vector<std::string> getEmailList() {return local_email_packets;}
-  std::vector<std::string> getContactList() {return local_contact_packets;}
+  std::set<std::string> getIndexList() {return local_index_packets;}
+  std::set<std::string> getEmailList() {return local_email_packets;}
+  std::set<std::string> getContactList() {return local_contact_packets;}
 
   void set_storage_limit();
   bool limit_reached(size_t data_size);
@@ -62,7 +61,6 @@ class DHTStorage {
  private:
   std::vector<uint8_t> getPacket(pbote::type type, i2p::data::Tag<32> key);
   bool exist(pbote::type type, i2p::data::Tag<32> key);
-  static bool find(const std::vector<std::string>& list, i2p::data::Tag<32> key);
 
   int safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
   int safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
@@ -82,13 +80,15 @@ class DHTStorage {
   void remove_old_packets();
   void remove_old_entries();
 
+  int32_t ts_now ();
+
   size_t limit, used;
   int update_counter;
 
   std::mutex index_mutex, email_mutex, contact_mutex;
-  std::vector<std::string> local_index_packets;
-  std::vector<std::string> local_email_packets;
-  std::vector<std::string> local_contact_packets;
+  std::set<std::string> local_index_packets;
+  std::set<std::string> local_email_packets;
+  std::set<std::string> local_contact_packets;
 };
 
 } // kademlia

@@ -445,7 +445,7 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
   LogPrint (eLogDebug, "DHT: deleteEmail: Start for type: ", type,
             ", hash: ", hash.ToBase64 ());
 
-  if (dht_storage_.deleteEmail (hash))
+  if (dht_storage_.Delete (type::DataE, hash))
     {
       LogPrint (eLogDebug, "DHT: deleteEmail: Removed local packet, hash: ",
         hash.ToBase64 ());
@@ -541,7 +541,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
             email_dht_key.ToBase64 (), ", hash: ", del_auth.ToBase64 ());
 
   // ToDo: Need to check if we need to remove part
-  if (dht_storage_.deleteIndex (index_dht_key))
+  if (dht_storage_.Delete (type::DataI, index_dht_key))
     {
       LogPrint (eLogDebug,
         "DHT: deleteIndexEntry: Removed local packet, hash: ",
@@ -1014,6 +1014,8 @@ DHTworker::receiveRetrieveRequest (const sp_comm_pkt &packet)
 
       PacketForQueue q_packet (packet->from, response.toByte ().data (),
                                response.toByte ().size ());
+      LogPrint (eLogDebug, "DHT: receiveRetrieveRequest: Response status: ",
+                statusToString (response.status));
       context.send (q_packet);
       return;
     }
@@ -1058,6 +1060,8 @@ DHTworker::receiveRetrieveRequest (const sp_comm_pkt &packet)
 
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
+  LogPrint (eLogDebug, "DHT: receiveRetrieveRequest: Response status: ",
+            statusToString (response.status));
   context.send (q_packet);
 }
 
@@ -1092,6 +1096,8 @@ DHTworker::receiveDeletionQuery (const sp_comm_pkt &packet)
 
       PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
+      LogPrint (eLogDebug, "DHT: receiveDeletionQuery: Response status: ",
+                statusToString (response.status));
       context.send (q_packet);
       return;
     }
@@ -1130,6 +1136,8 @@ DHTworker::receiveDeletionQuery (const sp_comm_pkt &packet)
 
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
+  LogPrint (eLogDebug, "DHT: receiveDeletionQuery: Response status: ",
+            statusToString (response.status));
   context.send (q_packet);
 }
 
@@ -1208,10 +1216,10 @@ DHTworker::receiveStoreRequest (const sp_comm_pkt &packet)
       response.status = pbote::StatusCode::INVALID_PACKET;
     }
 
-  LogPrint (eLogDebug, "DHT: StoreRequest: Send status: ",
-            statusToString (response.status));
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
+  LogPrint (eLogDebug, "DHT: StoreRequest: Response status: ",
+            statusToString (response.status));
   context.send (q_packet);
 }
 
@@ -1242,6 +1250,8 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
       response.status = pbote::StatusCode::INVALID_PACKET;
       PacketForQueue q_packet (packet->from, response.toByte ().data (),
                                response.toByte ().size ());
+      LogPrint (eLogDebug, "DHT: EmailPacketDelete: Response status: ",
+                statusToString (response.status));
       context.send (q_packet);
       return;
     }
@@ -1259,6 +1269,8 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
       response.status = pbote::StatusCode::NO_DATA_FOUND;
       PacketForQueue q_packet (packet->from, response.toByte ().data (),
                                response.toByte ().size ());
+      LogPrint (eLogDebug, "DHT: EmailPacketDelete: Response status: ",
+                statusToString (response.status));
       context.send (q_packet);
       return;
     }
@@ -1280,20 +1292,21 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: EmailPacketDelete: DV: ", dv_h.ToBase64 ());
 
   /// Compare hashes
-  //if (memcmp (delHash, email_delete_hash.data (), 32) != 0)
   if (!email_packet.da_valid (delete_packet.key, delete_packet.DA))
     {
       LogPrint (eLogWarning, "DHT: EmailPacketDelete: DA hash mismatch");
       response.status = pbote::StatusCode::INVALID_PACKET;
       PacketForQueue q_packet (packet->from, response.toByte ().data (),
                                response.toByte ().size ());
+      LogPrint (eLogDebug, "DHT: EmailPacketDelete: Response status: ",
+                statusToString (response.status));
       context.send (q_packet);
       return;
     }
 
   LogPrint (eLogDebug, "DHT: EmailPacketDelete: DA hash match");
 
-  if (dht_storage_.deleteEmail (t_key))
+  if (dht_storage_.Delete (type::DataE, t_key))
     {
       LogPrint (eLogDebug, "DHT: EmailPacketDelete: Packet removed");
 
@@ -1317,6 +1330,8 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
 
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
+  LogPrint (eLogDebug, "DHT: EmailPacketDelete: Response status: ",
+            statusToString (response.status));
   context.send (q_packet);
 
   if (response.status == pbote::StatusCode::OK)
@@ -1354,6 +1369,8 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
       response.status = pbote::StatusCode::INVALID_PACKET;
       PacketForQueue q_packet (packet->from, response.toByte ().data (),
                                response.toByte ().size ());
+      LogPrint (eLogDebug, "DHT: IndexPacketDelete: Response status: ",
+                statusToString (response.status));
       context.send (q_packet);
       return;
     }
@@ -1369,6 +1386,8 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
       response.status = pbote::StatusCode::NO_DATA_FOUND;
       PacketForQueue q_packet (packet->from, response.toByte ().data (),
                                response.toByte ().size ());
+      LogPrint (eLogDebug, "DHT: IndexPacketDelete: Response status: ",
+                statusToString (response.status));
       context.send (q_packet);
       return;
     }
@@ -1385,6 +1404,8 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
       response.status = pbote::StatusCode::GENERAL_ERROR;
       PacketForQueue q_packet (packet->from, response.toByte ().data (),
                                response.toByte ().size ());
+      LogPrint (eLogDebug, "DHT: IndexPacketDelete: Response status: ",
+                statusToString (response.status));
       context.send (q_packet);
       return;
     }
@@ -1418,6 +1439,8 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
       response.status = pbote::StatusCode::INVALID_PACKET;
       PacketForQueue q_packet (packet->from, response.toByte ().data (),
                                response.toByte ().size ());
+      LogPrint (eLogDebug, "DHT: IndexPacketDelete: Response status: ",
+                statusToString (response.status));
       context.send (q_packet);
       return;
     }
@@ -1425,7 +1448,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: IndexPacketDelete: There are matching DA's");
 
   /// Delete "old" packet
-  bool deleted = dht_storage_.deleteIndex (t_key);
+  bool deleted = dht_storage_.Delete (type::DataI, t_key);
   int saved = STORE_FILE_NOT_STORED;
 
   /// Write "new" packet, if not empty
@@ -1464,6 +1487,8 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
 
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
+  LogPrint (eLogDebug, "DHT: IndexPacketDelete: Response status: ",
+            statusToString (response.status));
   context.send (q_packet);
 
   // ToDo: re-send to other nodes
@@ -1516,6 +1541,8 @@ DHTworker::receiveFindClosePeers (const sp_comm_pkt &packet)
 
       PacketForQueue q_packet (packet->from, response.toByte ().data (),
                                response.toByte ().size ());
+      LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Response status: ",
+                statusToString (response.status));
       context.send (q_packet);
       return;
     }
@@ -1563,6 +1590,9 @@ DHTworker::receiveFindClosePeers (const sp_comm_pkt &packet)
             closest_nodes.size (), " node(s)");
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
+  LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Response status: ",
+            statusToString (response.status));
+  
   context.send (q_packet);
 }
 
