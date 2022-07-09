@@ -1550,8 +1550,8 @@ public:
         return false;
       }
 
-    LogPrint (eLogDebug, "Packet: X: from_comm_packet: count: ", count,
-              ", type: ", type,", version: ", unsigned (ver));
+    LogPrint (eLogDebug, "Packet: X: from_comm_packet: count: ",
+              unsigned (count), ", type: ", type,", ver: ", unsigned (ver));
 
     for (uint32_t i = 0; i < count; i++)
       {

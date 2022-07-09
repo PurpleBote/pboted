@@ -220,8 +220,8 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
 
       if (!local_index_packet.empty ())
         {
-          LogPrint (eLogDebug, "EmailWorker: Check: ", id_name, ": got ",
-                    local_index_packet.size (), " local index");
+          LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
+                    ": Got local index");
 
           /// from_net is true, because we save it as is
           IndexPacket parsed_local_index_packet;
