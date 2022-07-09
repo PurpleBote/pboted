@@ -183,9 +183,6 @@ DHTStorage::getPacket (pbote::type type, i2p::data::Tag<32> key)
       return {};
     }
 
-  for (auto pkt : local_list)
-    LogPrint(eLogDebug, "DHTStorage: getPacket: pkt: ", pkt);
-
   if (local_list.find(key.ToBase64 ()) == local_list.end ())
     {
       LogPrint(eLogDebug, "DHTStorage: getPacket: Have no file, type: ",
