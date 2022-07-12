@@ -649,7 +649,8 @@ DHTStorage::remove_old_entries()
     }
 
   const int32_t ts = ts_now ();
-  for (const auto& pkt : local_index_packets)
+  std::set<std::string> index_copy = local_index_packets;
+  for (const auto& pkt : index_copy)
     {
       i2p::data::Tag<32> key;
       key.FromBase64(pkt);
