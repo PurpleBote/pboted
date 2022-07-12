@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (c) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -16,7 +16,7 @@
 
 #define PBOTE_VERSION_MAJOR 0
 #define PBOTE_VERSION_MINOR 7
-#define PBOTE_VERSION_MICRO 9
+#define PBOTE_VERSION_MICRO 10
 
 #define PBOTE_VERSION                                                         \
   MAKE_VERSION (PBOTE_VERSION_MAJOR, PBOTE_VERSION_MINOR, PBOTE_VERSION_MICRO)

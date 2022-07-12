@@ -1,3 +1,14 @@
+pboted (0.7.10-1) unstable; urgency=medium
+
+  * updated to version 0.7.10
+  * remove -O3 optimization flag
+  * updated systemd service file
+  * added init.d script
+  * added manpage (1)
+  * added apparmor profile
+
+ -- polistern <polistern@i2pmail.org>  Tue, 12 Jul 2022 10:00:00 +0000
+
 pboted (0.7.9-1) unstable; urgency=medium
 
   * updated to version 0.7.9
