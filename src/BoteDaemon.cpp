@@ -257,25 +257,27 @@ Daemon_Singleton::stop()
       LogPrint(eLogInfo, "Daemon: Control socket stopped");
     }
 
-  LogPrint(eLogInfo, "Daemon: Stopping Email worker");
-  pbote::kademlia::email_worker.stop();
-  LogPrint(eLogInfo, "Daemon: Email worker stopped");
-
-  LogPrint(eLogInfo, "Daemon: Stopping DHT worker");
-  pbote::kademlia::DHT_worker.stop();
-  LogPrint(eLogInfo, "Daemon: DHT worker stopped");
-
-  LogPrint(eLogInfo, "Daemon: Stopping relay worker");
-  pbote::relay::relay_worker.stop();
-  LogPrint(eLogInfo, "Daemon: Relay worker stopped");
+  LogPrint(eLogInfo, "Daemon: Stopping network worker");
+  pbote::network::network_worker.stop();
+  LogPrint(eLogInfo, "Daemon: Network worker stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopping packet handler");
   pbote::packet::packet_handler.stop();
   LogPrint(eLogInfo, "Daemon: Packet handler stopped");
 
-  LogPrint(eLogInfo, "Daemon: Stopping network worker");
-  pbote::network::network_worker.stop();
-  LogPrint(eLogInfo, "Daemon: Network worker stopped");
+  ///
+
+  LogPrint(eLogInfo, "Daemon: Stopping relay worker");
+  pbote::relay::relay_worker.stop();
+  LogPrint(eLogInfo, "Daemon: Relay worker stopped");
+
+  LogPrint(eLogInfo, "Daemon: Stopping DHT worker");
+  pbote::kademlia::DHT_worker.stop();
+  LogPrint(eLogInfo, "Daemon: DHT worker stopped");
+
+  LogPrint(eLogInfo, "Daemon: Stopping Email worker");
+  pbote::kademlia::email_worker.stop();
+  LogPrint(eLogInfo, "Daemon: Email worker stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopped");
 

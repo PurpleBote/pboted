@@ -402,6 +402,8 @@ NetworkWorker::stop ()
   m_RecvHandler->stop ();
   m_SendHandler->stop ();
 
+  // ToDo: Close SAM session
+
   LogPrint (eLogInfo, "Network: Stopped");
 }
 

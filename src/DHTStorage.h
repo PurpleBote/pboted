@@ -80,8 +80,6 @@ class DHTStorage {
   void remove_old_packets();
   void remove_old_entries();
 
-  int32_t ts_now ();
-
   size_t limit, used;
   int update_counter;
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -22,7 +22,10 @@ AddressBook::AddressBook (std::string path, std::string pass)
 {
 }
 
-AddressBook::~AddressBook () { save (); }
+AddressBook::~AddressBook ()
+{
+  //save ();
+}
 
 void
 AddressBook::load ()

@@ -14,6 +14,7 @@
 #include <iterator>
 #include <cstdio>
 
+#include "BoteContext.h"
 #include "ConfigParser.h"
 #include "DHTStorage.h"
 
@@ -289,7 +290,7 @@ DHTStorage::safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data)
 
   EmailEncryptedPacket email_packet;
   email_packet.fromBuffer(const_cast<uint8_t *>(data.data()), data.size(), true);
-  email_packet.stored_time = ts_now ();
+  email_packet.stored_time = context.ts_now ();
   auto packet_bytes = email_packet.toByte();
 
   file.write(reinterpret_cast<const char *>(packet_bytes.data()), (long)packet_bytes.size());
@@ -352,7 +353,7 @@ DHTStorage::update_index(i2p::data::Tag<32> key, const std::vector<uint8_t>& dat
         }
       else
         {
-          entry.time = ts_now ();
+          entry.time = context.ts_now ();
           old_pkt.data.push_back(entry);
           added++;
         }
@@ -436,7 +437,7 @@ DHTStorage::clean_index (i2p::data::Tag<32> key, int32_t ts_now)
 void
 DHTStorage::loadLocalIndexPackets()
 {
-  local_index_packets = std::set<std::string>();
+  std::set<std::string> temp_index_packets;
   std::vector<std::string> packets_path;
 
   if (!pbote::fs::ReadDir(pbote::fs::DataDirPath("DHTindex"), packets_path))
@@ -448,17 +449,18 @@ DHTStorage::loadLocalIndexPackets()
   for (const auto &path : packets_path)
     {
       auto filename = remove_extension(base_name(path));
-      local_index_packets.insert(filename);
+      temp_index_packets.insert(filename);
     }
 
   LogPrint(eLogDebug, "DHTStorage: loadLocalIndexPackets: index loaded: ",
-           local_index_packets.size());
+           temp_index_packets.size());
+  local_index_packets = temp_index_packets;
 }
 
 void
 DHTStorage::loadLocalEmailPackets()
 {
-  local_email_packets = std::set<std::string>();
+  std::set<std::string> temp_email_packets;
   std::vector<std::string> packets_path;
 
   if (!pbote::fs::ReadDir(pbote::fs::DataDirPath("DHTemail"), packets_path))
@@ -470,17 +472,18 @@ DHTStorage::loadLocalEmailPackets()
   for (const auto &path : packets_path)
     {
       auto filename = remove_extension(base_name(path));
-      local_email_packets.insert(filename);
+      temp_email_packets.insert(filename);
     }
 
   LogPrint(eLogDebug, "DHTStorage: loadLocalEmailPackets: mails loaded: ",
-           local_email_packets.size());
+           temp_email_packets.size());
+  local_email_packets = temp_email_packets;
 }
 
 void
 DHTStorage::loadLocalContactPackets()
 {
-  local_contact_packets = std::set<std::string>();
+  std::set<std::string> temp_contact_packets;
   std::vector<std::string> packets_path;
 
   if (!pbote::fs::ReadDir(pbote::fs::DataDirPath("DHTdirectory"), packets_path))
@@ -492,11 +495,12 @@ DHTStorage::loadLocalContactPackets()
   for (const auto &path : packets_path)
     {
       auto filename = remove_extension(base_name(path));
-      local_contact_packets.insert(filename);
+      temp_contact_packets.insert(filename);
     }
 
   LogPrint(eLogDebug, "DHTStorage: loadLocalContactPackets: contacts loaded: ",
-           local_contact_packets.size());
+           temp_contact_packets.size());
+  local_contact_packets = temp_contact_packets;
 }
 
 size_t
@@ -597,7 +601,7 @@ void
 DHTStorage::remove_old_packets()
 {
   size_t removed_count = 0;
-  const int32_t ts = ts_now ();
+  const int32_t ts = context.ts_now ();
 
   if (boost::filesystem::is_empty(pbote::fs::DataDirPath("DHTemail").c_str()))
     {
@@ -648,7 +652,7 @@ DHTStorage::remove_old_entries()
       return;
     }
 
-  const int32_t ts = ts_now ();
+  const int32_t ts = context.ts_now ();
   std::set<std::string> index_copy = local_index_packets;
   for (const auto& pkt : index_copy)
     {
@@ -665,14 +669,6 @@ DHTStorage::remove_old_entries()
 
   LogPrint(eLogDebug, "DHTStorage: remove_old_entries: Records removed: ", removed_entries);
   LogPrint(eLogDebug, "DHTStorage: remove_old_entries: Packets removed: ", removed_packets);
-}
-
-int32_t
-DHTStorage::ts_now ()
-{
-  const auto ts = std::chrono::system_clock::now ();
-  const auto epoch = ts.time_since_epoch ();
-  return std::chrono::duration_cast<std::chrono::seconds> (epoch).count ();
 }
 
 } // kademlia

@@ -29,7 +29,6 @@ RelayWorker::RelayWorker ()
 
 RelayWorker::~RelayWorker ()
 {
-  LogPrint (eLogDebug, "Relay: Stopping");
   stop ();
 }
 
@@ -46,13 +45,17 @@ RelayWorker::start ()
 void
 RelayWorker::stop ()
 {
+  LogPrint (eLogDebug, "Relay: Stopping");
   started_ = false;
+  m_check_round.notify_one ();
+
   if (m_worker_thread_)
     {
       m_worker_thread_->join ();
       delete m_worker_thread_;
       m_worker_thread_ = nullptr;
     }
+  LogPrint (eLogDebug, "Relay: Stopped");
 }
 
 bool
@@ -204,7 +207,7 @@ RelayWorker::loadPeers ()
             continue;
 
           peer.samples ((size_t)std::stoi (peer_str));
-          peer.last_seen (ts_now ());
+          peer.last_seen (context.ts_now ());
           LogPrint (eLogDebug, "Relay: peer: ", peer.short_str ());
           peers.push_back (std::make_shared<RelayPeer> (peer));
         }
@@ -418,8 +421,8 @@ RelayWorker::peerListRequestPacket ()
 void
 RelayWorker::run ()
 {
-  // To prevent too quick start
-  std::this_thread::sleep_for (std::chrono::seconds(30));
+  /// To prevent too quick start
+  std::this_thread::sleep_for (std::chrono::seconds(15));
   bool task_status = false;
 
   while (started_)
@@ -436,7 +439,16 @@ RelayWorker::run ()
       auto delay = get_delay (task_status);
       LogPrint (eLogDebug, "Relay: Wait for ", (delay.count () / 60), " min.");
 
-      std::this_thread::sleep_for (delay);
+      std::unique_lock<std::mutex> lk (m_check_mutex_);
+      auto status = m_check_round.wait_for (lk, std::chrono::seconds(delay));
+
+      if (status == std::cv_status::no_timeout)
+        LogPrint (eLogDebug, "Relay: Got notification");
+
+      if (status == std::cv_status::timeout)
+        LogPrint (eLogDebug, "Relay: Waiting finished");
+
+      lk.unlock ();
     }
 }
 
@@ -561,7 +573,7 @@ RelayWorker::check_peers ()
   for (auto peer : m_peers_)
     {
       long peer_ls = peer.second->last_seen ();
-      long sec_now = ts_now ();
+      long sec_now = context.ts_now ();
       if (((sec_now - peer_ls) > ONE_DAY_SECONDS) &&
           peer.second->samples () == 0)
         {
@@ -582,13 +594,13 @@ RelayWorker::check_peers ()
 void
 RelayWorker::set_start_time ()
 {
-  exec_start_t = ts_now ();
+  exec_start_t = context.ts_now ();
 }
 
 void
 RelayWorker::set_finish_time ()
 {
-  exec_finish_t = ts_now ();
+  exec_finish_t = context.ts_now ();
 }
 
 std::chrono::seconds
@@ -613,14 +625,6 @@ RelayWorker::get_delay (bool exec_status)
     return std::chrono::seconds(interval - duration);
 
   return std::chrono::seconds(1);
-}
-
-long
-RelayWorker::ts_now ()
-{
-  const auto ts = std::chrono::system_clock::now ();
-  const auto epoch = ts.time_since_epoch ();
-  return std::chrono::duration_cast<std::chrono::seconds> (epoch).count ();
 }
 
 } // relay

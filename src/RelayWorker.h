@@ -32,8 +32,9 @@ namespace relay
 #define PEER_MIN_REACHABILITY 18 // 4/5 of ~1 day
 #define PEER_MAX_REACHABILITY 24 // ~1 day
 
-/// Time in minutes while we wait for responses
-#define RELAY_CHECK_TIMEOUT (2 * 60)
+/// Time in seconds while we wait for responses
+//#define RELAY_CHECK_TIMEOUT (2 * 60)
+#define RELAY_CHECK_TIMEOUT 60
   
 /// Time in minutes between updating peers if no high-reachability
 /// peers are known
@@ -82,9 +83,7 @@ public:
   void
   reachable (bool result)
   {
-    const auto ts = std::chrono::system_clock::now ();
-    const auto epoch = ts.time_since_epoch ();
-    lastseen = std::chrono::duration_cast<std::chrono::seconds> (epoch).count ();
+    lastseen = context.ts_now ();
 
     if (result && samples_ < PEER_MAX_REACHABILITY - 1)
       samples_ += 2;
@@ -191,12 +190,11 @@ private:
   void set_finish_time ();
   std::chrono::seconds get_delay (bool exec_status);
 
-  long ts_now ();
-
   bool started_;
   std::thread *m_worker_thread_;
 
-  mutable std::mutex m_peers_mutex_;
+  mutable std::mutex m_peers_mutex_, m_check_mutex_;
+  std::condition_variable m_check_round;
   std::map<hash_key, sp_peer> m_peers_;
 
   unsigned long exec_start_t, exec_finish_t;

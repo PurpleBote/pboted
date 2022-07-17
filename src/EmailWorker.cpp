@@ -73,7 +73,7 @@ EmailWorker::stop ()
   stopCheckEmailTasks ();
   stop_check_delivery_task ();
 
-  LogPrint (eLogWarning, "EmailWorker: Stopped");
+  LogPrint (eLogInfo, "EmailWorker: Stopped");
 }
 
 void
@@ -108,9 +108,10 @@ EmailWorker::stopCheckEmailTasks ()
     {
       auto it = m_check_threads_.begin ();
 
+      LogPrint (eLogInfo, "EmailWorker: Stopping task for ", it->first);
       it->second->join ();
       m_check_threads_.erase (it->first);
-      LogPrint (eLogInfo, "EmailWorker: Task for ", it->first, " stopped");
+      
     }
 
   LogPrint (eLogInfo, "EmailWorker: Check tasks stopped");
@@ -244,6 +245,18 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
       LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
                 ": Index count: ", index_packets.size ());
 
+      if (index_packets.empty ())
+        {
+          LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
+                    ": Have no indices");
+          LogPrint (eLogInfo, "EmailWorker: Check: ", id_name,
+                    ": Round complete");
+          continue;
+        }
+
+      if (!started_)
+        return;
+
       auto enc_mail_packets = retrieveEmail (index_packets);
 
       LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
@@ -305,6 +318,8 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
 
       LogPrint (eLogInfo, "EmailWorker: Check: ", id_name, ": complete");
     }
+
+  LogPrint (eLogInfo, "EmailWorker: Check: ", id_name, ": Stopped");
 }
 
 void
@@ -400,14 +415,11 @@ EmailWorker::sendEmailTask ()
           IndexPacket::Entry entry;
           memcpy (entry.key, email->getEncrypted ().key, 32);
           memcpy (entry.dv, email->getEncrypted ().delete_hash, 32);
-
-          auto unix_timestamp = std::chrono::seconds (std::time (nullptr));
-          auto value = std::chrono::duration_cast<std::chrono::seconds> (
-              unix_timestamp);
-          entry.time = value.count ();
+          entry.time = context.ts_now ();
 
           new_index_packet.data.push_back (entry);
           //}
+
           new_index_packet.nump = new_index_packet.data.size ();
 
           StoreRequestPacket store_index_packet;
@@ -418,10 +430,10 @@ EmailWorker::sendEmailTask ()
           LogPrint (eLogDebug, "EmailWorker: Send: store_index.hc_length: ",
               store_index_packet.hc_length);
 
-          auto index_packet = new_index_packet.toByte ();
+          auto index_bytes = new_index_packet.toByte ();
 
-          store_index_packet.length = index_packet.size ();
-          store_index_packet.data = index_packet;
+          store_index_packet.length = index_bytes.size ();
+          store_index_packet.data = index_bytes;
 
           /// Send Store Request with Index Packet to nodes
           nodes = DHT_worker.store (recipient->GetIdentHash (), DataI,
@@ -460,6 +472,8 @@ EmailWorker::sendEmailTask ()
 
       LogPrint (eLogInfo, "EmailWorker: Send: Round complete");
     }
+
+  LogPrint (eLogInfo, "EmailWorker: Send: Stopped");
 }
 
 void
@@ -553,16 +567,23 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
       IndexPacket index_packet;
       parsed = index_packet.fromBuffer (res_packet.data, true);
 
-      if (!parsed || index_packet.data.empty ())
+      if (!parsed)
         {
-          LogPrint (eLogWarning,
-                  "EmailWorker: retrieveIndex: Packet without entries");
+          LogPrint (eLogDebug, "EmailWorker: retrieveIndex: ",
+                    "Can't parse packet, skipped");
+          continue;
+        }
+
+      if (index_packet.data.empty ())
+        {
+          LogPrint (eLogWarning, "EmailWorker: retrieveIndex: Empty packet");
           continue;
         }
 
       i2p::data::Tag<32> hash (index_packet.hash);
       indices.insert (std::pair<i2p::data::Tag<32>, IndexPacket> (hash, index_packet));
     }
+
   LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Indices parsed: ",
             indices.size ());
 

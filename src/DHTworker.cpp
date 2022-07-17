@@ -64,7 +64,7 @@ DHTworker::stop ()
 
   started_ = false;
 
-  LogPrint (eLogWarning, "DHT: Stopped");
+  LogPrint (eLogInfo, "DHT: Stopped");
 }
 
 bool
@@ -237,18 +237,36 @@ DHTworker::getUnlockedNodes ()
 std::vector<sp_comm_pkt>
 DHTworker::findOne (HashKey hash, uint8_t type)
 {
+  if (!started_)
+  {
+    LogPrint (eLogDebug, "DHT: Stopping");
+    return {};
+  }
+
   return find (hash, type, false);
 }
 
 std::vector<sp_comm_pkt>
 DHTworker::findAll (HashKey hash, uint8_t type)
 {
+  if (!started_)
+  {
+    LogPrint (eLogDebug, "DHT: Stopping");
+    return {};
+  }
+
   return find (hash, type, true);
 }
 
 std::vector<sp_comm_pkt>
 DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
 {
+  if (!started_)
+  {
+    LogPrint (eLogDebug, "DHT: Stopping");
+    return {};
+  }
+
   LogPrint (eLogDebug, "DHT: find: Start for type: ", type,
             ", key: ", key.ToBase64 ());
 
@@ -300,7 +318,7 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
 
   int counter = 0;
 
-  while (batch->responseCount () < 1 && counter < 5)
+  while (batch->responseCount () < 1 && counter < 5 && started_)
     {
       LogPrint (eLogWarning, "DHT: find: No responses, resend: #", counter);
       context.removeBatch (batch);
@@ -347,6 +365,12 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
 std::vector<std::string>
 DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 {
+  if (!started_)
+  {
+    LogPrint (eLogDebug, "DHT: Stopping");
+    return {};
+  }
+
   LogPrint (eLogDebug, "DHT: store: Start for type: ", type,
             ", key: ", hash.ToBase64 ());
 
@@ -394,7 +418,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 
   // ToDo:
   //while (batch->responseCount () < KADEMLIA_CONSTANT_K && counter <= 5)
-  while (batch->responseCount () < 2 && counter <= 5)
+  while (batch->responseCount () < 2 && counter <= 5 && started_)
     {
       LogPrint (eLogWarning, "DHT: store: No responses, resend: #", counter);
       context.removeBatch (batch);
@@ -442,6 +466,12 @@ std::vector<std::string>
 DHTworker::deleteEmail (HashKey hash, uint8_t type,
                         pbote::EmailDeleteRequestPacket packet)
 {
+  if (!started_)
+  {
+    LogPrint (eLogDebug, "DHT: Stopping");
+    return {};
+  }
+
   LogPrint (eLogDebug, "DHT: deleteEmail: Start for type: ", type,
             ", hash: ", hash.ToBase64 ());
 
@@ -496,7 +526,7 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
   batch->waitLast (RESPONSE_TIMEOUT);
 
   int counter = 0;
-  while (batch->responseCount () < 1 && counter <= 5)
+  while (batch->responseCount () < 1 && counter <= 5 && started_)
     {
       LogPrint (eLogWarning, "DHT: deleteEmail: No responses, resend: #",
                 counter);
@@ -537,6 +567,12 @@ std::vector<std::string>
 DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
                              HashKey del_auth)
 {
+  if (!started_)
+  {
+    LogPrint (eLogDebug, "DHT: Stopping");
+    return {};
+  }
+
   LogPrint (eLogDebug, "DHT: deleteIndexEntry: Start for key: ",
             email_dht_key.ToBase64 (), ", hash: ", del_auth.ToBase64 ());
 
@@ -604,7 +640,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
   batch->waitLast (RESPONSE_TIMEOUT);
 
   int counter = 0;
-  while (batch->responseCount () < 1 && counter < 5)
+  while (batch->responseCount () < 1 && counter < 5 && started_)
     {
       LogPrint (eLogWarning, "DHT: deleteIndexEntry: No responses, resend: #",
                 counter);
@@ -644,6 +680,12 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
 std::vector<std::shared_ptr<pbote::DeletionInfoPacket> >
 DHTworker::deletion_query (const HashKey &key)
 {
+  if (!started_)
+  {
+    LogPrint (eLogDebug, "DHT: Stopping");
+    return {};
+  }
+
   LogPrint (eLogDebug, "DHT: deletion_query: Start for key: ", key.ToBase64 ());
 
   // ToDo: Need to check if we have localy
@@ -704,7 +746,7 @@ DHTworker::deletion_query (const HashKey &key)
   batch->waitLast (RESPONSE_TIMEOUT);
 
   int counter = 0;
-  while (batch->responseCount () < 1 && counter < 5)
+  while (batch->responseCount () < 1 && counter < 5 && started_)
     {
       LogPrint (eLogWarning, "DHT: deletion_query: No responses, resend: #",
                 counter);
@@ -749,6 +791,12 @@ DHTworker::deletion_query (const HashKey &key)
 std::vector<sp_node>
 DHTworker::closestNodesLookupTask (HashKey key)
 {
+  if (!started_)
+  {
+    LogPrint (eLogDebug, "DHT: Stopping");
+    return {};
+  }
+
   auto batch = std::make_shared<batch_comm_packet> ();
   batch->owner = "DHT::closestNodesLookup";
 
@@ -757,8 +805,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
   std::map<std::vector<uint8_t>, sp_node> active_requests;
 
   /// Set start time
-  auto task_start_time
-      = std::chrono::system_clock::now ().time_since_epoch ().count ();
+  int32_t task_start_time = context.ts_now ();
   auto unlocked_nodes = getUnlockedNodes ();
 
   if (unlocked_nodes.empty ())
@@ -779,18 +826,18 @@ DHTworker::closestNodesLookupTask (HashKey key)
       batch->addPacket (vcid, q_packet);
     }
 
-  unsigned long current_time
-      = std::chrono::system_clock::now ().time_since_epoch ().count ();
-  unsigned long exec_duration = (current_time - task_start_time) / 1000000000;
+  int32_t exec_duration = 0;
   size_t counter = 1;
 
   /// While we have unanswered requests and timeout not reached
-  while (!active_requests.empty ()
+  while (!active_requests.empty ()  && started_
          && exec_duration < CLOSEST_NODES_LOOKUP_TIMEOUT)
     {
       LogPrint (eLogDebug, "DHT: closestNodesLookup: Request #", counter);
       LogPrint (eLogDebug, "DHT: closestNodesLookup: Batch size: ",
                 batch->packetCount ());
+
+      counter++;
 
       context.send (batch);
       batch->waitLast (RESPONSE_TIMEOUT);
@@ -801,6 +848,8 @@ DHTworker::closestNodesLookupTask (HashKey key)
         {
           LogPrint (eLogWarning, "DHT: closestNodesLookup: Not enough "
                                  "responses, resend batch");
+          exec_duration = context.ts_now () - task_start_time;
+          LogPrint (eLogDebug, "DHT: closestNodesLookup: Duration: ", exec_duration);
           continue;
         }
 
@@ -820,10 +869,19 @@ DHTworker::closestNodesLookupTask (HashKey key)
             }
         }
 
-      current_time
-          = std::chrono::system_clock::now ().time_since_epoch ().count ();
-      exec_duration = (current_time - task_start_time) / 1000000000;
-      counter++;
+      exec_duration = context.ts_now () - task_start_time;
+      LogPrint (eLogDebug, "DHT: closestNodesLookup: Duration: ", exec_duration);
+    }
+
+  if (!started_)
+  {
+    LogPrint (eLogDebug, "DHT: Stopping");
+    return {};
+  }
+
+  if (exec_duration >= CLOSEST_NODES_LOOKUP_TIMEOUT)
+    {
+      LogPrint (eLogDebug, "DHT: closestNodesLookup: Timed out");
     }
 
   context.removeBatch (batch);

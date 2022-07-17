@@ -22,12 +22,12 @@ BoteContext::BoteContext()
       routerPortUDP(0),
       bytes_recv_(0),
       bytes_sent_(0),
-      m_recvQueue(std::make_shared<pbote::util::Queue<std::shared_ptr<PacketForQueue>>>()),
-      m_sendQueue(std::make_shared<pbote::util::Queue<std::shared_ptr<PacketForQueue>>>()),
+      m_recvQueue(std::make_shared<pbote::util::Queue<sp_queue_pkt>>()),
+      m_sendQueue(std::make_shared<pbote::util::Queue<sp_queue_pkt>>()),
       localDestination(std::make_shared<i2p::data::IdentityEx>()),
       local_keys_(std::make_shared<i2p::data::PrivateKeys>())
 {
-  start_time_ = std::chrono::system_clock::now().time_since_epoch().count();
+  start_time_ = ts_now ();
   rbe.seed(time (NULL));
 }
 
@@ -37,7 +37,8 @@ BoteContext::~BoteContext()
   m_sendQueue = nullptr;
 }
 
-void BoteContext::init()
+void
+BoteContext::init()
 {
   pbote::config::GetOption("host", listenHost);
   pbote::config::GetOption("port", listenPortSAM);
@@ -52,6 +53,7 @@ void BoteContext::init()
 
   std::string destination_key_path;
   pbote::config::GetOption("sam.key", destination_key_path);
+
   if (destination_key_path.empty ())
     {
       destination_key_path = pbote::fs::DataDirPath(DEFAULT_KEY_FILE_NAME);
@@ -70,7 +72,8 @@ void BoteContext::init()
   else
     {
       keys_loaded_ = false;
-      LogPrint(eLogWarning, "Context: init: Can't find local destination, try to create");
+      LogPrint(eLogWarning, "Context: init: Can't find local destination, ",
+               "try to create");
     }
 
   identities_storage_ = new pbote::identitiesStorage();
@@ -83,16 +86,19 @@ void BoteContext::init()
   LogPrint(eLogInfo, "Context: init: Loaded contacts: ", address_book_.size());
 }
 
-void BoteContext::send(const PacketForQueue &packet)
+void
+BoteContext::send(const PacketForQueue &packet)
 {
   m_sendQueue->Put(std::make_shared<PacketForQueue>(packet));
 }
 
-void BoteContext::send(const std::shared_ptr<PacketBatch<CommunicationPacket>>& batch)
+void
+BoteContext::send(const std::shared_ptr<batch_comm_packet>& batch)
 {
   size_t count = 0;
   runningBatches.push_back(batch);
-  LogPrint(eLogDebug, "Context: send: Running batches: ", runningBatches.size ());
+  LogPrint(eLogDebug, "Context: send: Running batches: ",
+           runningBatches.size ());
 
   auto packets = batch->getPackets();
   for (const auto& packet: packets)
@@ -100,10 +106,12 @@ void BoteContext::send(const std::shared_ptr<PacketBatch<CommunicationPacket>>& 
       send(packet.second);
       count++;
     }
-  LogPrint(eLogDebug, "Context: send: Sent ", count, " packets from batch ", batch->owner);
+  LogPrint(eLogDebug, "Context: send: Sent ", count, " packets from batch ",
+           batch->owner);
 }
 
-bool BoteContext::receive(const std::shared_ptr<CommunicationPacket>& packet)
+bool
+BoteContext::receive(const std::shared_ptr<CommunicationPacket>& packet)
 {
   std::vector<uint8_t> v_cid(packet->cid, packet->cid + 32);
   for (const auto& batch: runningBatches)
@@ -111,8 +119,8 @@ bool BoteContext::receive(const std::shared_ptr<CommunicationPacket>& packet)
       if (batch->contains(v_cid))
       {
         batch->addResponse(packet);
-        LogPrint(eLogDebug, "Context: receive: Response for batch ", batch->owner,
-                 ", remain count: ", batch->remain ());
+        LogPrint(eLogDebug, "Context: receive: Response for batch ",
+                 batch->owner, ", remain count: ", batch->remain ());
                
         return true;
       }
@@ -120,7 +128,8 @@ bool BoteContext::receive(const std::shared_ptr<CommunicationPacket>& packet)
   return false;
 }
 
-void BoteContext::removeBatch(const std::shared_ptr<PacketBatch<CommunicationPacket>>& r_batch)
+void
+BoteContext::removeBatch(const std::shared_ptr<batch_comm_packet>& r_batch)
 {
   for (auto batch : runningBatches)
     {
@@ -139,16 +148,22 @@ void BoteContext::removeBatch(const std::shared_ptr<PacketBatch<CommunicationPac
         {
           LogPrint(eLogDebug, "Context: Removing batch ", r_batch->owner);
           runningBatches.erase(batch_it);
-          LogPrint(eLogDebug, "Context: Running batches: ", runningBatches.size ());
+          LogPrint(eLogDebug, "Context: Running batches: ",
+                   runningBatches.size ());
           break;
         }
     }
 }
 
-std::shared_ptr<BoteIdentityFull> BoteContext::identityByName(const std::string &name)
+std::shared_ptr<BoteIdentityFull>
+BoteContext::identityByName(const std::string &name)
 {
   // ToDo: well is it really better?
-  //return std::find_if(email_identities.begin(), email_identities.end(), [&name](std::shared_ptr<pbote::EmailIdentityFull> i){ return i->publicName == name; }).operator*();
+  //return std::find_if(email_identities.begin(),
+  //                    email_identities.end(),
+  //                    [&name](std::shared_ptr<pbote::EmailIdentityFull> i){
+  //                      return i->publicName == name;
+  //                    }).operator*();
 
   for (auto identity : identities_storage_->getIdentities())
     {
@@ -160,13 +175,16 @@ std::shared_ptr<BoteIdentityFull> BoteContext::identityByName(const std::string 
   return nullptr;
 }
 
-unsigned long BoteContext::get_uptime()
+int32_t
+BoteContext::get_uptime()
 {
-  unsigned long raw_uptime = std::chrono::system_clock::now().time_since_epoch().count() - start_time_;
-  return raw_uptime * std::chrono::system_clock::period::num / std::chrono::system_clock::period::den;
+  return ts_now () - start_time_;
+  //return raw_uptime * std::chrono::system_clock::period::num / 
+  //  std::chrono::system_clock::period::den;
 }
 
-void BoteContext::save_new_keys(std::shared_ptr<i2p::data::PrivateKeys> localKeys)
+void
+BoteContext::save_new_keys(std::shared_ptr<i2p::data::PrivateKeys> localKeys)
 {
   local_keys_ = std::move(localKeys);
 
@@ -174,9 +192,10 @@ void BoteContext::save_new_keys(std::shared_ptr<i2p::data::PrivateKeys> localKey
     saveLocalIdentity(pbote::fs::DataDirPath(DEFAULT_KEY_FILE_NAME));
 }
 
-int BoteContext::readLocalIdentity(const std::string &path)
+int
+BoteContext::readLocalIdentity(const std::string &path)
 {
-  LogPrint(eLogDebug, "Context: readLocalIdentity: Load destination from ", path);
+  LogPrint(eLogDebug, "Context: readLocalIdentity: Load key from ", path);
   std::ifstream f(path, std::ios::binary);
   if (!f) return -1;
 
@@ -186,13 +205,17 @@ int BoteContext::readLocalIdentity(const std::string &path)
 
   f.close();
   local_keys_->FromBuffer(bytes.data(), bytes.size());
-  localDestination = std::make_shared<i2p::data::IdentityEx>(*local_keys_->GetPublic());
-  LogPrint(eLogDebug, "Context: readLocalIdentity: base64 ", localDestination->ToBase64().substr (0, 15), "...");
-  LogPrint(eLogDebug, "Context: readLocalIdentity: hash.base32 ", localDestination->GetIdentHash().ToBase32());
+  localDestination
+    = std::make_shared<i2p::data::IdentityEx>(*local_keys_->GetPublic());
+  LogPrint(eLogDebug, "Context: readLocalIdentity: base64 ",
+           localDestination->ToBase64().substr (0, 15), "...");
+  LogPrint(eLogDebug, "Context: readLocalIdentity: hash.base32 ",
+           localDestination->GetIdentHash().ToBase32());
   return bytes.size();
 }
 
-void BoteContext::saveLocalIdentity(const std::string &path)
+void
+BoteContext::saveLocalIdentity(const std::string &path)
 {
   LogPrint(eLogDebug, "Context: saveLocalIdentity: Save destination to ", path);
   std::ofstream f(path, std::ofstream::binary | std::ofstream::out);
@@ -209,11 +232,20 @@ void BoteContext::saveLocalIdentity(const std::string &path)
   delete[] buf;
 }
 
-void BoteContext::random_cid(uint8_t *buf, size_t len)
+void
+BoteContext::random_cid(uint8_t *buf, size_t len)
 {
   std::vector<uint8_t> cid_data(len);
   std::generate(cid_data.begin(), cid_data.end(), std::ref(rbe));
   memcpy(buf, cid_data.data(), len);
+}
+
+int32_t
+BoteContext::ts_now ()
+{
+  const auto ts = std::chrono::system_clock::now ();
+  const auto epoch = ts.time_since_epoch ();
+  return std::chrono::duration_cast<std::chrono::seconds> (epoch).count ();
 }
 
 } // namespace pbote

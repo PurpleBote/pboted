@@ -19,7 +19,7 @@ PIDFile=/run/pboted/pboted.pid
 
 # Use SIGTERM to stop pboted immediately.
 KillSignal=SIGTERM
-TimeoutStopSec=30s
+TimeoutStopSec=3m
 SendSIGKILL=yes
 
 # To enable write of coredump uncomment this

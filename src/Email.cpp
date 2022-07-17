@@ -210,8 +210,7 @@ Email::hashcash ()
   uint8_t bits = 20;
   std::string resource ("admin@example.com"), extension, seed, counter;
 
-  const auto time_now = std::chrono::system_clock::now();
-  int32_t ts_now = (int32_t)std::chrono::duration_cast<std::chrono::seconds>(time_now.time_since_epoch()).count();
+  const int32_t ts_now = context.ts_now ();
   // ToDo: think about it
   seed = std::string("McMybZIhxKXu57jd");
   counter = std::string("FOvXX");

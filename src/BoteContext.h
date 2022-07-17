@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -67,7 +67,7 @@ class BoteContext
   queue_type getSendQueue() { return m_sendQueue; }
   queue_type getRecvQueue() { return m_recvQueue; }
 
-  unsigned long get_uptime();
+  int32_t get_uptime();
   unsigned long get_bytes_recv() { return bytes_recv_; }
   unsigned long get_bytes_sent() { return bytes_sent_; }
   bool keys_loaded() { return keys_loaded_; }
@@ -77,6 +77,7 @@ class BoteContext
   void add_recv_byte_count(unsigned long byte_count) { bytes_recv_ += byte_count; };
   void add_sent_byte_count(unsigned long byte_count) { bytes_sent_ += byte_count; };
   void random_cid(uint8_t *buf, size_t len);
+  int32_t ts_now ();
 
  private:
   int readLocalIdentity(const std::string &path);
