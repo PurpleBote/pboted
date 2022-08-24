@@ -72,7 +72,7 @@ IncomingRequest::handleNewPacket (const sp_queue_pkt &queuePacket)
 bool
 IncomingRequest::receiveRelayRequest (const sp_comm_pkt &packet)
 {
-  LogPrint (eLogDebug, "Packet: receiveRelayRequest");
+  LogPrint (eLogDebug, "Packet: RelayRequest");
   // ToDo
   return true;
 }
@@ -81,7 +81,7 @@ IncomingRequest::receiveRelayRequest (const sp_comm_pkt &packet)
 bool
 IncomingRequest::receiveRelayReturnRequest (const sp_comm_pkt &packet)
 {
-  LogPrint (eLogDebug, "Packet: receiveRelayReturnRequest");
+  LogPrint (eLogDebug, "Packet: RelayReturnRequest");
   // ToDo
   return true;
 }
@@ -90,7 +90,7 @@ IncomingRequest::receiveRelayReturnRequest (const sp_comm_pkt &packet)
 bool
 IncomingRequest::receiveFetchRequest (const sp_comm_pkt &packet)
 {
-  LogPrint (eLogDebug, "Packet: receiveFetchRequest");
+  LogPrint (eLogDebug, "Packet: FetchRequest");
   // ToDo
   return true;
 }
@@ -167,7 +167,7 @@ IncomingRequest::receiveResponsePkt (const sp_comm_pkt &packet)
 bool
 IncomingRequest::receivePeerListRequest (const sp_comm_pkt &packet)
 {
-  LogPrint (eLogDebug, "Packet: receivePeerListRequest");
+  LogPrint (eLogDebug, "Packet: PeerListRequest");
   if (packet->ver == 4)
     {
       m_owner.get_IO_service ().post (
@@ -184,7 +184,7 @@ IncomingRequest::receivePeerListRequest (const sp_comm_pkt &packet)
     }
   else
     {
-      LogPrint (eLogWarning, "Packet: receivePeerListRequest: Unknown, ver: ",
+      LogPrint (eLogWarning, "Packet: PeerListRequest: Unknown, ver: ",
                 unsigned (packet->ver), ", type: ", packet->type);
       return false;
     }
@@ -195,7 +195,7 @@ IncomingRequest::receivePeerListRequest (const sp_comm_pkt &packet)
 bool
 IncomingRequest::receiveRetrieveRequest (const sp_comm_pkt &packet)
 {
-  LogPrint (eLogDebug, "Packet: receiveRetrieveRequest");
+  LogPrint (eLogDebug, "Packet: RetrieveRequest");
   if (packet->ver >= 4 && packet->type == type::CommQ)
     {
       m_owner.get_IO_service ().post (
@@ -204,7 +204,7 @@ IncomingRequest::receiveRetrieveRequest (const sp_comm_pkt &packet)
       return true;
     }
 
-  LogPrint (eLogWarning, "Packet: receiveRetrieveRequest: Unknown, ver: ",
+  LogPrint (eLogWarning, "Packet: RetrieveRequest: Unknown, ver: ",
             unsigned (packet->ver), ", type: ", packet->type);
   return false;
 }
@@ -212,7 +212,7 @@ IncomingRequest::receiveRetrieveRequest (const sp_comm_pkt &packet)
 bool
 IncomingRequest::receiveDeletionQueryRequest (const sp_comm_pkt &packet)
 {
-  LogPrint (eLogDebug, "Packet: receiveDeletionQueryRequest");
+  LogPrint (eLogDebug, "Packet: DeletionQueryRequest");
   /// Y for mhatta
   if (packet->ver >= 4 && packet->type == type::CommY)
     {
@@ -231,7 +231,7 @@ IncomingRequest::receiveDeletionQueryRequest (const sp_comm_pkt &packet)
       return true;
     }
 
-  LogPrint (eLogWarning, "Packet: receiveDeletionQueryRequest: Unknown, ver: ",
+  LogPrint (eLogWarning, "Packet: DeletionQueryRequest: Unknown, ver: ",
             unsigned (packet->ver), ", type: ", packet->type);
   return false;
 }
@@ -239,7 +239,7 @@ IncomingRequest::receiveDeletionQueryRequest (const sp_comm_pkt &packet)
 bool
 IncomingRequest::receiveStoreRequest (const sp_comm_pkt &packet)
 {
-  LogPrint (eLogDebug, "Packet: receiveStoreRequest");
+  LogPrint (eLogDebug, "Packet: StoreRequest");
   if (packet->ver >= 4 && packet->type == type::CommS)
     {
       m_owner.get_IO_service ().post (
@@ -248,7 +248,7 @@ IncomingRequest::receiveStoreRequest (const sp_comm_pkt &packet)
       return true;
     }
 
-  LogPrint (eLogWarning, "Packet: receiveStoreRequest: Unknown, ver: ",
+  LogPrint (eLogWarning, "Packet: StoreRequest: Unknown, ver: ",
             unsigned (packet->ver), ", type: ", packet->type);
   return false;
 }
@@ -256,7 +256,7 @@ IncomingRequest::receiveStoreRequest (const sp_comm_pkt &packet)
 bool
 IncomingRequest::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
 {
-  LogPrint (eLogDebug, "Packet: receiveEmailPacketDeleteRequest");
+  LogPrint (eLogDebug, "Packet: EmailPacketDeleteRequest");
   if (packet->ver >= 4 && packet->type == type::CommD)
     {
       m_owner.get_IO_service ().post (std::bind (
@@ -266,7 +266,7 @@ IncomingRequest::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
     }
 
   LogPrint (eLogWarning,
-            "Packet: receiveEmailPacketDeleteRequest: Unknown, ver: ",
+            "Packet: EmailPacketDeleteRequest: Unknown, ver: ",
             unsigned (packet->ver), ", type: ", packet->type);
   return false;
 }
@@ -274,7 +274,7 @@ IncomingRequest::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
 bool
 IncomingRequest::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
 {
-  LogPrint (eLogDebug, "Packet: receiveIndexPacketDeleteRequest");
+  LogPrint (eLogDebug, "Packet: IndexPacketDeleteRequest");
   if (packet->ver >= 4 && packet->type == type::CommX)
     {
       m_owner.get_IO_service ().post (std::bind (
@@ -284,7 +284,7 @@ IncomingRequest::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
     }
 
   LogPrint (eLogWarning,
-            "Packet: receiveIndexPacketDeleteRequest: Unknown, ver: ",
+            "Packet: IndexPacketDeleteRequest: Unknown, ver: ",
             unsigned (packet->ver), ", type: ", packet->type);
   return false;
 }
@@ -292,7 +292,7 @@ IncomingRequest::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
 bool
 IncomingRequest::receiveFindClosePeersRequest (const sp_comm_pkt &packet)
 {
-  LogPrint (eLogDebug, "Packet: receiveFindClosePeersRequest");
+  LogPrint (eLogDebug, "Packet: FindClosePeersRequest");
   if (packet->ver >= 4 && packet->type == type::CommF)
     {
       m_owner.get_IO_service ().post (
@@ -302,7 +302,7 @@ IncomingRequest::receiveFindClosePeersRequest (const sp_comm_pkt &packet)
     }
 
   LogPrint (eLogWarning,
-            "Packet: receiveFindClosePeersRequest: Unknown, ver: ",
+            "Packet: FindClosePeersRequest: Unknown, ver: ",
             unsigned (packet->ver), ", type: ", packet->type);
   return false;
 }
