@@ -407,7 +407,7 @@ POP3::RETR (char *request)
   auto bytes = emails[message_num_int - 1]->bytes ();
   std::string res = format_response (reply_ok[OK_RETR], bytes.size ());
   res.append (bytes.begin (), bytes.end ());
-  res.append (".\r\n");
+  res.append ("\n.\r\n");
   reply (res.c_str ());
 }
 
