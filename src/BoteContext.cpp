@@ -113,44 +113,84 @@ BoteContext::send(const std::shared_ptr<batch_comm_packet>& batch)
 bool
 BoteContext::receive(const std::shared_ptr<CommunicationPacket>& packet)
 {
-  std::vector<uint8_t> v_cid(packet->cid, packet->cid + 32);
-  for (const auto& batch: runningBatches)
+  if (runningBatches.empty ())
     {
-      if (batch->contains(v_cid))
-      {
-        batch->addResponse(packet);
-        LogPrint(eLogDebug, "Context: receive: Response for batch ",
-                 batch->owner, ", remain count: ", batch->remain ());
-               
-        return true;
-      }
+      LogPrint(eLogWarning, "Context: receive: No running batches");
+      return false;
     }
+
+  std::vector<uint8_t> v_cid(packet->cid, packet->cid + 32);
+
+  auto batch_itr = runningBatches.begin ();
+  while (batch_itr != runningBatches.end ())
+    {
+      if (*batch_itr)
+        {
+          if ((*batch_itr)->contains (v_cid))
+            {
+              (*batch_itr)->addResponse (packet);
+              LogPrint (eLogDebug, "Context: receive: Response for batch ",
+                        (*batch_itr)->owner, ", remain count: ",
+                        (*batch_itr)->remain ());
+              return true;
+            }
+        }
+      else
+        {
+          LogPrint(eLogError, "Context: receive: Batch is null");
+          runningBatches.erase (batch_itr);
+        }
+
+      ++batch_itr;
+    }
+
   return false;
 }
 
 void
 BoteContext::removeBatch(const std::shared_ptr<batch_comm_packet>& r_batch)
 {
+  if (runningBatches.empty ())
+    {
+      LogPrint(eLogWarning, "Context: No running batches");
+      return;
+    }
+
+  // For debug only
+  //*
   for (auto batch : runningBatches)
     {
       if (batch)
         LogPrint(eLogDebug, "Context: Batch: ", batch->owner);
       else
-        LogPrint(eLogError, "Context: Batch ERROR ERROR");
-    }
-
-  for (auto batch_it = runningBatches.begin(); batch_it != runningBatches.end(); batch_it++)
-    {
-      if (!*batch_it)
-        continue;
-
-      if (r_batch == *batch_it)
         {
-          LogPrint(eLogDebug, "Context: Removing batch ", r_batch->owner);
-          runningBatches.erase(batch_it);
-          LogPrint(eLogDebug, "Context: Running batches: ",
-                   runningBatches.size ());
-          break;
+          LogPrint(eLogDebug, "Context: Batch is null");
+        }
+    }
+  //*/
+
+  auto batch_itr = runningBatches.begin ();
+  while (batch_itr != runningBatches.end ())
+    {
+      if (*batch_itr)
+        {
+          LogPrint(eLogDebug, "Context: Batch: ", (*batch_itr)->owner);
+
+          if (r_batch == *batch_itr)
+            {
+              LogPrint(eLogDebug, "Context: Removing batch ", r_batch->owner);
+              runningBatches.erase (batch_itr);
+              LogPrint(eLogDebug, "Context: Running batches: ",
+                       runningBatches.size ());
+              break;
+            }
+
+          ++batch_itr;
+        }
+      else
+        {
+          LogPrint(eLogError, "Context: Batch is null");
+          batch_itr = runningBatches.erase (batch_itr);
         }
     }
 }
