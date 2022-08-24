@@ -217,6 +217,10 @@ RelayWorker::loadPeers ()
     {
       addPeers (peers);
       LogPrint (eLogInfo, "Relay: Peers loaded: ", peers.size ());
+
+      for (auto peer : m_peers_)
+        peer.second->last_seen (context.ts_now ());
+
       return true;
     }
 
@@ -240,6 +244,10 @@ RelayWorker::loadPeers ()
                     new_peer->ToBase64 ());
         }
       LogPrint (eLogInfo, "Relay: Added peers: ", peers_added);
+
+      for (auto peer : m_peers_)
+        peer.second->last_seen (context.ts_now ());
+
       return true;
     }
   else
@@ -569,22 +577,32 @@ RelayWorker::check_peers ()
 
   context.removeBatch (batch);
 
-  size_t removed = 0;
-  for (auto peer : m_peers_)
-    {
-      long peer_ls = peer.second->last_seen ();
-      long sec_now = context.ts_now ();
-      if (((sec_now - peer_ls) > ONE_DAY_SECONDS) &&
-          peer.second->samples () == 0)
-        {
-          //m_peers_.erase (peer.first);
-          removed++;
-          LogPrint (eLogDebug, "Relay: Remove unseen peer: ",
-                    peer.second->short_str ());
-        }
-    }
+  {
+    uint8_t days;
+    pbote::config::GetOption ("cleaninterval", days);
+    size_t removed = 0;
+    auto peer_itr = m_peers_.begin ();
+    while (peer_itr != m_peers_.end ())
+      {
+        long peer_ls = (*peer_itr).second->last_seen ();
+        long sec_now = context.ts_now ();
+        long diff = sec_now - peer_ls;
+        LogPrint (eLogDebug, "Relay: Peer diff: ", diff, ", samples: ",
+                  (*peer_itr).second->samples ());
 
-  LogPrint (eLogDebug, "Relay: Unseen peers removed: ", removed);
+        if ((diff > (ONE_DAY_SECONDS * days)) && (*peer_itr).second->samples () == 0)
+          {
+            removed++;
+            LogPrint (eLogDebug, "Relay: Remove silent peer: ",
+                      (*peer_itr).second->short_str ());
+            peer_itr = m_peers_.erase (peer_itr);
+            continue;
+          }
+        ++peer_itr;
+      }
+
+    LogPrint (eLogInfo, "Relay: Silent peer(s) removed: ", removed);
+  }
 
   writePeers ();
 

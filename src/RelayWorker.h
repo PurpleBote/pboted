@@ -83,7 +83,8 @@ public:
   void
   reachable (bool result)
   {
-    lastseen = context.ts_now ();
+    if (result)
+      lastseen = context.ts_now ();
 
     if (result && samples_ < PEER_MAX_REACHABILITY - 1)
       samples_ += 2;

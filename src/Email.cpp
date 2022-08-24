@@ -193,7 +193,7 @@ Email::hashcash ()
 {
   /**
    * Format:
-   * version: (currently 1)
+   * version: currently 1
    * bits: the number of leading bits that are 0
    * timestamp: a date/time stamp (time is optional)
    * resource: the data string being transmitted, for example, an IP address, email address, or other data

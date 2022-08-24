@@ -1033,6 +1033,35 @@ DHTworker::closestNodesLookupTask (HashKey key)
   LogPrint (eLogDebug, "DHT: closestNodesLookup: Unlocked node(s): ",
             unlocked_counter);
 
+  {
+    uint8_t days;
+    pbote::config::GetOption ("cleaninterval", days);
+
+    std::unique_lock<std::mutex> l (m_nodes_mutex_);
+    size_t nodes_removed = 0;
+
+    auto node_itr = m_nodes_.begin ();
+    while (node_itr != m_nodes_.end ())
+      {
+        long node_ls = (*node_itr).second->lastseen ();
+        long sec_now = context.ts_now ();
+        long diff = sec_now - node_ls;
+        LogPrint (eLogDebug, "DHT: closestNodesLookup: Node diff: ", diff);
+
+        if ((diff > (ONE_DAY_SECONDS * days)) && (*node_itr).second->locked ())
+          {
+            nodes_removed++;
+            LogPrint (eLogDebug, "DHT: closestNodesLookup: Remove silent node: ",
+                      (*node_itr).second->short_name ());
+            node_itr = m_nodes_.erase (node_itr);
+            continue;
+          }
+        ++node_itr;
+      }
+
+    LogPrint (eLogInfo, "DHT: closestNodesLookup: Silent node(s) removed: ", nodes_removed);
+  }  
+
   for (const auto &node : closestNodes)
     addNode (node.second->ToBase64 ());
 
@@ -1729,7 +1758,10 @@ DHTworker::loadNodes ()
       /// Now we need lock all loaded nodes for initial check in
       /// first running of closestNodesLookupTask
       for (auto node : m_nodes_)
-        node.second->noResponse ();
+        {
+          node.second->lastseen (context.ts_now ());
+          node.second->noResponse ();
+        }
 
       return true;
     }
@@ -1752,6 +1784,13 @@ DHTworker::loadNodes ()
                         new_node.GetIdentHash ().ToBase64 ());
             }
         }
+
+      for (auto node : m_nodes_)
+        {
+          node.second->lastseen (context.ts_now ());
+          node.second->noResponse ();
+        }
+
       return true;
     }
   else

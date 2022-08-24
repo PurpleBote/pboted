@@ -73,6 +73,9 @@ namespace kademlia
 /// the maximum amount of time a FIND_CLOSEST_NODES can take
 #define CLOSEST_NODES_LOOKUP_TIMEOUT (5 * 60)
 
+/// 24*60*60
+#define ONE_DAY_SECONDS 86400
+
 /// the minimum nodes for find request
 #ifdef NDEBUG
 #define MIN_CLOSEST_NODES 10
@@ -117,10 +120,6 @@ struct Node : i2p::data::IdentityEx
     this->FromBase64 (new_destination);
   }
 
-  /*size_t fromBase64(const std::string &new_destination) {
-    return this->FromBase64(new_destination);
-  }*/
-
   std::string
   short_name ()
   {
@@ -147,6 +146,7 @@ struct Node : i2p::data::IdentityEx
   void
   gotResponse ()
   {
+    last_seen = context.ts_now ();
     consecutive_timeouts = 0;
     locked_until = 0;
   }
@@ -154,13 +154,21 @@ struct Node : i2p::data::IdentityEx
   bool
   locked ()
   {
-    const auto epoch_now
-        = std::chrono::system_clock::now ().time_since_epoch ();
-    auto time_now
-        = std::chrono::duration_cast<std::chrono::seconds> (epoch_now)
-              .count ();
-    return time_now < locked_until;
+    return context.ts_now () < locked_until;
   }
+
+  long
+  lastseen ()
+  {
+    return last_seen;
+  }
+
+  void
+  lastseen (long ts)
+  {
+    last_seen = ts;
+  }
+
 };
 
 using sp_node = std::shared_ptr<Node>;
