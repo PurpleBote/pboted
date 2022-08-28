@@ -147,6 +147,7 @@ struct Node : i2p::data::IdentityEx
   gotResponse ()
   {
     last_seen = context.ts_now ();
+
     consecutive_timeouts = 0;
     locked_until = 0;
   }

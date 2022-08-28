@@ -95,6 +95,12 @@ RelayWorker::addPeer (const sp_i2p_ident &identity, int samples)
 
   sp_peer peer = std::make_shared<RelayPeer> (identity->ToBase64 (), samples);
 
+  auto result = findPeer (peer->GetIdentHash ());
+  if (result)
+    return false;
+
+  peer->last_seen (context.ts_now ());
+
   std::unique_lock<std::mutex> l (m_peers_mutex_);
   return m_peers_
       .insert (std::pair<hash_key, sp_peer> (peer->GetIdentHash (), peer))
@@ -578,17 +584,22 @@ RelayWorker::check_peers ()
   context.removeBatch (batch);
 
   {
-    uint8_t days;
+    uint16_t days;
     pbote::config::GetOption ("cleaninterval", days);
+    LogPrint (eLogDebug, "Relay: Silent interval days: ", days);
+    LogPrint (eLogDebug, "Relay: Silent interval sec.: ", (ONE_DAY_SECONDS * days));
+
     size_t removed = 0;
+    long sec_now = context.ts_now ();
+    LogPrint (eLogDebug, "Relay: Current time: ", sec_now);
+
     auto peer_itr = m_peers_.begin ();
     while (peer_itr != m_peers_.end ())
       {
         long peer_ls = (*peer_itr).second->last_seen ();
-        long sec_now = context.ts_now ();
         long diff = sec_now - peer_ls;
-        LogPrint (eLogDebug, "Relay: Peer diff: ", diff, ", samples: ",
-                  (*peer_itr).second->samples ());
+        LogPrint (eLogDebug, "Relay: Peer ls: ", peer_ls,
+                  ", diff: ", diff, ", samples: ", (*peer_itr).second->samples ());
 
         if ((diff > (ONE_DAY_SECONDS * days)) && (*peer_itr).second->samples () == 0)
           {

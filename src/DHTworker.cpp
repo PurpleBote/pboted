@@ -110,6 +110,13 @@ DHTworker::addNode (const i2p::data::IdentityEx &identity)
 
   auto node = std::make_shared<Node> ();
   node->FromBase64 (identity.ToBase64 ());
+
+  auto result = findNode (node->GetIdentHash ());
+  if (result)
+    return false;
+
+  node->lastseen (context.ts_now ());
+
   std::unique_lock<std::mutex> l (m_nodes_mutex_);
   return m_nodes_
       .insert (std::pair<HashKey, sp_node> (node->GetIdentHash (), node))
@@ -1034,24 +1041,31 @@ DHTworker::closestNodesLookupTask (HashKey key)
             unlocked_counter);
 
   {
-    uint8_t days;
+    uint16_t days;
     pbote::config::GetOption ("cleaninterval", days);
+    LogPrint (eLogDebug, "DHT: closestNodesLookup: Silent interval days: ",
+              days);
+    LogPrint (eLogDebug, "DHT: closestNodesLookup: Silent interval sec.: ",
+              (ONE_DAY_SECONDS * days));
 
     std::unique_lock<std::mutex> l (m_nodes_mutex_);
     size_t nodes_removed = 0;
+    long sec_now = context.ts_now ();
+
+    LogPrint (eLogDebug, "DHT: closestNodesLookup: Current time: ", sec_now);
 
     auto node_itr = m_nodes_.begin ();
     while (node_itr != m_nodes_.end ())
       {
         long node_ls = (*node_itr).second->lastseen ();
-        long sec_now = context.ts_now ();
         long diff = sec_now - node_ls;
-        LogPrint (eLogDebug, "DHT: closestNodesLookup: Node diff: ", diff);
+        LogPrint (eLogDebug, "DHT: closestNodesLookup: Node ls: ", node_ls,
+                  ", diff: ", diff);
 
         if ((diff > (ONE_DAY_SECONDS * days)) && (*node_itr).second->locked ())
           {
             nodes_removed++;
-            LogPrint (eLogDebug, "DHT: closestNodesLookup: Remove silent node: ",
+            LogPrint (eLogDebug, "DHT: closestNodesLookup: Remove node: ",
                       (*node_itr).second->short_name ());
             node_itr = m_nodes_.erase (node_itr);
             continue;

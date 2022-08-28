@@ -54,7 +54,7 @@ Init ()
     ("daemon", bool_switch()->default_value(false), "Router will go to background after start (default: disabled)")
     ("service",bool_switch()->default_value(false),"Service will use system folders like '/var/lib/pboted' (default: disabled)")
     ("storage", value<std::string>()->default_value("50 MiB"), "Limit for local storage usage (default: 50 MiB)")
-    ("cleaninterval", value<uint8_t>()->default_value(7), "Duration in days of node/peer unavailability after which it will be deleted (default: 7)")
+    ("cleaninterval", value<uint16_t>()->default_value(7), "Duration in days of node/peer unavailability after which it will be deleted (default: 7)")
     ;
   options_description sam("SAM options");
   sam.add_options()
