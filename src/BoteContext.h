@@ -106,6 +106,8 @@ class BoteContext
   std::shared_ptr<i2p::data::IdentityEx> localDestination;
   std::shared_ptr<i2p::data::PrivateKeys> local_keys_;
 
+  mutable std::mutex m_batch_mutex_;
+
   std::vector<std::shared_ptr<PacketBatch<pbote::CommunicationPacket>>> runningBatches;
 
   std::independent_bits_engine<std::default_random_engine, CHAR_BIT, uint8_t> rbe;

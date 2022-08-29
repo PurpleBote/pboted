@@ -150,6 +150,8 @@ BoteContext::receive(const std::shared_ptr<CommunicationPacket>& packet)
 void
 BoteContext::removeBatch(const std::shared_ptr<batch_comm_packet>& r_batch)
 {
+  std::unique_lock<std::mutex> l (m_batch_mutex_);
+
   if (runningBatches.empty ())
     {
       LogPrint(eLogWarning, "Context: No running batches");
@@ -163,9 +165,7 @@ BoteContext::removeBatch(const std::shared_ptr<batch_comm_packet>& r_batch)
       if (batch)
         LogPrint(eLogDebug, "Context: Batch: ", batch->owner);
       else
-        {
-          LogPrint(eLogDebug, "Context: Batch is null");
-        }
+        LogPrint(eLogDebug, "Context: Batch is null");
     }
   //*/
 
