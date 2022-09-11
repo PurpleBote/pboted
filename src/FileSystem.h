@@ -11,6 +11,7 @@
 #define BOTE_FS_H__
 
 #define DEFAULT_FILE_EXTENSION ".dat"
+#define DELETED_FILE_EXTENSION ".del"
 
 #include <functional>
 #include <iostream>
@@ -18,8 +19,10 @@
 #include <string>
 #include <vector>
 
-namespace pbote {
-namespace fs {
+namespace pbote
+{
+namespace fs
+{
 
 extern std::string dirSep;
 
@@ -39,7 +42,8 @@ extern std::string dirSep;
  * std::vector<std::string> files;
  * h.Traverse(files);   <- finds all files in storage and saves in given vector
  */
-class HashedStorage {
+class HashedStorage
+{
  protected:
   std::string root;    /**< path to storage with it's name included */
   std::string name;    /**< name of the storage */
@@ -122,12 +126,14 @@ uint32_t GetLastUpdateTime(const std::string &path); // seconds since epoch
 bool CreateDirectory(const std::string &path);
 
 template<typename T>
-void _ExpandPath(std::stringstream &path, T c) {
+void _ExpandPath(std::stringstream &path, T c)
+{
   path << pbote::fs::dirSep << c;
 }
 
 template<typename T, typename... Other>
-void _ExpandPath(std::stringstream &path, T c, Other... other) {
+void _ExpandPath(std::stringstream &path, T c, Other... other)
+{
   _ExpandPath(path, c);
   _ExpandPath(path, other...);
 }
@@ -141,7 +147,8 @@ void _ExpandPath(std::stringstream &path, T c, Other... other) {
  * pbote::fs::Path("test", "file.txt") -> '/tmp/pbote/test/file.txt'
  */
 template<typename... Other>
-std::string DataDirPath(Other... components) {
+std::string DataDirPath(Other... components)
+{
   std::stringstream s("");
   s << pbote::fs::GetDataDir();
   _ExpandPath(s, components...);
@@ -150,7 +157,8 @@ std::string DataDirPath(Other... components) {
 }
 
 template<typename Storage, typename... Filename>
-std::string StorageRootPath(const Storage &storage, Filename... filenames) {
+std::string StorageRootPath(const Storage &storage, Filename... filenames)
+{
   std::stringstream s("");
   s << storage.GetRoot();
   _ExpandPath(s, filenames...);

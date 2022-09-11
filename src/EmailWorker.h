@@ -35,6 +35,10 @@ using sp_id_full = std::shared_ptr<BoteIdentityFull>;
 using thread_map
     = std::unordered_map<std::string, std::shared_ptr<std::thread> >;
 using v_sp_email = std::vector<std::shared_ptr<Email> >;
+using v_sp_email_meta
+    = std::vector<std::shared_ptr<EmailMetadata> >;
+using map_sp_email_meta
+    = std::map<i2p::data::Tag<32>, std::shared_ptr<EmailMetadata> >;
 
 class EmailWorker
 {
@@ -71,20 +75,20 @@ private:
   std::vector<EmailEncryptedPacket>
   retrieveEmail (const std::vector<IndexPacket> &indices);
 
-  static std::vector<EmailUnencryptedPacket> loadLocalIncompletePacket ();
+  static void check_outbox (v_sp_email &emails);
+  static void check_sentbox (v_sp_email_meta &metas);
+  static map_sp_email_meta get_incomplete ();
 
-  static void checkOutbox (v_sp_email &emails);
-
-  std::vector<Email>
-  processEmail (const sp_id_full &identity,
-                const std::vector<EmailEncryptedPacket> &mail_packets);
+  void processEmail (const sp_id_full &identity,
+                     const std::vector<EmailEncryptedPacket> &mail_packets);
 
   bool check_thread_exist (const std::string &identity_name);
 
   bool started_;
-  std::thread *m_send_thread_;
   std::thread *m_worker_thread_;
-  std::thread *m_check_thread_;
+  std::thread *m_send_thread_;
+  std::thread *m_delivery_thread_;
+  std::thread *m_incomplete_thread_;
   thread_map m_check_threads_;
 };
 

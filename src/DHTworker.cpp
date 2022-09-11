@@ -488,6 +488,17 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
         hash.ToBase64 ());
     }
 
+  pbote::DeletionInfoPacket::item deletion_item;
+  memcpy(deletion_item.DA, packet.DA, 32);
+  memcpy(deletion_item.key, packet.key, 32);
+  deletion_item.time = context.ts_now ();
+
+  pbote::DeletionInfoPacket deletion_pkt;
+  deletion_pkt.data.push_back(deletion_item);
+  deletion_pkt.count = 1;
+
+  dht_storage_.safe_deleted (type::DataE, hash, deletion_pkt.toByte ());
+
   auto batch = std::make_shared<batch_comm_packet> ();
   batch->owner = "DHT::deleteEmail";
 
@@ -576,7 +587,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
 {
   if (!started_)
   {
-    LogPrint (eLogDebug, "DHT: Stopping");
+    LogPrint (eLogDebug, "DHT: Stopped");
     return {};
   }
 
@@ -584,10 +595,10 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
             email_dht_key.ToBase64 (), ", hash: ", del_auth.ToBase64 ());
 
   // ToDo: Need to check if we need to remove part
-  if (dht_storage_.Delete (type::DataI, index_dht_key))
+  if (dht_storage_.remove_index (index_dht_key, email_dht_key, del_auth))
     {
       LogPrint (eLogDebug,
-        "DHT: deleteIndexEntry: Removed local packet, hash: ",
+        "DHT: deleteIndexEntry: Removed local index, hash: ",
         index_dht_key.ToBase64 ());
     }
 
@@ -684,7 +695,112 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
   return res;
 }
 
-std::vector<std::shared_ptr<pbote::DeletionInfoPacket> >
+std::vector<std::string>
+DHTworker::deleteIndexEntries (HashKey index_dht_key,
+                               IndexDeleteRequestPacket packet)
+{
+  if (!started_)
+  {
+    LogPrint (eLogDebug, "DHT: Stopped");
+    return {};
+  }
+
+  LogPrint (eLogDebug, "DHT: deleteIndexEntries: Start for key: ",
+            index_dht_key.ToBase64 ());
+
+  // ToDo: Need to check if we need to remove part
+  size_t removed_localy = dht_storage_.remove_indices (index_dht_key, packet);
+  if (removed_localy > 0)
+    {
+      LogPrint (eLogDebug, "DHT: deleteIndexEntries: Removed ", removed_localy,
+                " local indices, hash: ", index_dht_key.ToBase64 ());
+    }
+
+  auto batch = std::make_shared<batch_comm_packet> ();
+  batch->owner = "DHT::deleteIndexEntries";
+
+  std::vector<sp_node> closestNodes = closestNodesLookupTask (index_dht_key);
+
+  LogPrint (eLogDebug,
+            "DHT: deleteIndexEntries: Closest nodes: ", closestNodes.size ());
+
+  if (closestNodes.size () < MIN_CLOSEST_NODES)
+    {
+      LogPrint (eLogInfo,
+                "DHT: deleteIndexEntries: Not enough nodes, try usual nodes");
+
+      for (const auto &node : m_nodes_)
+        closestNodes.push_back (node.second);
+
+      LogPrint (eLogDebug,
+                "DHT: deleteIndexEntries: Usual nodes: ", closestNodes.size ());
+    }
+
+  if (closestNodes.empty ())
+    {
+      LogPrint (eLogWarning, "DHT: deleteIndexEntries: Not enough nodes");
+      return {};
+    }
+
+  for (const auto &node : closestNodes)
+    {
+      context.random_cid (packet.cid, 32);
+
+      auto packet_bytes = packet.toByte ();
+      PacketForQueue q_packet (node->ToBase64 (), packet_bytes.data (),
+                               packet_bytes.size ());
+
+      std::vector<uint8_t> v_cid (std::begin (packet.cid),
+                                  std::end (packet.cid));
+      batch->addPacket (v_cid, q_packet);
+    }
+
+  LogPrint (eLogDebug,
+            "DHT: deleteIndexEntries: Batch size: ", batch->packetCount ());
+
+  context.send (batch);
+
+  batch->waitLast (RESPONSE_TIMEOUT);
+
+  int counter = 0;
+  while (batch->responseCount () < 1 && counter < 5 && started_)
+    {
+      LogPrint (eLogWarning, "DHT: deleteIndexEntries: No responses, resend: #",
+                counter);
+      context.removeBatch (batch);
+      context.send (batch);
+      // ToDo: remove answered nodes from batch
+      batch->waitLast (RESPONSE_TIMEOUT);
+      counter++;
+    }
+
+  LogPrint (eLogDebug, "DHT: deleteIndexEntries: Got ", batch->responseCount (),
+            " responses for key ", index_dht_key.ToBase64 ());
+
+  context.removeBatch (batch);
+
+  std::vector<std::string> res;
+
+  auto responses = batch->getResponses ();
+
+  for (const auto &response : responses)
+    {
+      pbote::ResponsePacket res_packet;
+      res_packet.from_comm_packet (*response, true);
+
+      if (res_packet.status == StatusCode::OK ||
+          res_packet.status == StatusCode::NO_DATA_FOUND)
+        {
+          res.push_back (response->from);
+          LogPrint (eLogDebug, "DHT: deleteIndexEntries: Valid response from: ",
+                    response->from.substr (0, 15), "...");
+        }
+    }
+
+  return res;
+}
+
+std::vector<std::shared_ptr<DeletionInfoPacket> >
 DHTworker::deletion_query (const HashKey &key)
 {
   if (!started_)
@@ -695,14 +811,38 @@ DHTworker::deletion_query (const HashKey &key)
 
   LogPrint (eLogDebug, "DHT: deletion_query: Start for key: ", key.ToBase64 ());
 
-  // ToDo: Need to check if we have localy
-  /*
-  if (dht_storage_.get_del_info (key))
+  std::vector<std::shared_ptr<pbote::DeletionInfoPacket> > results;
+
+  std::vector<uint8_t> deletion_info;
+  pbote::type packet_type = type::DataI;
+
+  deletion_info = dht_storage_.getPacket (packet_type, key,
+                                          DELETED_FILE_EXTENSION);
+
+  if (deletion_info.empty ())
     {
-      LogPrint (eLogDebug, "DHT: deletion_query: Removed local DelInfo, key: ",
-                key.ToBase64 ());
+      packet_type = type::DataE;
+      deletion_info = dht_storage_.getPacket (packet_type, key,
+                                              DELETED_FILE_EXTENSION);
     }
-  */
+
+  if (!deletion_info.empty ())
+    {
+      LogPrint (eLogDebug, "DHT: deletion_query: Got deletion for key: ",
+                key.ToBase64 ());
+
+      pbote::DeletionInfoPacket deletion_pkt;
+      bool parsed = deletion_pkt.fromBuffer (deletion_info, true);
+      if (parsed)
+        {
+          auto sp_pkt = std::make_shared<pbote::DeletionInfoPacket>(deletion_pkt);
+          results.push_back (sp_pkt);
+          return results;
+        }
+    }
+
+  LogPrint (eLogDebug, "DHT: deletion_query: Have no local deletion for ",
+            key.ToBase64 ());
 
   auto batch = std::make_shared<batch_comm_packet> ();
   batch->owner = "DHT::deletion_query";
@@ -768,8 +908,6 @@ DHTworker::deletion_query (const HashKey &key)
             " responses for key ", key.ToBase64 ());
 
   context.removeBatch (batch);
-
-  std::vector<std::shared_ptr<pbote::DeletionInfoPacket> > results;
 
   auto responses = batch->getResponses ();
 
@@ -1208,32 +1346,35 @@ DHTworker::receiveDeletionQuery (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: receiveDeletionQuery: got request for key: ",
             t_key.ToBase64 ());
 
-  // ToDo: After email removing it must be stored as DeletionInforPacket
-  // Needed for delivery checking
+  std::vector<uint8_t> deletion_info;
+  pbote::type packet_type = type::DataI;
 
-  //auto data = dht_storage_.get_del_info (key);
-  //if (data.empty ())
-  //  {
-  //    LogPrint (eLogDebug, "DHT: receiveDeletionQuery: key not found: ",
-  //              t_key.ToBase64 ());
-  //    response.status = pbote::StatusCode::NO_DATA_FOUND;
-  //    response.length = 0;
-  //  }
-  //else
-  //  {
-  //    LogPrint (eLogDebug, "DHT: receiveDeletionQuery: found key: ",
-  //              t_key.ToBase64 ());
+  deletion_info = dht_storage_.getPacket (packet_type, t_key,
+                                          DELETED_FILE_EXTENSION);
 
-  //    pbote::DeletionInfoPacket del_packet;
-  //    del_packet.fromBuffer (res_packet.data, true);
+  if (deletion_info.empty ())
+    {
+      packet_type = type::DataE;
+      deletion_info = dht_storage_.getPacket (packet_type, t_key,
+                                              DELETED_FILE_EXTENSION);
+    }
 
-  //    int key_cmp = memcmp (packet.key, del_packet.data[0].key, 32);
-  //    int da_cmp = memcmp (packet.DA, del_packet.data[0].DA, 32);
-  //  }
-  //}
+  if (deletion_info.empty ())
+    {
+      LogPrint (eLogDebug, "DHT: receiveDeletionQuery: key not found: ",
+                t_key.ToBase64 ());
+      response.status = pbote::StatusCode::NO_DATA_FOUND;
+      response.length = 0;
+    }
+  else
+    {
+      LogPrint (eLogDebug, "DHT: receiveDeletionQuery: found key: ",
+                t_key.ToBase64 ());
 
-  response.status = pbote::StatusCode::NO_DATA_FOUND;
-  response.length = 0;
+      response.status = pbote::StatusCode::OK;
+      response.data = deletion_info;
+      response.length = deletion_info.size ();
+    }
 
   PacketForQueue q_packet (packet->from, response.toByte ().data (),
                            response.toByte ().size ());
@@ -1361,6 +1502,31 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: EmailPacketDelete: Got request for key: ",
             t_key.ToBase64 ());
 
+  // Check if we have Deletion Info for key
+  auto deletion_info = dht_storage_.getPacket (type::DataE, t_key,
+                                               DELETED_FILE_EXTENSION);
+  if (!deletion_info.empty ())
+    {
+      pbote::DeletionInfoPacket deletion_packet;
+      parsed = deletion_packet.fromBuffer (deletion_info, true);
+
+      if (parsed)
+        {
+          if (deletion_packet.item_exist (delete_packet.key, delete_packet.DA))
+            {
+              LogPrint (eLogDebug, "DHT: EmailPacketDelete: Already removed: ",
+                        t_key.ToBase64 ());
+              response.status = pbote::StatusCode::OK;
+              PacketForQueue q_packet (packet->from, response.toByte ().data (),
+                                       response.toByte ().size ());
+              LogPrint (eLogDebug, "DHT: EmailPacketDelete: Response status: ",
+                        statusToString (response.status));
+              context.send (q_packet);
+              return;
+            }
+        }
+    }
+
   auto email_packet_data = dht_storage_.getEmail (t_key);
 
   if (email_packet_data.empty ())
@@ -1420,7 +1586,8 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
 
       deleted_packet.data.push_back (item);
 
-      response.data = deleted_packet.toByte ();
+      //response.data = deleted_packet.toByte ();
+      dht_storage_.safe_deleted (type::DataE, t_key, deleted_packet.toByte ());
       response.status = pbote::StatusCode::OK;
     }
   else
@@ -1434,13 +1601,6 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: EmailPacketDelete: Response status: ",
             statusToString (response.status));
   context.send (q_packet);
-
-  if (response.status == pbote::StatusCode::OK)
-    {
-      LogPrint (eLogDebug,
-                "DHT: EmailPacketDelete: Re-send request to other nodes");
-      deleteEmail(t_key, DataE, delete_packet);
-    }
 }
 
 void
@@ -1479,6 +1639,40 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
   HashKey t_key (delete_packet.dht_key);
   LogPrint (eLogDebug, "DHT: IndexPacketDelete: Got request for key: ",
             t_key.ToBase64 ());
+
+  // Check if we have Deletion Info for key
+  auto deletion_info = dht_storage_.getPacket (type::DataI, t_key,
+                                               DELETED_FILE_EXTENSION);
+  if (!deletion_info.empty ())
+    {
+      pbote::DeletionInfoPacket deletion_packet;
+      parsed = deletion_packet.fromBuffer (deletion_info, true);
+
+      if (parsed)
+        {
+          bool equal = true;
+
+          for (auto item : deletion_packet.data)
+            {
+              if (!deletion_packet.item_exist (item.key, item.DA))
+                equal = false;
+            }
+
+          if (equal)
+            {
+              LogPrint (eLogDebug, "DHT: IndexPacketDelete: Already removed: ",
+                        t_key.ToBase64 ());
+              response.status = pbote::StatusCode::OK;
+              PacketForQueue q_packet (packet->from, response.toByte ().data (),
+                                       response.toByte ().size ());
+              LogPrint (eLogDebug, "DHT: IndexPacketDelete: Response status: ",
+                        statusToString (response.status));
+              context.send (q_packet);
+              return;
+            }
+        }
+    }
+
   auto data = dht_storage_.getIndex (t_key);
   if (data.empty ())
     {
@@ -1532,7 +1726,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
     }
 
   deleted_packet.count = deleted_packet.data.size ();
-  response.data = deleted_packet.toByte ();
+  dht_storage_.safe_deleted (type::DataI, t_key, deleted_packet.toByte ());
 
   if (!erased)
     {

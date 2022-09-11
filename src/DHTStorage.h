@@ -27,28 +27,39 @@ namespace kademlia
 const int32_t store_duration = 8640000; /// 100 * 24 * 3600 (100 days)
 
 template<class T>
-T base_name(T const & path, T const & delims = "/\\") {
+T base_name(T const & path, T const & delims = "/\\")
+{
   return path.substr(path.find_last_of(delims) + 1);
 }
 
 template<class T>
-T remove_extension(T const & filename) {
+T remove_extension(T const & filename)
+{
   typename T::size_type const p(filename.find_last_of('.'));
   return p > 0 && p != T::npos ? filename.substr(0, p) : filename;
 }
 
-class DHTStorage {
+class DHTStorage
+{
  public:
   DHTStorage() = default;
   //~DHTStorage();
 
   void update();
   int safe(const std::vector<uint8_t>& data);
-  bool Delete(pbote::type type, const i2p::data::Tag<32>& key);
+  int safe_deleted(pbote::type type, const i2p::data::Tag<32>& key, const std::vector<uint8_t>& data);
+  bool Delete(pbote::type type, const i2p::data::Tag<32>& key, const char *ext = DEFAULT_FILE_EXTENSION);
+  bool remove_index(const i2p::data::Tag<32>& index_dht_key,
+                    const i2p::data::Tag<32>& email_dht_key,
+                    const i2p::data::Tag<32>& del_auth);
+  size_t remove_indices(const i2p::data::Tag<32>& index_dht_key,
+                        const IndexDeleteRequestPacket& packet);
 
   std::vector<uint8_t> getIndex(i2p::data::Tag<32> key);
   std::vector<uint8_t> getEmail(i2p::data::Tag<32> key);
   std::vector<uint8_t> getContact(i2p::data::Tag<32> key);
+
+  std::vector<uint8_t> getPacket(pbote::type type, i2p::data::Tag<32> key, const char *ext = DEFAULT_FILE_EXTENSION);
 
   std::set<std::string> getIndexList() {return local_index_packets;}
   std::set<std::string> getEmailList() {return local_email_packets;}
@@ -59,7 +70,6 @@ class DHTStorage {
   double limit_used() {return (double)((100 / (double)limit) * (double)used);}
 
  private:
-  std::vector<uint8_t> getPacket(pbote::type type, i2p::data::Tag<32> key);
   bool exist(pbote::type type, i2p::data::Tag<32> key);
 
   int safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
@@ -68,6 +78,12 @@ class DHTStorage {
 
   int update_index(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
   int clean_index(i2p::data::Tag<32> key, int32_t current_timestamp);
+
+  int safe_deleted_index(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+  int safe_deleted_email(i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+
+  int update_deletion_info(pbote::type type, i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
+  int clean_deletion_info(pbote::type type, i2p::data::Tag<32> key, int32_t current_timestamp);
 
   void loadLocalIndexPackets();
   void loadLocalEmailPackets();

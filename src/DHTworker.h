@@ -68,10 +68,11 @@ namespace kademlia
 #define REPLICATE_VARIANCE (5 * 60)
 
 /// Max. number of seconds to wait for replies to retrieve requests
-#define RESPONSE_TIMEOUT 60
+#define RESPONSE_TIMEOUT 30
 
 /// the maximum amount of time a FIND_CLOSEST_NODES can take
-#define CLOSEST_NODES_LOOKUP_TIMEOUT (5 * 60)
+//#define CLOSEST_NODES_LOOKUP_TIMEOUT (5 * 60)
+#define CLOSEST_NODES_LOOKUP_TIMEOUT (3 * 60)
 
 /// 24*60*60
 #define ONE_DAY_SECONDS 86400
@@ -216,6 +217,8 @@ public:
   std::vector<std::string> deleteIndexEntry (HashKey index_dht_key,
                                              HashKey email_dht_key,
                                              HashKey del_auth);
+  std::vector<std::string> deleteIndexEntries (HashKey hash,
+                                               IndexDeleteRequestPacket packet);
   std::vector<std::shared_ptr<DeletionInfoPacket> >
   deletion_query (const HashKey &key);
 
