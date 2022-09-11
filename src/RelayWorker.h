@@ -34,7 +34,7 @@ namespace relay
 
 /// Time in seconds while we wait for responses
 //#define RELAY_CHECK_TIMEOUT (2 * 60)
-#define RELAY_CHECK_TIMEOUT 60
+#define RELAY_CHECK_TIMEOUT 30
   
 /// Time in minutes between updating peers if no high-reachability
 /// peers are known
