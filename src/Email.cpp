@@ -857,7 +857,7 @@ Email::save (const std::string &dir)
   LogPrint (eLogDebug, "Email: save: Saved to ", emailPacketPath);
 
   boost::filesystem::path p = emailPacketPath;
-  std::string p_dir = p.parent_path ();
+  std::string p_dir = p.parent_path ().string ();
   std::string subdir = p_dir.substr (pbote::fs::GetDataDir ().size () + 1);
   LogPrint (eLogDebug, "Email: save: Subdir: ", subdir);
   m_metadata->save (subdir);
