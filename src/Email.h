@@ -35,7 +35,7 @@ const size_t MAX_DATAGRAM_LEN = 32768;
 
 const uint8_t zero_array[32] = {0};
 
-const bool MESSAGE_ID_TEMPALTE[]
+const bool MESSAGE_ID_TEMPLATE[]
     = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 using sp_id_full = std::shared_ptr<pbote::BoteIdentityFull>;
@@ -113,7 +113,7 @@ class EmailMetadata
   void set_message_id_bytes ();
 
   std::vector<uint8_t> message_id_bytes () { return m_message_id_bytes; }
-  void message_id_bytes (std::vector<uint8_t> bytes);
+  void message_id_bytes (const std::vector<uint8_t> &bytes);
   void set_message_id_string ();
 
   void fr_count (uint16_t count) { m_fr_count = count; }
@@ -122,15 +122,15 @@ class EmailMetadata
   int32_t received () { return m_full_received; }
   void received (int32_t time) { m_full_received = time; }
 
-  bool is_full () { return m_parts->size () == m_fr_count; }
+  bool is_full ();
 
   bool delivered ();
 
   bool deleted () { return m_deleted; }
   void deleted (bool del) { m_deleted = del; }
 
-  void add_part (Part p) { m_parts->insert(std::pair<uint16_t, Part>(p.id, p)); }
-  std::shared_ptr<std::map<uint16_t, Part> > get_parts() { return m_parts; }
+  void add_part (EmailMetadata::Part p);
+  std::shared_ptr<std::map<uint16_t, EmailMetadata::Part> > get_parts() { return m_parts; }
 
   size_t fill (std::shared_ptr<pbote::DeletionInfoPacket> packet);
 

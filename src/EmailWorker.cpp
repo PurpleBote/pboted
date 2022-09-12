@@ -233,6 +233,15 @@ EmailWorker::run ()
               LogPrint (eLogDebug, "EmailWorker: Try to start incomplete task");
               startIncompleteEmailTask ();
             }
+
+          for (auto check_thread : m_check_threads_)
+          {
+            if (!check_thread.second->joinable ())
+              {
+                LogPrint (eLogDebug, "EmailWorker: Try to start check tasks");
+                startCheckEmailTasks ();
+              }
+          }
         }
       else
         {
@@ -300,7 +309,10 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
         }
 
       if (!started_)
-        return;
+        {
+          LogPrint (eLogWarning, "EmailWorker: Check: ", id_name, ": Not started");
+          continue;
+        }
 
       auto enc_mail_packets = retrieveEmail (index_packets);
 
@@ -335,7 +347,7 @@ EmailWorker::incompleteEmailTask ()
     {
       // ToDo: read interval parameter from config
       if (first_complete)
-        std::this_thread::sleep_for (std::chrono::seconds (SEND_EMAIL_INTERVAL));
+        std::this_thread::sleep_for (std::chrono::seconds (CHECK_EMAIL_INTERVAL));
       first_complete = true;
 
       auto metas = get_incomplete ();
@@ -350,7 +362,10 @@ EmailWorker::incompleteEmailTask ()
         {
           /// Skip if have no all parts
           if (!meta.second->is_full ())
-            continue;
+            {
+              LogPrint (eLogDebug, "EmailWorker: Incomplete: Not full, skipped");
+              continue;
+            }
 
           Email mail;
           mail.metadata (meta.second);
@@ -361,9 +376,33 @@ EmailWorker::incompleteEmailTask ()
                         mail.metadata ()->filename ());
               continue;
             }
+          else
+            {
+              LogPrint (eLogInfo, "EmailWorker: Incomplete: Restored: ",
+                        mail.get_message_id ());
+            }
 
           mail.metadata ()->received (context.ts_now ());
-          mail.save ("inbox");
+          meta.second->received (context.ts_now ());
+
+          bool saved = mail.save ("inbox");
+          if (!saved)
+            {
+              LogPrint (eLogWarning, "EmailWorker: Incomplete: Not saved: ",
+                        mail.get_message_id ());
+              mail.metadata ()->received (0);
+              meta.second->received (0);
+            }
+          else
+            {
+              LogPrint (eLogInfo, "EmailWorker: Incomplete: Saved: ",
+                        mail.get_message_id ());
+            }
+
+          LogPrint (eLogInfo, "EmailWorker: Incomplete: Received: ",
+                    mail.metadata ()->received ());
+          LogPrint (eLogInfo, "EmailWorker: Incomplete: Received: ",
+                    meta.second->received ());
         }
 
       for (auto meta : metas)
@@ -378,6 +417,17 @@ EmailWorker::incompleteEmailTask ()
 
           for (auto meta_part : (*meta_parts))
             {
+              std::string packet_path = pbote::fs::DataDirPath ("incomplete",
+                                          meta_part.second.key.ToBase64 () + ".pkt");
+              if (pbote::fs::Exists (packet_path))
+                {
+
+                  LogPrint (eLogInfo,
+                            "EmailWorker: Incomplete: Removing restored ",
+                            packet_path);
+                  pbote::fs::Remove (packet_path);
+                }
+
               EmailDeleteRequestPacket delete_email_packet;
 
               memcpy (delete_email_packet.DA, meta_part.second.DA, 32);
@@ -420,6 +470,7 @@ EmailWorker::incompleteEmailTask ()
             LogPrint (eLogInfo, "EmailWorker: Incomplete: Index not removed from DHT");
           }
         }
+      LogPrint (eLogInfo, "EmailWorker: Incomplete: Round complete");
     }
 
   LogPrint (eLogInfo, "EmailWorker: Incomplete: Stopped");
@@ -536,6 +587,7 @@ EmailWorker::check_delivery_task ()
 
   v_sp_email_meta sentbox;
   std::vector<std::shared_ptr<DeletionInfoPacket> > results;
+
   while (started_)
     {
       if (first_complete)
@@ -1065,7 +1117,7 @@ EmailWorker::check_sentbox (v_sp_email_meta &metas)
 map_sp_email_meta
 EmailWorker::get_incomplete ()
 {
-  LogPrint (eLogDebug, "EmailWorker: check_incomplete: Updating");
+  LogPrint (eLogDebug, "EmailWorker: get_incomplete: Updating");
   /// incomplete contain plain text packets
   // ToDo: encrypt all local stored emails with master password
   std::string incomplete_path = pbote::fs::DataDirPath ("incomplete");
@@ -1074,7 +1126,7 @@ EmailWorker::get_incomplete ()
 
   if (!result)
     {
-      LogPrint (eLogDebug, "EmailWorker: check_incomplete: No meta for checking");
+      LogPrint (eLogDebug, "EmailWorker: get_incomplete: No meta for checking");
       return {};
     }
 
@@ -1089,7 +1141,7 @@ EmailWorker::get_incomplete ()
 
       if (bytes.empty ())
         {
-          LogPrint (eLogWarning, "EmailWorker: check_incomplete: Can't load: ",
+          LogPrint (eLogWarning, "EmailWorker: get_incomplete: Can't load: ",
                     packet_path);
           continue;
         }
@@ -1099,13 +1151,52 @@ EmailWorker::get_incomplete ()
 
       if (!parsed)
         {
-          LogPrint (eLogDebug, "EmailWorker: check_incomplete: Can't parse");
+          LogPrint (eLogDebug, "EmailWorker: get_incomplete: Can't parse");
           continue;
         }
 
+      i2p::data::Tag<32> packet_dht_key;
+      std::string dht_base
+        = pbote::kademlia::remove_extension (pbote::kademlia::base_name (packet_path));
+      packet_dht_key.FromBase64 (dht_base);
+
       if (memcmp(packet.mes_id, zero_array, 32) == 0)
         {
-          LogPrint (eLogDebug, "EmailWorker: check_incomplete: Message-ID is empty");
+          LogPrint (eLogWarning, "EmailWorker: get_incomplete: Message-ID is empty");
+
+          EmailDeleteRequestPacket delete_email_packet;
+
+          memcpy (delete_email_packet.DA, packet.DA, 32);
+          memcpy (delete_email_packet.key, packet_dht_key.data (), 32);
+
+          i2p::data::Tag<32> email_del_auth (packet.DA);
+
+          LogPrint (eLogWarning, "EmailWorker: get_incomplete: ",
+                    "Removing malformed from DHT, key: ", dht_base, ", DA: ",
+                    email_del_auth.ToBase64 ());
+
+          /// We need to remove packets for all received email from nodes
+          std::vector<std::string> responses;
+          responses = DHT_worker.deleteEmail (packet_dht_key,
+                                              DataE, delete_email_packet);
+
+          if (responses.empty ())
+            {
+              LogPrint (eLogWarning, "EmailWorker: get_incomplete: ",
+                        "Malformed email ", packet_dht_key.ToBase64 (),
+                        " not removed from DHT");
+            }
+          else
+            {
+              LogPrint (eLogInfo, "EmailWorker: get_incomplete: ",
+                        "Malformed email ", packet_dht_key.ToBase64 (),
+                        " removed from DHT");
+            }
+
+          LogPrint (eLogInfo, "EmailWorker: get_incomplete: ",
+                    "Removing malformed ", packet_path);
+          pbote::fs::Remove (packet_path);
+
           continue;
         }
 
@@ -1113,27 +1204,32 @@ EmailWorker::get_incomplete ()
 
       i2p::data::Tag<32> mid_key (packet.mes_id);
 
-      LogPrint (eLogDebug, "EmailWorker: check_incomplete: Message-ID: ",
+      LogPrint (eLogDebug, "EmailWorker: get_incomplete: Message-ID: ",
                 mid_key.ToBase64 ());
 
       auto meta_itr = metas.find(mid_key);
       if (meta_itr != metas.end())
         {
-          LogPrint (eLogDebug, "EmailWorker: check_incomplete: Found packet for message ",
+          LogPrint (eLogDebug, "EmailWorker: get_incomplete: Found packet for message ",
                     mid_key.ToBase64 ());
           metadata = (*meta_itr).second;
         }
       else
         {
+          LogPrint (eLogDebug, "EmailWorker: get_incomplete: New Message-ID: ",
+                    mid_key.ToBase64 ());
+
+          metadata = std::make_shared<EmailMetadata>();
+
           std::vector<uint8_t> mid_vec(std::begin(packet.mes_id),
                                        std::end(packet.mes_id));
 
           metadata->message_id_bytes (mid_vec);
           metadata->fr_count (packet.fr_count);
+          //metadata->dht();
 
           metas.insert (std::pair<i2p::data::Tag<32>,
-                        std::shared_ptr<EmailMetadata>> (metadata->dht(),
-                                                         metadata));
+                        std::shared_ptr<EmailMetadata>> (mid_key, metadata));
         }
 
       auto parts = metadata->get_parts ();
@@ -1142,19 +1238,32 @@ EmailWorker::get_incomplete ()
       auto meta_part_itr = parts->find(packet.fr_id);
       if (meta_part_itr == parts->end())
         {
+          LogPrint (eLogDebug, "EmailWorker: get_incomplete: New part, id: ",
+                    packet.fr_id);
           metadata_part.id = packet.fr_id;
+          metadata_part.key = packet_dht_key;
           metadata_part.DA = i2p::data::Tag<32>(packet.DA);
 
           metadata->add_part (metadata_part);
         }
       else
         {
-          LogPrint (eLogDebug, "EmailWorker: check_incomplete: Metadata for part ",
+          LogPrint (eLogDebug, "EmailWorker: get_incomplete: Metadata for part ",
                     packet.fr_id, " already exist");
+        }
+
+      auto parts_meta = metadata->get_parts ();
+      LogPrint (eLogDebug, "EmailWorker: get_incomplete: Metadata id: ",
+                    metadata->message_id (), ", parts: ", parts_meta->size ());
+      for (auto m_part : (*parts_meta))
+        {
+          LogPrint (eLogDebug, "EmailWorker: get_incomplete: part id: ",
+                    m_part.first, ", #", m_part.second.id, ", key: ",
+                    m_part.second.key.ToBase64 ());
         }
     }
 
-  LogPrint (eLogInfo, "EmailWorker: check_incomplete: Got ", metas.size (),
+  LogPrint (eLogInfo, "EmailWorker: get_incomplete: Got ", metas.size (),
             " packet(s)");
   return metas;
 }
@@ -1222,8 +1331,6 @@ EmailWorker::processEmail (
 
   size_t counter = 0;
 
-  std::vector<EmailMetadata> metas;
-
   for (auto enc_mail : mail_packets)
     {
       std::vector<uint8_t> unencrypted_email_data;
@@ -1278,13 +1385,12 @@ EmailWorker::processEmail (
       file.write (reinterpret_cast<const char *> (bytes.data ()), bytes.size ());
       file.close ();
 
-      // ToDo: fill meta and return for send remove
+      // ToDo: fill meta here and return for send remove?
 
       counter++;
     }
 
   LogPrint (eLogDebug, "EmailWorker: processEmail: Emails processed: ", counter);
-  //return metas;
 }
 
 bool

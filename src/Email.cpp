@@ -327,7 +327,7 @@ EmailMetadata::set_message_id_bytes ()
   /// Example: 27d92c57-0503-4dd6-9bb3-fa2d0613855f
   for (int i = 0; i < 36; i++)
     {
-      if (MESSAGE_ID_TEMPALTE[i])
+      if (MESSAGE_ID_TEMPLATE[i])
         continue;
 
       res.push_back (m_message_id.c_str ()[i]);
@@ -337,9 +337,13 @@ EmailMetadata::set_message_id_bytes ()
 }
 
 void
-EmailMetadata::message_id_bytes (std::vector<uint8_t> bytes)
+EmailMetadata::message_id_bytes (const std::vector<uint8_t> &bytes)
 {
-  m_message_id_bytes.assign (bytes.begin (), bytes.end ());
+  i2p::data::Tag<32> mid(bytes.data ());
+  LogPrint (eLogDebug, "EmailMetadata: message_id_bytes: mid: ",
+            mid.ToBase64 ());
+
+  m_message_id_bytes = bytes;
   set_message_id_string ();
 }
 
@@ -357,7 +361,7 @@ EmailMetadata::set_message_id_string ()
   /// Example: 27d92c57-0503-4dd6-9bb3-fa2d0613855f
   for (int i = 0; i < 32; i++)
     {
-      if (MESSAGE_ID_TEMPALTE[i])
+      if (MESSAGE_ID_TEMPLATE[i])
         ss << "-";
       else
         ss << m_message_id_bytes[i];
@@ -371,6 +375,14 @@ EmailMetadata::set_message_id_string ()
 }
 
 bool
+EmailMetadata::is_full ()
+{
+  LogPrint (eLogDebug, "EmailMetadata: m_parts: ", m_parts->size ());
+  LogPrint (eLogDebug, "EmailMetadata: m_fr_count: ", m_fr_count);
+  return m_parts->size () == m_fr_count;
+}
+
+bool
 EmailMetadata::delivered ()
 {
   for (auto p : (*m_parts))
@@ -380,6 +392,15 @@ EmailMetadata::delivered ()
     }
 
   return true;
+}
+
+void
+EmailMetadata::add_part (EmailMetadata::Part p)
+{
+  LogPrint (eLogDebug, "EmailMetadata: add_part, id: ", p.id);
+  LogPrint (eLogDebug, "EmailMetadata: add_part, key: ", p.key.ToBase64 ());
+  LogPrint (eLogDebug, "EmailMetadata: add_part, DA: ", p.DA.ToBase64 ());
+  m_parts->insert(std::pair<uint16_t, Part>(p.id, p));
 }
 
 size_t
@@ -419,13 +440,18 @@ Email::fromMIME (const std::vector<uint8_t> &email_data)
 
   for (const auto &entity : mail.header())
     {
-      auto it = std::find(HEADER_WHITELIST.begin(), HEADER_WHITELIST.end(), entity.name());
+      auto it = std::find(HEADER_WHITELIST.begin(), HEADER_WHITELIST.end(),
+                          entity.name());
       if (it != HEADER_WHITELIST.end())
-        LogPrint(eLogDebug, "Email: fromMIME: ", entity.name(), ": ", entity.value());
+        {
+          LogPrint(eLogDebug, "Email: fromMIME: ", entity.name(), ": ",
+                   entity.value());
+        }
       else
         {
           mail.header().field(entity.name()).value("");
-          LogPrint(eLogDebug, "Email: fromMIME: Forbidden header ", entity.name(), " removed");
+          LogPrint(eLogDebug, "Email: fromMIME: Forbidden header ",
+                   entity.name(), " removed");
         }
     }
 
@@ -436,30 +462,39 @@ Email::fromMIME (const std::vector<uint8_t> &email_data)
 void
 Email::set_message_id ()
 {
-  std::string message_id = field ("Message-ID");
-  if (!message_id.empty ())
+  std::string meta_mid = m_metadata->message_id ();
+  if (!meta_mid.empty ())
     {
-      m_metadata->message_id (message_id);
+      LogPrint (eLogDebug, "Email: set_message_id: Meta Message-ID: ", meta_mid);
       return;
     }
 
-  message_id = generate_uuid_v4 ();
-  message_id.append ("@bote.i2p");
+  std::string mail_mid = field ("Message-ID");
+  if (!mail_mid.empty ())
+    {
+      m_metadata->message_id (mail_mid);
+      LogPrint (eLogDebug, "Email: set_message_id: Mail Message-ID: ", mail_mid);
+      return;
+    }
 
-  setField ("Message-ID", message_id);
-  m_metadata->message_id (message_id);
+  mail_mid = generate_uuid_v4 ();
+  mail_mid.append ("@bote.i2p");
+
+  setField ("Message-ID", mail_mid);
+  m_metadata->message_id (mail_mid);
 }
 
 std::string
 Email::get_message_id ()
 {
-  std::string message_id = field ("Message-ID");
+  std::string mail_mid = field ("Message-ID");
 
-  if (message_id.empty () ||
-      (message_id.size () == 36 &&
-       message_id.c_str ()[14] != 4))
+  if (mail_mid.empty () ||
+      (mail_mid.size () == 36 &&
+       mail_mid.c_str ()[14] != 4))
     {
-      LogPrint (eLogDebug, "Email: get_message_id: message ID is not 4 version or empty");
+      LogPrint (eLogDebug,
+                "Email: get_message_id: Message-ID is not 4 version or empty");
       set_message_id ();
     }
 
@@ -474,7 +509,7 @@ Email::set_message_id_bytes ()
   /// Example: 27d92c57-0503-4dd6-9bb3-fa2d0613855f
   for (int i = 0; i < 36; i++)
     {
-      if (MESSAGE_ID_TEMPALTE[i])
+      if (MESSAGE_ID_TEMPLATE[i])
         continue;
 
       res.push_back (message_id.c_str ()[i]);
@@ -649,6 +684,7 @@ Email::split ()
 
   /// Remain part
   pbote::EmailUnencryptedPacket packet;
+  memcpy (packet.mes_id, m_metadata->message_id_bytes ().data (), 32);
   packet.data = std::vector<uint8_t>(full_bytes.begin () + offset,
                                      full_bytes.begin () + offset + remainder_parts);
   packet.length = packet.data.size ();
@@ -678,7 +714,8 @@ Email::split ()
         context.random_cid (m_plain_parts[id]->DA, 32);
 
       i2p::data::Tag<32> del_auth (m_plain_parts[id]->DA);
-      LogPrint (eLogDebug, "Email: split: Message DA: ", del_auth.ToBase64 ());
+      LogPrint (eLogDebug, "Email: split: ", id, ": Message DA: ",
+                del_auth.ToBase64 ());
 
       auto meta_parts = m_metadata->get_parts ();
 
@@ -774,6 +811,8 @@ Email::restore ()
       LogPrint(eLogInfo, "Email: restore: Mail not complete");
       return false;
     }
+
+  full_bytes = std::vector<uint8_t>();
 
   auto meta_parts = m_metadata-> get_parts();
   for (size_t i = 0; i < meta_parts->size (); i++)
