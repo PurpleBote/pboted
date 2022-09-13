@@ -294,6 +294,8 @@ DHTStorage::getPacket (pbote::type type, i2p::data::Tag<32> key, const char *ext
       return {};
     }
 
+  LogPrint(eLogDebug, "DHTStorage: getPacket: Found packet: ", filepath);
+
   std::ifstream file(filepath, std::ios::binary);
 
   if (!file.is_open())
@@ -302,7 +304,8 @@ DHTStorage::getPacket (pbote::type type, i2p::data::Tag<32> key, const char *ext
       return {};
     }
 
-  std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
+  std::vector<uint8_t> bytes((std::istreambuf_iterator<char>(file)),
+                             (std::istreambuf_iterator<char>()));
   file.close();
 
   return bytes;
