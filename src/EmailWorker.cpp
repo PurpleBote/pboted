@@ -93,7 +93,10 @@ EmailWorker::startCheckEmailTasks ()
     {
       bool thread_exist = check_thread_exist (identity->publicName);
       if (thread_exist)
-        continue;
+        {
+          if (m_check_threads_[identity->publicName]->joinable ())
+            continue;
+        }
 
       auto new_thread = std::make_shared<std::thread> (
           [this, identity] { checkEmailTask (identity); });
@@ -608,7 +611,7 @@ EmailWorker::check_delivery_task ()
           if (meta->delivered ())
             {
               LogPrint (eLogInfo, "EmailWorker: Delivery: Mail ",
-                        meta->message_id (), " is delivered");
+                        meta->message_id (), " is already delivered");
               continue;
             }
 
@@ -617,6 +620,14 @@ EmailWorker::check_delivery_task ()
 
           for (auto mail_part : (*mail_parts))
             {
+              if (mail_part.second.delivered || mail_part.second.deleted)
+                {
+                  LogPrint (eLogDebug, "EmailWorker: Delivery: part ",
+                            mail_part.second.key.ToBase64 (),
+                            " is already delivered");
+                  continue;
+                }
+
               // Make DeletionQuery to DHT
               results = DHT_worker.deletion_query (mail_part.second.key);
 
@@ -626,6 +637,22 @@ EmailWorker::check_delivery_task ()
                   size_t new_filled = meta->fill (del_info);
                   new_valid += new_filled;
                 }
+            }
+
+          for (auto part : (*mail_parts))
+            {
+              LogPrint (eLogDebug, "EmailWorker: Delivery: part: ",
+                        part.second.key.ToBase64 (),", delivered: ",
+                        part.second.delivered ? "true" : "false");
+            }
+
+          if (meta->delivered ())
+            {
+              LogPrint (eLogInfo, "EmailWorker: Delivery: Mail ",
+                        meta->message_id (), " is delivered");
+              meta->received (context.ts_now ());
+              meta->save ();
+              continue;
             }
 
           if (new_valid > 0)

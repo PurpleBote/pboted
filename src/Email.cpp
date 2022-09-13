@@ -211,10 +211,11 @@ EmailMetadata::load (const std::string &path)
 bool
 EmailMetadata::save (const std::string& dir)
 {
-  LogPrint (eLogDebug, "EmailMetadata: save: dir: ", dir);
+  if (!dir.empty ())
+    LogPrint (eLogDebug, "EmailMetadata: save: dir: ", dir);
 
   std::string meta_path;
-  // If metadate not loaded from file system, and we need to save it first time
+  // If metadata not loaded from file system, and we need to save it first time
   if (!dir.empty () && filename ().empty ())
     {
       meta_path = pbote::fs::DataDirPath (dir, message_id () + ".meta");
@@ -271,8 +272,6 @@ EmailMetadata::save (const std::string& dir)
       file << "part" << part.first <<".deleted=" << (part.second.deleted ? "1" : "0") << "\n";
       file << "part" << part.first <<".delivered=" << (part.second.delivered ? "1" : "0") << "\n";
     }
-
-  file << "\n";
 
   file.close ();
 
@@ -388,7 +387,11 @@ EmailMetadata::delivered ()
   for (auto p : (*m_parts))
     {
       if (!p.second.delivered)
-        return false;
+        {
+          LogPrint (eLogDebug, "EmailMetadata: delivered: part ",
+                p.second.key.ToBase64 (), " not delivered");
+          return false;
+        }
     }
 
   return true;
@@ -407,14 +410,20 @@ size_t
 EmailMetadata::fill (std::shared_ptr<pbote::DeletionInfoPacket> packet)
 {
   size_t valid = 0;
-  for (auto p : (*m_parts))
+  for (uint16_t id = 0; id < m_parts->size (); id++)
     {
-      if (p.second.deleted || p.second.delivered)
+      if ((*m_parts)[id].deleted || (*m_parts)[id].delivered)
         continue;
 
-      if (packet->item_exist (p.second.key.data (),
-                             p.second.DA.data ()))
-        p.second.delivered = true;
+      if (packet->item_exist ((*m_parts)[id].key.data (),
+                             (*m_parts)[id].DA.data ()))
+        {
+          LogPrint (eLogDebug, "EmailMetadata: fill: Mark delivered part: ",
+                id, ", key: ", (*m_parts)[id].key.ToBase64 ());
+          (*m_parts)[id].delivered = true;
+          (*m_parts)[id].received = context.ts_now ();
+          valid++;
+        }
     }
 
   return valid;
@@ -722,12 +731,14 @@ Email::split ()
       auto found = meta_parts->find(id);
       if (found != meta_parts->end ())
         {
+          found->second.id = id;
           found->second.DA = m_plain_parts[id]->DA;
         }
       else
         {
           EmailMetadata::Part new_part;
 
+          new_part.id = id;
           new_part.DA = m_plain_parts[id]->DA;
 
           meta_parts->insert (std::pair<uint16_t, pbote::EmailMetadata::Part>(id, new_part));

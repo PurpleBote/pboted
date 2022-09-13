@@ -1197,8 +1197,8 @@ DHTworker::closestNodesLookupTask (HashKey key)
       {
         long node_ls = (*node_itr).second->lastseen ();
         long diff = sec_now - node_ls;
-        LogPrint (eLogDebug, "DHT: closestNodesLookup: Node ls: ", node_ls,
-                  ", diff: ", diff);
+        //LogPrint (eLogDebug, "DHT: closestNodesLookup: Node ls: ", node_ls,
+        //          ", diff: ", diff);
 
         if ((diff > (ONE_DAY_SECONDS * days)) && (*node_itr).second->locked ())
           {
