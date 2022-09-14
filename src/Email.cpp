@@ -326,10 +326,8 @@ EmailMetadata::set_message_id_bytes ()
   /// Example: 27d92c57-0503-4dd6-9bb3-fa2d0613855f
   for (int i = 0; i < 36; i++)
     {
-      if (MESSAGE_ID_TEMPLATE[i])
-        continue;
-
-      res.push_back (m_message_id.c_str ()[i]);
+      if (!MESSAGE_ID_TEMPLATE[i])
+        res.push_back (m_message_id.c_str ()[i]);
     }
 
   m_message_id_bytes = res;
@@ -339,8 +337,7 @@ void
 EmailMetadata::message_id_bytes (const std::vector<uint8_t> &bytes)
 {
   i2p::data::Tag<32> mid(bytes.data ());
-  LogPrint (eLogDebug, "EmailMetadata: message_id_bytes: mid: ",
-            mid.ToBase64 ());
+  LogPrint (eLogDebug, "EmailMetadata: message_id_bytes: mid: ", mid.ToBase64 ());
 
   m_message_id_bytes = bytes;
   set_message_id_string ();
@@ -358,12 +355,16 @@ EmailMetadata::set_message_id_string ()
 
   std::stringstream ss;
   /// Example: 27d92c57-0503-4dd6-9bb3-fa2d0613855f
-  for (int i = 0; i < 32; i++)
+  int counter = 0;
+  for (int i = 0; i < 36; i++)
     {
       if (MESSAGE_ID_TEMPLATE[i])
         ss << "-";
       else
-        ss << m_message_id_bytes[i];
+        {
+          ss << m_message_id_bytes[counter];
+          counter++;
+        }
     }
 
   ss << "@bote.i2p";
@@ -489,6 +490,8 @@ Email::set_message_id ()
   mail_mid = generate_uuid_v4 ();
   mail_mid.append ("@bote.i2p");
 
+  LogPrint (eLogDebug, "Email: set_message_id: New Message-ID: ", mail_mid);
+
   setField ("Message-ID", mail_mid);
   m_metadata->message_id (mail_mid);
 }
@@ -498,12 +501,14 @@ Email::get_message_id ()
 {
   std::string mail_mid = field ("Message-ID");
 
-  if (mail_mid.empty () ||
-      (mail_mid.size () == 36 &&
-       mail_mid.c_str ()[14] != 4))
+  if (mail_mid.empty ())
     {
-      LogPrint (eLogDebug,
-                "Email: get_message_id: Message-ID is not 4 version or empty");
+      LogPrint (eLogDebug, "Email: get_message_id: Message-ID is empty");
+      set_message_id ();
+    }
+  else if (mail_mid.size () == 36 && mail_mid.c_str ()[14] != 4)
+    {
+      LogPrint (eLogDebug, "Email: get_message_id: Message-ID is not V4");
       set_message_id ();
     }
 
@@ -518,10 +523,8 @@ Email::set_message_id_bytes ()
   /// Example: 27d92c57-0503-4dd6-9bb3-fa2d0613855f
   for (int i = 0; i < 36; i++)
     {
-      if (MESSAGE_ID_TEMPLATE[i])
-        continue;
-
-      res.push_back (message_id.c_str ()[i]);
+      if (!MESSAGE_ID_TEMPLATE[i])
+        res.push_back (message_id.c_str ()[i]);
     }
 
   m_metadata->message_id_bytes (res);
@@ -1125,7 +1128,7 @@ Email::generate_uuid_v4 ()
   static std::random_device              rd;
   static std::mt19937                    gen (rd ());
   static std::uniform_int_distribution<> dis (0, 15);
-  static std::uniform_int_distribution<> dis2 (8, 11);
+  static std::uniform_int_distribution<> dis2 (8, 11); // variant 1
 
   std::stringstream ss;
   int i;
