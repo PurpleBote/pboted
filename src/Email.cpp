@@ -6,9 +6,9 @@
  * See full license text in LICENSE file at top of project tree
  */
 
+#include <boost/filesystem.hpp>
 #include <cassert>
 #include <cstdio>
-#include <boost/filesystem.hpp>
 #include <fstream>
 #include <iostream>
 

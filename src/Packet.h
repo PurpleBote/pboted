@@ -69,24 +69,24 @@ enum version
 enum type : uint8_t
 {
   /// Data Packets
-  DataE = 0x45, // encrypted email Packet
-  DataU = 0x55, // unencrypted email Packet
-  DataI = 0x49, // index Packet
-  DataT = 0x54, // deletion info Packet
-  DataL = 0x4c, // DataP = 0x50, // peer list
+  DataE = 0x45, // encrypted email packet
+  DataU = 0x55, // unencrypted email packet
+  DataI = 0x49, // index packet
+  DataT = 0x54, // deletion info packet
+  DataL = 0x4c, // peer list
   DataC = 0x43, // directory entry
   /// Communication Packets
   CommR = 0x52, // relay request
   CommK = 0x4b, // relay return request
   // CommF = 0x46, // fetch request
-  CommN = 0x4e, // response Packet
+  CommN = 0x4e, // response packet
   CommA = 0x41, // peer list request
   /// DHT Communication Packets
   CommQ = 0x51, // retrieve request
   CommY = 0x59, // deletion query
   CommS = 0x53, // store request
-  CommD = 0x44, // email Packet delete request
-  CommX = 0x58, // index Packet delete request
+  CommD = 0x44, // email packet delete request
+  CommX = 0x58, // index packet delete request
   CommF = 0x46, // find close peers
 };
 
@@ -1613,6 +1613,12 @@ public:
 
     LogPrint (eLogDebug, "Packet: X: fromBuffer: count: ", count,
               ", type: ", type,", version: ", unsigned (ver));
+
+    //*
+    i2p::data::Tag<32> i_key (dht_key);
+    LogPrint (eLogDebug, "Packet: X: fromBuffer: index key: ",
+              i_key.ToBase64 ());
+    //*/
 
     for (uint32_t i = 0; i < count; i++)
       {
