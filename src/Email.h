@@ -25,16 +25,28 @@ namespace pbote {
 
 #define MAX_HEADER_LENGTH 998
 
+/** The maximum number of bytes by which EncryptedEmailPacket
+ *  can be bigger than the UnencryptedEmailPacket
+ *  ToDo: need to verify
+ */
+//const size_t PACKET_MAX_OVERHEAD = 641;
+const size_t PACKET_MAX_OVERHEAD = 4000; // FOR TESTS
+const size_t MAX_DATAGRAM_LEN = 32768;
+
+const uint8_t zero_array[32] = {0};
+
+const bool MESSAGE_ID_TEMPLATE[]
+    = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
 using sp_id_full = std::shared_ptr<pbote::BoteIdentityFull>;
 using sp_id_private = std::shared_ptr<pbote::BoteIdentityPrivate>;
 using sp_id_public = std::shared_ptr<pbote::BoteIdentityPublic>;
+using v_sp_plain_email = std::vector<std::shared_ptr<pbote::EmailUnencryptedPacket> >;
 
 // contains the sender's base64-encoded signature
 const std::string SIGNATURE_HEADER = "X-I2PBote-Signature";
-
 // contains the string "true" or "false"
 const std::string SIGNATURE_VALID_HEADER = "X-I2PBote-Sig-Valid";
-
 const std::vector<std::string> HEADER_WHITELIST
 = {
    "From",
@@ -53,6 +65,93 @@ const std::vector<std::string> HEADER_WHITELIST
    "X-HashCash",
    "X-Priority",
    SIGNATURE_HEADER
+};
+
+const std::string PREFIX_MESSAGE_ID_ = "mid";
+const std::string PREFIX_DHT_KEY = "dht_key";
+const std::string PREFIX_RECEIVED = "received";
+const std::string PREFIX_DELETED = "deleted";
+const std::string PREFIX_FRAGMENTS = "fragments";
+const std::string PREFIX_PART = "part";
+
+const std::string PART_ID = "id";
+const std::string PART_DHT_KEY = "key";
+const std::string PART_DA = "DA";
+const std::string PART_RECEIVED = "received";
+const std::string PART_DELETED = "deleted";
+const std::string PART_DELIVERED = "delivered";
+
+const std::string META_FILE_EXTENSION = ".meta";
+
+class EmailMetadata
+{
+ public:
+  struct Part
+    {
+      uint16_t id = 0;
+      i2p::data::Tag<32> key = {};
+      i2p::data::Tag<32> DA = {};
+      int32_t received = 0;
+      bool deleted = false, delivered = false;
+    };
+
+  EmailMetadata ();
+  ~EmailMetadata () = default;
+
+  bool load (const std::string &path);
+  bool save (const std::string& dir = "");
+  bool move (const std::string& dir);
+
+  std::string filename () { return m_path; }
+  void filename (std::string path) { m_path = path; }
+
+  i2p::data::Tag<32> dht() { return m_dht; }
+  void dht (i2p::data::Tag<32> key) { m_dht = key; }
+
+  std::string message_id () { return m_message_id; }
+  void message_id (std::string id);
+  void set_message_id_bytes ();
+
+  std::vector<uint8_t> message_id_bytes () { return m_message_id_bytes; }
+  void message_id_bytes (const std::vector<uint8_t> &bytes);
+  void set_message_id_string ();
+
+  void fr_count (uint16_t count) { m_fr_count = count; }
+  uint16_t fr_count () { return m_fr_count; }
+
+  int32_t received () { return m_full_received; }
+  void received (int32_t time) { m_full_received = time; }
+
+  bool is_full ();
+
+  bool delivered ();
+
+  bool deleted () { return m_deleted; }
+  void deleted (bool del) { m_deleted = del; }
+
+  void add_part (EmailMetadata::Part p);
+
+  std::shared_ptr<std::map<uint16_t, EmailMetadata::Part> >
+  get_parts()
+  {
+    return m_parts;
+  }
+
+  size_t fill (std::shared_ptr<pbote::DeletionInfoPacket> packet);
+
+ private:
+  std::string m_path;
+
+  i2p::data::Tag<32> m_dht;
+
+  std::string m_message_id;
+  std::vector<uint8_t> m_message_id_bytes;
+
+  int32_t m_full_received = 0;
+  uint16_t m_fr_count = 0;
+
+  bool m_deleted;
+  std::shared_ptr<std::map<uint16_t, Part> > m_parts;
 };
 
 class Email
@@ -86,10 +185,10 @@ class Email
   };
 
   Email ();
-  Email (const std::vector<uint8_t> &data, bool from_net);
   ~Email () = default;
 
   //void fromUnencryptedPacket(const pbote::EmailUnencryptedPacket &email_packet);
+  //bool from_buffer (const std::vector<uint8_t> &data, bool from_net);
   void fromMIME (const std::vector<uint8_t> &email);
 
   void set_message_id ();
@@ -99,10 +198,10 @@ class Email
   i2p::data::Tag<32>
   get_message_id_bytes ()
   {
-    return i2p::data::Tag<32>(packet.mes_id);
+    return i2p::data::Tag<32>(m_metadata->message_id_bytes ().data ());
   }
 
-  std::vector<uint8_t> hashcash ();
+  std::string hashcash ();
 
   //std::map<std::string, std::string> getAllRecipients ();
 
@@ -116,9 +215,21 @@ class Email
   std::string get_to_mailbox ();
   std::string get_to_addresses ();
 
-  //std::string getCCAddresses () { return mail.header().cc().begin()->mailbox().mailbox(); }
-  //std::string getBCCAddresses () { return mail.header().bcc().begin()->mailbox().mailbox(); }
-  //std::string getReplyAddress () { return mail.header().replyto().begin()->mailbox().mailbox(); }
+  /*std::string
+  getCCAddresses ()
+  {
+    return mail.header().cc().begin()->mailbox().mailbox();
+  }*/
+  /*std::string
+  getBCCAddresses ()
+  {
+    return mail.header().bcc().begin()->mailbox().mailbox();
+  }*/
+  /*std::string
+  getReplyAddress ()
+  {
+    return mail.header().replyto().begin()->mailbox().mailbox();
+  }*/
 
   void
   set_from (const std::string& value)
@@ -142,7 +253,6 @@ class Email
   setField (const std::string& type, const std::string& value)
   {
     mail.header().field(type).value(value);
-    //mail.header().setField(type, value);
   }
 
   std::string
@@ -151,38 +261,62 @@ class Email
     return mail.header().field(type).value();
   }
 
-  bool empty () const { return empty_; };
-  bool incomplete () const { return incomplete_; };
-  void skip (bool s) { skip_ = s; };
-  bool skip () const { return skip_; };
-  void deleted (bool s) { deleted_ = s; };
-  bool deleted () const { return deleted_; };
-  bool verify (uint8_t *hash);
+  bool empty () const { return m_empty; };
+  bool incomplete () const { return m_incomplete; };
+  void skip (bool skip) { m_skip = skip; };
+  bool skip () const { return m_skip; };
+  bool verify ();
+  bool check (uint8_t *hash);
 
   std::string filename () { return filename_; }
   void filename (const std::string& fn) { filename_ = fn; }
-  std::vector<uint8_t> bytes ();
-  bool save (const std::string& dir);
-  bool move (const std::string& dir);
 
-  size_t length () { return mail.size(); }
+  bool deleted () { return m_deleted; }
+  void deleted (bool del) { m_deleted = del; }
+
+  std::shared_ptr<EmailMetadata> metadata () { return m_metadata; }
+  void metadata(std::shared_ptr<EmailMetadata> meta) { m_metadata = meta; }
 
   void compose ();
+  bool split ();
+  bool fill_storable ();
+
+  bool restore ();
+
+  bool compress (CompressionAlgorithm type);
+  void decompress (std::vector<uint8_t> data);
+
+  bool save (const std::string& dir = "");
+  bool move (const std::string& dir);
+
+  std::vector<uint8_t> bytes () { return full_bytes; }
+
+  size_t length () { return mail.size(); }
 
   void set_sender_identity(sp_id_full identity);
   void set_recipient_identity(std::string to_address);
   sp_id_private get_sender () { return sender; };
   sp_id_public get_recipient () { return recipient; };
+  pbote::IndexPacket get_index () { return m_index; }
+  pbote::StoreRequestPacket get_storable_index () { return m_storable_index; }
 
-  pbote::EmailEncryptedPacket getEncrypted () { return encrypted; };
-  void setEncrypted (const pbote::EmailEncryptedPacket &data) { encrypted = data; };
+  std::shared_ptr<EmailMetadata> get_metadata() { return m_metadata; }
+
+  std::map<i2p::data::Tag<32>, pbote::StoreRequestPacket>
+  get_storable ()
+  {
+    return m_storable_parts;
+  }
+
+  v_sp_plain_email decrypted () { return m_plain_parts;};
+
+  std::vector<std::shared_ptr<pbote::EmailEncryptedPacket>>
+  encrypted ()
+  {
+    return m_enc_parts;
+  };
+
   void encrypt ();
-
-  pbote::EmailUnencryptedPacket getDecrypted () { return packet;};
-  void setDecrypted (const pbote::EmailUnencryptedPacket &data) { packet = data; };
-
-  bool compress (CompressionAlgorithm type);
-  void decompress (std::vector<uint8_t> data);
 
  private:
   std::string generate_uuid_v4 ();
@@ -195,21 +329,29 @@ class Email
   sp_id_public parse_address_v0(std::string address);
   sp_id_public parse_address_v1(std::string address);
 
-  bool incomplete_;
-  bool empty_;
-  bool skip_;
-  bool deleted_;
-  bool encrypted_ = false;
-  bool composed_ = false;
-  // metadata?
-  // sendtime
+  bool m_incomplete;
+  bool m_empty;
+  bool m_deleted;
+  bool m_skip;
+  bool m_encrypted = false;
+  bool m_composed = false;
+  bool m_splitted= false;
+
   std::string filename_;
   mimetic::MimeEntity mail;
+  std::shared_ptr<EmailMetadata> m_metadata;
+
   sp_id_private sender;
   sp_id_public recipient;
 
-  pbote::EmailEncryptedPacket encrypted;
-  pbote::EmailUnencryptedPacket packet;
+  std::vector<uint8_t> full_bytes;
+
+  pbote::IndexPacket m_index;
+  pbote::StoreRequestPacket m_storable_index;
+
+  v_sp_plain_email m_plain_parts;
+  std::vector<std::shared_ptr<pbote::EmailEncryptedPacket>> m_enc_parts;
+  std::map<i2p::data::Tag<32>, pbote::StoreRequestPacket> m_storable_parts;
 };
 
 } // pbote

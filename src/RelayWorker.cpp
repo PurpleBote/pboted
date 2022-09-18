@@ -598,8 +598,8 @@ RelayWorker::check_peers ()
       {
         long peer_ls = (*peer_itr).second->last_seen ();
         long diff = sec_now - peer_ls;
-        LogPrint (eLogDebug, "Relay: Peer ls: ", peer_ls,
-                  ", diff: ", diff, ", samples: ", (*peer_itr).second->samples ());
+        //LogPrint (eLogDebug, "Relay: Peer ls: ", peer_ls,
+        //          ", diff: ", diff, ", samples: ", (*peer_itr).second->samples ());
 
         if ((diff > (ONE_DAY_SECONDS * days)) && (*peer_itr).second->samples () == 0)
           {

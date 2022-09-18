@@ -34,13 +34,13 @@
 namespace pbote
 {
 
-/// because prefix[4] + type[1] + ver[1] +  cid[32] = 38
+/// prefix[4] + type[1] + ver[1] +  cid[32] = 38
 #define COMM_DATA_LEN 38
 
 //#define PACKET_ERROR_MALFORMED -1
 
 const std::array<std::uint8_t, 12> PACKET_TYPE{ 0x52, 0x4b, 0x46, 0x4e,
-                                                0x41, 0x51, 0x4c, 0x53,
+                                                0x41, 0x51, 0x59, 0x53,
                                                 0x44, 0x58, 0x43 };
 const std::array<std::uint8_t, 4> COMM_PREFIX{ 0x6D, 0x30, 0x52, 0xE9 };
 const std::array<std::uint8_t, 5> BOTE_VERSION{ 0x1, 0x2, 0x3, 0x4, 0x5 };
@@ -83,11 +83,11 @@ enum type : uint8_t
   CommA = 0x41, // peer list request
   /// DHT Communication Packets
   CommQ = 0x51, // retrieve request
-  CommY = 0x59, // CommL = 0x4c, // deletion query
+  CommY = 0x59, // deletion query
   CommS = 0x53, // store request
   CommD = 0x44, // email Packet delete request
   CommX = 0x58, // index Packet delete request
-  CommF = 0x46, // CommC = 0x43, // find close peers
+  CommF = 0x46, // find close peers
 };
 
 /**
@@ -427,12 +427,87 @@ public:
       : DataPacket (DataU), fr_id (0), fr_count (0), length (0)
   {
   }
+
   uint8_t mes_id[32] = {0};
   uint8_t DA[32] = {0};
   uint16_t fr_id = 0;
   uint16_t fr_count = 0;
   uint16_t length = 0;
   std::vector<uint8_t> data;
+
+  bool
+  fromBuffer (const std::vector<uint8_t> &buf, bool from_net)
+  {
+    LogPrint (eLogDebug, "Packet: U: fromBuffer: len: ", buf.size ());
+    /// 72 because type[1] + ver[1] + mes_id[32] + DA[32] + fr_id[2] + fr_count[2] + length[2]
+    if (buf.size() < 72)
+      {
+        LogPrint(eLogWarning, "Packet: U: fromBuffer: Payload is too short");
+        return false;
+      }
+
+    size_t offset = 0;
+
+    std::memcpy(&type, buf.data(), 1);
+    offset += 1;
+    std::memcpy(&ver, buf.data() + offset, 1);
+    offset += 1;
+
+    if (type != (uint8_t) 'U')
+      {
+        LogPrint(eLogWarning, "Packet: U: fromBuffer: Wrong type: ", type);
+        return false;
+      }
+
+    if (ver != (uint8_t) 4)
+      {
+        LogPrint(eLogWarning, "Packet: U: fromBuffer: Wrong version: ",
+                 unsigned(ver));
+        return false;
+      }
+
+    std::memcpy (&mes_id, buf.data() + offset, 32);
+    offset += 32;
+    std::memcpy(&DA, buf.data() + offset, 32);
+    offset += 32;
+    std::memcpy(&fr_id, buf.data() + offset, 2);
+    offset += 2;
+    std::memcpy(&fr_count, buf.data() + offset, 2);
+    offset += 2;
+    std::memcpy(&length, buf.data() + offset, 2);
+    offset += 2;
+
+    i2p::data::Tag<32> mid(mes_id);
+    LogPrint(eLogDebug, "Packet: U: fromBuffer: mes_id: ", mid.ToBase64());
+
+    if (from_net)
+      {
+        fr_id = ntohs(fr_id);
+        fr_count = ntohs(fr_count);
+        length = ntohs(length);
+      }
+
+    LogPrint(eLogDebug, "Packet: U: fromBuffer: fr_id: ", fr_id,
+             ", fr_count: ", fr_count, ", length: ", length);
+
+    if (offset + length != buf.size ())
+      {
+        LogPrint(eLogWarning, "Packet: U: fromBuffer: Incomplete packet, size: ",
+                 length, ", actual: ", buf.size () - offset);
+        return false;
+      }
+
+    if (fr_id >= fr_count)
+      {
+        LogPrint(eLogWarning, "Packet: U: fromBuffer: Illegal values, fr_id: ",
+                 fr_id, ", fr_count: ", fr_count);
+        return false;
+      }
+
+    data.assign (buf.begin () + offset, buf.end ());
+
+    return true;
+  }
 
   std::vector<uint8_t>
   toByte ()
@@ -464,6 +539,25 @@ public:
 
     return result;
   }
+
+  bool
+  check (uint8_t *hash)
+  {
+    uint8_t da_h[32] = {0};
+    SHA256 (DA, 32, da_h);
+    //* For debug
+    i2p::data::Tag<32> ver_hash (hash), cur_da (DA), cur_hash (da_h);
+
+    LogPrint(eLogDebug, "Packet: U: check: DV hash: ", ver_hash.ToBase64());
+    LogPrint(eLogDebug, "Packet: U: check: DA curr: ", cur_da.ToBase64());
+    LogPrint(eLogDebug, "Packet: U: check: DA hash: ", cur_hash.ToBase64());
+
+    if (ver_hash != cur_hash)
+      LogPrint (eLogError, "Packet: U: check: Hashes mismatch");
+    //*/
+
+    return memcmp(hash, da_h, 32) == 0;
+  }
 };
 
 struct IndexPacket : public DataPacket
@@ -480,8 +574,8 @@ public:
     bool
     operator== (const Entry &rhs)
     {
-      return memcmp (this->key, rhs.key, 32) != 0 &&
-             memcmp (this->dv, rhs.dv, 32) != 0;
+      return memcmp (this->key, rhs.key, 32) == 0 &&
+             memcmp (this->dv, rhs.dv, 32) == 0;
     }
   };
 
@@ -624,7 +718,6 @@ public:
             LogPrint (eLogDebug, "Packet: I: erase_entry: DV: ", dv_h.ToBase64 ());
             data.erase (data.begin () + i);
             nump = data.size ();
-            //return true;
             return data[i].time;
           }
       }
@@ -643,6 +736,13 @@ public:
     uint8_t key[32] = {0};
     uint8_t DA[32] = {0};
     int32_t time = 0;
+
+    bool
+    operator== (const item &rhs)
+    {
+      return memcmp (this->key, rhs.key, 32) == 0 &&
+             memcmp (this->DA, rhs.DA, 32) == 0;
+    }
   };
 
   uint32_t count;
@@ -735,6 +835,23 @@ public:
       }
 
     return result;
+  }
+
+  bool
+  item_exist (const uint8_t key[32], const uint8_t DA[32])
+  {
+    for (uint8_t i = 0; i < (uint8_t)data.size (); i++)
+      {
+        if (memcmp(data[i].key, key, 32) == 0 &&
+            memcmp(data[i].DA, DA, 32) == 0)
+          {
+            i2p::data::Tag<32> da_h (DA);
+            LogPrint (eLogDebug, "Packet: T: item_exist: exist: ",
+                      da_h.ToBase64 ());
+            return true;
+          }
+      }
+    return false;
   }
 };
 
@@ -1012,8 +1129,8 @@ public:
     /// Because COMM_DATA_LEN + status[1] + length[2] = 41
     if (len < 41)
       {
-        LogPrint (eLogWarning,
-                  "Packet: N: fromBuffer: Payload is too short: ", len);
+        LogPrint (eLogWarning, "Packet: N: fromBuffer: Payload is too short: ",
+                  len);
         return false;
       }
     /// Skipping prefix
@@ -1669,7 +1786,7 @@ parseCommPacket (const sp_queue_pkt &packet)
 
   auto found_type = std::find (std::begin (PACKET_TYPE),
                                std::end (PACKET_TYPE), data.type);
-      
+
   if (found_type == std::end (PACKET_TYPE))
     {
       LogPrint (eLogWarning, "Packet: Bad type");
@@ -1692,12 +1809,7 @@ parseCommPacket (const sp_queue_pkt &packet)
       return nullptr;
     }
 
-  //CommunicationPacket res (data.type);
-  //res.ver = data.ver;
-  //memcpy (res.cid, data.cid, 32);
-
   data.from = std::move (packet->destination);
-
   data.payload = std::vector<uint8_t> (packet->payload.begin () + offset,
                                        packet->payload.end ());
 

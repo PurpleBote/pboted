@@ -7,9 +7,10 @@
  */
 
 #include <cassert>
-#include <iostream>
-#include <fstream>
 #include <cstdio>
+#include <boost/filesystem.hpp>
+#include <fstream>
+#include <iostream>
 
 #include "BoteContext.h"
 #include "Email.h"
@@ -40,79 +41,405 @@ ISzAlloc _allocFuncs
    _lzmaAlloc, _lzmaFree
 };
 
-Email::Email ()
-  : incomplete_ (false),
-    empty_ (true),
-    skip_ (false),
-    deleted_ (false)
+EmailMetadata::EmailMetadata ()
+  : m_path(),
+    m_dht(),
+    m_message_id(),
+    m_full_received(0),
+    m_fr_count(0),
+    m_deleted(false)
 {
+  m_parts = std::make_shared<std::map<uint16_t, EmailMetadata::Part> >();
 }
 
-Email::Email (const std::vector<uint8_t> &data, bool from_net)
-  : skip_(false),
-    deleted_(false)
+bool
+EmailMetadata::load (const std::string &path)
 {
-  // ToDo: Move to function fromPacket
-  LogPrint (eLogDebug, "Email: Payload size: ", data.size ());
-  /// 72 because type[1] + ver[1] + mes_id[32] + DA[32] + fr_id[2] + fr_count[2] + length[2]
-  if (data.size() < 72)
+  if (!pbote::fs::Exists (path))
+  {
+    LogPrint (eLogWarning, "EmailMetadata: load: Have no file ", path);
+    return false;
+  }
+
+  m_path = path;
+
+  char value_delimiter = '=';
+  char dot_delimiter = '.';
+
+  std::map<std::string, std::string> kv_lines;
+  std::vector<std::string> parts;
+  std::ifstream is_file(path);
+
+  /// Read lines and parse by key=value
+  std::string line;
+  while (std::getline (is_file, line))
     {
-      LogPrint(eLogWarning, "Email: Payload is too short");
+      std::istringstream is_line(line);
+      std::string key;
+
+      if (std::getline (is_line, key, value_delimiter))
+        {
+          std::string value;
+          if (std::getline (is_line, value)) 
+            kv_lines.insert (std::pair<std::string, std::string>(key, value));
+        }
     }
 
-  size_t offset = 0;
-
-  std::memcpy(&packet.type, data.data(), 1);
-  offset += 1;
-  std::memcpy(&packet.ver, data.data() + offset, 1);
-  offset += 1;
-
-  if (packet.type != (uint8_t) 'U')
+  size_t found;
+  for (auto l : kv_lines)
     {
-      LogPrint(eLogWarning, "Email: Wrong type: ", packet.type);
+      size_t dot_pos = l.first.find (dot_delimiter);
+      found = l.first.find (PREFIX_PART);
+
+      /// Add only unique parts prefix like "part0", "part1", etc.
+      if (dot_pos != std::string::npos && found != std::string::npos)
+        {
+          std::string p = l.first.substr (0, dot_pos);
+          if (std::find(parts.begin(), parts.end(), p) == parts.end())
+            {
+              parts.push_back(p);
+              LogPrint (eLogDebug, "EmailMetadata: load: ", p);
+              continue;
+            }
+        }
+
+      if (l.first.find (PREFIX_MESSAGE_ID_) != std::string::npos)
+        {
+          message_id(l.second);
+          set_message_id_bytes ();
+          continue;
+        }
+
+      if (l.first.find (PREFIX_DHT_KEY) != std::string::npos)
+        {
+          m_dht.FromBase64 (l.second);
+          continue;
+        }
+
+      if (l.first.find (PREFIX_RECEIVED) != std::string::npos)
+        {
+          m_full_received = std::stoul(l.second);
+          continue;
+        }
+
+      if (l.first.find (PREFIX_DELETED) != std::string::npos)
+        {
+          m_deleted = (std::stoi(l.second) ? true : false);
+          continue;
+        }
+
+      if (l.first.find (PREFIX_FRAGMENTS) != std::string::npos)
+        {
+          m_fr_count = std::stoul(l.second);
+          continue;
+        }
+
     }
 
-  if (packet.ver != (uint8_t) 4)
+  if (parts.empty ())
     {
-      LogPrint(eLogWarning, "Email: Wrong version: ", unsigned(packet.ver));
+      // Not an error, first packet not received for example
+      LogPrint (eLogDebug, "EmailMetadata: load: Meta without parts");
     }
 
-  std::memcpy (&packet.mes_id, data.data() + offset, 32);
-  offset += 32;
-  std::memcpy(&packet.DA, data.data() + offset, 32);
-  offset += 32;
-  std::memcpy(&packet.fr_id, data.data() + offset, 2);
-  offset += 2;
-  std::memcpy(&packet.fr_count, data.data() + offset, 2);
-  offset += 2;
-  std::memcpy(&packet.length, data.data() + offset, 2);
-  offset += 2;
+  is_file.close();
 
-  // ToDo: use it
-  i2p::data::Tag<32> mes_id(packet.mes_id);
-  LogPrint(eLogDebug, "Email: mes_id: ", mes_id.ToBase64());
+  LogPrint(eLogDebug, "EmailMetadata: load: mid: ", m_message_id);
+  LogPrint(eLogDebug, "EmailMetadata: load: dht_key: ", m_dht.ToBase64 ());
+  LogPrint(eLogDebug, "EmailMetadata: load: received: ", m_full_received);
+  LogPrint(eLogDebug, "EmailMetadata: load: count: ", m_fr_count);
 
-  if (from_net)
+  /// Now we can start parse values by parts ID's
+  for (auto p : parts)
     {
-      packet.fr_id = ntohs(packet.fr_id);
-      packet.fr_count = ntohs(packet.fr_count);
-      packet.length = ntohs(packet.length);
+      EmailMetadata::Part temp_part;
+
+      for (auto l : kv_lines)
+        {
+          // Skipping non-part lines
+          if (l.first.find (p) == std::string::npos)
+            continue;
+
+          if (l.first.find (PART_ID) != std::string::npos)
+            {
+              temp_part.id = static_cast<uint16_t>(std::stoul (l.second));
+              continue;
+            }
+
+          if (l.first.find (PART_DHT_KEY) != std::string::npos)
+            {
+              temp_part.key.FromBase64 (l.second);
+              continue;
+            }
+
+          if (l.first.find (PART_DA) != std::string::npos)
+            {
+              temp_part.DA.FromBase64 (l.second);
+              continue;
+            }
+
+          if (l.first.find (PART_RECEIVED) != std::string::npos)
+            {
+              temp_part.received = static_cast<int32_t>(std::stol(l.second));
+              continue;
+            }
+
+          if (l.first.find (PART_DELETED) != std::string::npos)
+            {
+              temp_part.deleted = (std::stoi(l.second) ? true : false);
+              continue;
+            }
+
+          if (l.first.find (PART_DELIVERED) != std::string::npos)
+            {
+              temp_part.delivered = (std::stoi(l.second) ? true : false);
+              continue;
+            }
+        }
+      LogPrint(eLogDebug, "EmailMetadata: load: id: ", temp_part.id);
+      LogPrint(eLogDebug, "EmailMetadata: load: dht: ", temp_part.key.ToBase64 ());
+      LogPrint(eLogDebug, "EmailMetadata: load: DA: ", temp_part.DA.ToBase64 ());
+
+      m_parts->insert(std::pair<uint16_t, EmailMetadata::Part>(temp_part.id, temp_part));
     }
 
-  LogPrint(eLogDebug, "Email: fr_id: ", packet.fr_id, ", fr_count: ",
-           packet.fr_count, ", length: ", packet.length);
+  // ToDo: Check if malformed
 
-  if (packet.fr_id >= packet.fr_count)
+  return true;
+}
+
+bool
+EmailMetadata::save (const std::string& dir)
+{
+  if (!dir.empty ())
+    LogPrint (eLogDebug, "EmailMetadata: save: dir: ", dir);
+
+  std::string meta_path;
+  // If metadata not loaded from file system, and we need to save it first time
+  if (!dir.empty () && filename ().empty ())
     {
-      LogPrint(eLogError, "Email: Illegal values, fr_id: ", packet.fr_id,
-               ", fr_count: ", packet.fr_count);
+      meta_path = pbote::fs::DataDirPath (dir, message_id () + ".meta");
+    }
+  else
+    meta_path = filename ();
+
+  std::ofstream file (meta_path, std::ofstream::out | std::ofstream::trunc);
+
+  if (!file.is_open ())
+    {
+      LogPrint(eLogError, "EmailMetadata: save: Can't open file ", meta_path);
+      return false;
     }
 
-  incomplete_ = packet.fr_id + 1 != packet.fr_count;
-  empty_ = packet.length == 0;
-  packet.data = std::vector<uint8_t> (data.data() + offset, data.data() + data.size());
-  decompress (packet.data);
-  fromMIME (packet.data);
+  /**
+   * mid=157d8603-f12d-4d17-93de-02a62cb21111@bote.i2p
+   * dht_key=v2424v24hb
+   * received=123124125125
+   * deleted=0
+   * fragments=3
+   * part0.id=0
+   * part0.key=12315fq234f1
+   * part0.DA=1325gw42g344
+   * part0.received=123452341234
+   * part0.deleted=0
+   * part0.delivered=1
+   * part1.id=1
+   * part1.key=vedrfgvf34tfga
+   * part1.DA=sdvfvf2345v
+   * part1.received=123423413
+   * part1.deleted=1
+   * part1.delivered=1
+   * part2.id=2
+   * part2.key=12d31f134f
+   * part2.DA=g1345gq34
+   * part2.received=1312341234
+   * part2.deleted=0
+   * part2.delivered=1
+   */
+
+  file << "mid=" << m_message_id << "\n";
+  file << "dht_key=" << m_dht.ToBase64 () << "\n";
+  file << "received=" << m_full_received << "\n";
+  file << "deleted=" << (m_deleted ? "1" : "0") << "\n";
+  file << "fragments=" << m_fr_count << "\n";
+
+  for (auto part : (*m_parts))
+    {
+      file << "part" << part.first <<".id=" << part.second.id << "\n";
+      file << "part" << part.first <<".key=" << part.second.key.ToBase64 () << "\n";
+      file << "part" << part.first <<".DA=" << part.second.DA.ToBase64 () << "\n";
+      file << "part" << part.first <<".received=" << part.second.received << "\n";
+      file << "part" << part.first <<".deleted=" << (part.second.deleted ? "1" : "0") << "\n";
+      file << "part" << part.first <<".delivered=" << (part.second.delivered ? "1" : "0") << "\n";
+    }
+
+  file.close ();
+
+  filename (meta_path);
+  LogPrint (eLogDebug, "EmailMetadata: save: Saved to ", meta_path);
+
+  return true;
+}
+
+bool
+EmailMetadata::move (const std::string& dir)
+{
+  std::string new_path
+      = pbote::fs::DataDirPath (dir, message_id () + ".meta");
+
+  LogPrint (eLogDebug, "EmailMetadata: move: old path: ", filename ());
+  LogPrint (eLogDebug, "EmailMetadata: move: new path: ", new_path);
+
+  std::ifstream ifs (filename (), std::ios::in | std::ios::binary);
+  std::ofstream ofs (new_path, std::ios::out | std::ios::binary);
+
+  ofs << ifs.rdbuf ();
+
+  int status = std::remove (filename ().c_str ());
+
+  if (status != 0)
+    {
+      LogPrint (eLogError, "EmailMetadata: move: Can't move file ", filename (),
+            " to ", new_path);
+      return false;
+    }
+
+  
+  LogPrint (eLogInfo, "EmailMetadata: move: File ", filename (),
+            " moved to ", new_path);
+  filename (new_path);
+
+  return true;
+}
+
+void
+EmailMetadata::message_id (std::string id)
+{
+  m_message_id = id;
+  set_message_id_bytes ();
+}
+
+void
+EmailMetadata::set_message_id_bytes ()
+{
+  std::vector<uint8_t> res;
+  /// Example: 27d92c57-0503-4dd6-9bb3-fa2d0613855f
+  for (int i = 0; i < 36; i++)
+    {
+      if (!MESSAGE_ID_TEMPLATE[i])
+        res.push_back (m_message_id.c_str ()[i]);
+    }
+
+  m_message_id_bytes = res;
+}
+
+void
+EmailMetadata::message_id_bytes (const std::vector<uint8_t> &bytes)
+{
+  i2p::data::Tag<32> mid(bytes.data ());
+  LogPrint (eLogDebug, "EmailMetadata: message_id_bytes: mid: ", mid.ToBase64 ());
+
+  m_message_id_bytes = bytes;
+  set_message_id_string ();
+}
+
+void
+EmailMetadata::set_message_id_string ()
+{
+  if (m_message_id_bytes.size () < 32)
+    {
+      LogPrint (eLogError, "EmailMetadata: set_message_id_string: Too short: ",
+                m_message_id_bytes.size ());
+      return;
+    }
+
+  std::stringstream ss;
+  /// Example: 27d92c57-0503-4dd6-9bb3-fa2d0613855f
+  int counter = 0;
+  for (int i = 0; i < 36; i++)
+    {
+      if (MESSAGE_ID_TEMPLATE[i])
+        ss << "-";
+      else
+        {
+          ss << m_message_id_bytes[counter];
+          counter++;
+        }
+    }
+
+  ss << "@bote.i2p";
+
+  LogPrint (eLogDebug, "EmailMetadata: set_message_id_string: ", ss.str ());
+
+  m_message_id = ss.str ();
+}
+
+bool
+EmailMetadata::is_full ()
+{
+  LogPrint (eLogDebug, "EmailMetadata: m_parts: ", m_parts->size ());
+  LogPrint (eLogDebug, "EmailMetadata: m_fr_count: ", m_fr_count);
+  return m_parts->size () == m_fr_count;
+}
+
+bool
+EmailMetadata::delivered ()
+{
+  for (auto p : (*m_parts))
+    {
+      if (!p.second.delivered)
+        {
+          LogPrint (eLogDebug, "EmailMetadata: delivered: part ",
+                p.second.key.ToBase64 (), " not delivered");
+          return false;
+        }
+    }
+
+  return true;
+}
+
+void
+EmailMetadata::add_part (EmailMetadata::Part p)
+{
+  LogPrint (eLogDebug, "EmailMetadata: add_part, id: ", p.id);
+  LogPrint (eLogDebug, "EmailMetadata: add_part, key: ", p.key.ToBase64 ());
+  LogPrint (eLogDebug, "EmailMetadata: add_part, DA: ", p.DA.ToBase64 ());
+  m_parts->insert(std::pair<uint16_t, Part>(p.id, p));
+}
+
+size_t
+EmailMetadata::fill (std::shared_ptr<pbote::DeletionInfoPacket> packet)
+{
+  size_t valid = 0;
+  for (uint16_t id = 0; id < m_parts->size (); id++)
+    {
+      if ((*m_parts)[id].deleted || (*m_parts)[id].delivered)
+        continue;
+
+      if (packet->item_exist ((*m_parts)[id].key.data (),
+                             (*m_parts)[id].DA.data ()))
+        {
+          LogPrint (eLogDebug, "EmailMetadata: fill: Mark delivered part: ",
+                id, ", key: ", (*m_parts)[id].key.ToBase64 ());
+          (*m_parts)[id].delivered = true;
+          (*m_parts)[id].received = context.ts_now ();
+          valid++;
+        }
+    }
+
+  return valid;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+Email::Email ()
+  : m_incomplete (false),
+    m_empty (true),
+    m_skip (false),
+    sender (nullptr),
+    recipient (nullptr)
+{
+  m_metadata = std::make_shared<EmailMetadata>();
 }
 
 void
@@ -123,48 +450,69 @@ Email::fromMIME (const std::vector<uint8_t> &email_data)
 
   for (const auto &entity : mail.header())
     {
-      auto it = std::find(HEADER_WHITELIST.begin(), HEADER_WHITELIST.end(), entity.name());
+      auto it = std::find(HEADER_WHITELIST.begin(), HEADER_WHITELIST.end(),
+                          entity.name());
       if (it != HEADER_WHITELIST.end())
-        LogPrint(eLogDebug, "Email: fromMIME: ", entity.name(), ": ", entity.value());
+        {
+          LogPrint(eLogDebug, "Email: fromMIME: ", entity.name(), ": ",
+                   entity.value());
+        }
       else
         {
           mail.header().field(entity.name()).value("");
-          LogPrint(eLogDebug, "Email: fromMIME: Forbidden header ", entity.name(), " removed");
+          LogPrint(eLogDebug, "Email: fromMIME: Forbidden header ",
+                   entity.name(), " removed");
         }
     }
 
-  empty_ = false;
-  packet.data = email_data;
+  m_empty = false;
   compose ();
 }
 
 void
 Email::set_message_id ()
 {
-  std::string message_id = field ("Message-ID");
-  if (!message_id.empty ())
-    return;
+  std::string meta_mid = m_metadata->message_id ();
+  if (!meta_mid.empty ())
+    {
+      LogPrint (eLogDebug, "Email: set_message_id: Meta Message-ID: ", meta_mid);
+      return;
+    }
 
-  message_id = generate_uuid_v4 ();
-  message_id.append ("@bote.i2p");
-  setField ("Message-ID", message_id);
+  std::string mail_mid = field ("Message-ID");
+  if (!mail_mid.empty ())
+    {
+      m_metadata->message_id (mail_mid);
+      LogPrint (eLogDebug, "Email: set_message_id: Mail Message-ID: ", mail_mid);
+      return;
+    }
+
+  mail_mid = generate_uuid_v4 ();
+  mail_mid.append ("@bote.i2p");
+
+  LogPrint (eLogDebug, "Email: set_message_id: New Message-ID: ", mail_mid);
+
+  setField ("Message-ID", mail_mid);
+  m_metadata->message_id (mail_mid);
 }
 
 std::string
 Email::get_message_id ()
 {
-  std::string message_id = field ("Message-ID");
+  std::string mail_mid = field ("Message-ID");
 
-  if (message_id.empty () ||
-      (message_id.size () == 36 &&
-       message_id.c_str ()[14] != 4))
+  if (mail_mid.empty ())
     {
-      LogPrint (eLogDebug, "Email: get_message_id: message ID is not 4 version or empty");
+      LogPrint (eLogDebug, "Email: get_message_id: Message-ID is empty");
       set_message_id ();
-      message_id = field ("Message-ID");
+    }
+  else if (mail_mid.size () == 36 && mail_mid.c_str ()[14] != 4)
+    {
+      LogPrint (eLogDebug, "Email: get_message_id: Message-ID is not V4");
+      set_message_id ();
     }
 
-  return message_id;
+  return m_metadata->message_id ();
 }
 
 void
@@ -172,23 +520,17 @@ Email::set_message_id_bytes ()
 {
   std::string message_id = get_message_id ();
   std::vector<uint8_t> res;
-  /// Example
-  /// 27d92c57-0503-4dd6-9bb3-fa2d0613855f
-  const bool dash[]
-    = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-
+  /// Example: 27d92c57-0503-4dd6-9bb3-fa2d0613855f
   for (int i = 0; i < 36; i++)
     {
-      if (dash[i])
-        continue;
-
-      res.push_back (message_id.c_str ()[i]);
+      if (!MESSAGE_ID_TEMPLATE[i])
+        res.push_back (message_id.c_str ()[i]);
     }
 
-  memcpy (packet.mes_id, res.data(), 32);
+  m_metadata->message_id_bytes (res);
 }
 
-std::vector<uint8_t>
+std::string
 Email::hashcash ()
 {
   /**
@@ -228,9 +570,10 @@ Email::hashcash ()
   // ToDo: temp, TBD
   std::string hc_s ("1:20:1303030600:admin@example.com::McMybZIhxKXu57jd:FOvXX");
   LogPrint (eLogDebug, "Email: hashcash: hashcash: ", hc_s);
-  std::vector<uint8_t> result (hc_s.begin(), hc_s.end());
+  //std::vector<uint8_t> result (hc_s.begin(), hc_s.end());
 
-  return result;
+  //return result;
+  return hc_s;
 }
 
 std::string
@@ -274,37 +617,263 @@ Email::get_to_addresses ()
 }
 
 bool
-Email::verify (uint8_t *hash)
+Email::verify ()
 {
-  uint8_t da_h[32] = {0};
-  SHA256 (packet.DA, 32, da_h);
-  //* For debug
-  i2p::data::Tag<32> ver_hash (hash), cur_da (packet.DA), cur_hash (da_h);
-
-  LogPrint(eLogDebug, "Email: verify: DV hash: ", ver_hash.ToBase64());
-  LogPrint(eLogDebug, "Email: verify: DA curr: ", cur_da.ToBase64());
-  LogPrint(eLogDebug, "Email: verify: DA hash: ", cur_hash.ToBase64());
-
-  if (ver_hash != cur_hash)
-    LogPrint (eLogError, "Email: verify: Hashes mismatch");
-  //*/
-
-  return memcmp(hash, da_h, 32) == 0;
+  // ToDo: verify signature
+  return true;
 }
 
-std::vector<uint8_t>
-Email::bytes ()
+void
+Email::compose ()
 {
+  if (m_composed)
+    return;
+
+  set_message_id ();
+  set_message_id_bytes ();
+
+  LogPrint (eLogDebug, "Email: compose: Message-ID: ", get_message_id ());
+  LogPrint (eLogDebug, "Email: compose: Message-ID bytes: ",
+            get_message_id_bytes ().ToBase64 ());
+
+  setField ("X-HashCash", hashcash ());
+
   std::stringstream buffer;
   buffer << mail;
-
   std::string str_buf = buffer.str ();
-  std::vector<uint8_t> result (str_buf.begin (), str_buf.end ());
 
-  packet.data = result;
-  packet.length = result.size ();
+  // For debug only
+  //*
+  if (str_buf.size () > 1000)
+    {
+      std::string mess_begin = str_buf.substr (0, 1000);
+      std::string mess_end = str_buf.substr (str_buf.size ()-1000,
+                                             str_buf.size ());
+      LogPrint (eLogDebug, "Email: compose: content:\n", mess_begin,
+                "\n\n...\n\n", mess_end, "\n");
+    }
+  else
+    LogPrint (eLogDebug, "Email: compose: content:\n", str_buf);
+  //*/
 
-  return result;
+  full_bytes = std::vector<uint8_t> (str_buf.begin (), str_buf.end ());
+
+  m_empty = false;
+  m_incomplete = false;
+  m_composed = true;
+}
+
+bool
+Email::split ()
+{
+  if (skip ())
+    return false;
+
+  if (m_splitted)
+    return true;
+
+  size_t full_parts = full_bytes.size () / (MAX_DATAGRAM_LEN - PACKET_MAX_OVERHEAD);
+  size_t remainder_parts = full_bytes.size () % (MAX_DATAGRAM_LEN - PACKET_MAX_OVERHEAD);
+  m_metadata->fr_count (remainder_parts > 0 ? full_parts + 1 : full_parts);
+  size_t full_size = full_bytes.size ();
+  size_t offset = 0;
+  size_t part_max_size = MAX_DATAGRAM_LEN - PACKET_MAX_OVERHEAD;
+
+  LogPrint (eLogDebug, "Email: split: Email parts: ", m_metadata->fr_count ());
+
+  while ((offset + remainder_parts) < full_size)
+    {
+      pbote::EmailUnencryptedPacket packet;
+      memcpy (packet.mes_id, m_metadata->message_id_bytes ().data (), 32);
+      packet.data = std::vector<uint8_t>(full_bytes.begin () + offset,
+                                         full_bytes.begin () + offset + part_max_size);
+      packet.length = packet.data.size ();
+
+      m_plain_parts.push_back (std::make_shared<pbote::EmailUnencryptedPacket>(packet));
+
+      offset += part_max_size;
+    }
+
+  /// Remain part
+  pbote::EmailUnencryptedPacket packet;
+  memcpy (packet.mes_id, m_metadata->message_id_bytes ().data (), 32);
+  packet.data = std::vector<uint8_t>(full_bytes.begin () + offset,
+                                     full_bytes.begin () + offset + remainder_parts);
+  packet.length = packet.data.size ();
+
+  m_plain_parts.push_back (std::make_shared<pbote::EmailUnencryptedPacket>(packet));
+
+  if (offset + remainder_parts < full_size)
+    {
+      LogPrint (eLogError, "Email: split: Can't split MIME message, parsed: ",
+                offset + remainder_parts, ", full: ", full_size);
+      skip (true);
+      return false;
+    }
+
+  if (m_plain_parts.size () != m_metadata->fr_count ())
+    {
+      LogPrint (eLogError, "Email: split: Parts count unequal, plain: ",
+                m_plain_parts.size (), ", metadata: ", m_metadata->fr_count ());
+      skip (true);
+      return false;
+    }
+
+  /// Filling metadata from plain part
+  for (uint16_t id = 0; id < m_metadata->fr_count (); id++)
+    {
+      if (memcmp(m_plain_parts[id]->DA, zero_array, 32) == 0)
+        context.random_cid (m_plain_parts[id]->DA, 32);
+
+      i2p::data::Tag<32> del_auth (m_plain_parts[id]->DA);
+      LogPrint (eLogDebug, "Email: split: ", id, ": Message DA: ",
+                del_auth.ToBase64 ());
+
+      auto meta_parts = m_metadata->get_parts ();
+
+      auto found = meta_parts->find(id);
+      if (found != meta_parts->end ())
+        {
+          found->second.id = id;
+          found->second.DA = m_plain_parts[id]->DA;
+        }
+      else
+        {
+          EmailMetadata::Part new_part;
+
+          new_part.id = id;
+          new_part.DA = m_plain_parts[id]->DA;
+
+          meta_parts->insert (std::pair<uint16_t, pbote::EmailMetadata::Part>(id, new_part));
+        }
+
+      m_plain_parts[id]->fr_id = id;
+      m_plain_parts[id]->fr_count = m_metadata->fr_count ();
+      m_plain_parts[id]->length = m_plain_parts[id]->data.size ();
+    }
+
+  m_splitted = true;
+
+  return true;
+}
+
+bool
+Email::fill_storable ()
+{
+  if (skip ())
+    return false;
+
+  for (uint16_t id = 0; id < m_metadata->fr_count (); id++)
+    {
+      StoreRequestPacket storable_part;
+
+      auto part_hashcash = hashcash ();
+      LogPrint (eLogDebug, "Email: fill_storable: ", id, ": hashcash: ",
+                part_hashcash);
+
+      storable_part.hashcash = std::vector<uint8_t> (part_hashcash.begin(),
+                                                     part_hashcash.end());
+
+      storable_part.hc_length = storable_part.hashcash.size ();
+      LogPrint (eLogDebug, "Email: fill_storable: ", id,
+                ": storable_part.hc_length: ", storable_part.hc_length);
+
+      storable_part.data = m_enc_parts[id]->toByte ();
+      storable_part.length = storable_part.data.size ();
+
+      i2p::data::Tag<32> email_dht_key (m_enc_parts[id]->key);
+
+      m_storable_parts.insert (std::pair<i2p::data::Tag<32>, StoreRequestPacket> (email_dht_key, storable_part));
+    }
+
+  auto recipient = get_recipient ();
+  memcpy (&m_index.hash, recipient->GetIdentHash ().data (), 32);
+
+  for (const auto &enc_part : m_enc_parts)
+    {
+      IndexPacket::Entry entry;
+      memcpy (entry.key, enc_part->key, 32);
+      memcpy (entry.dv, enc_part->delete_hash, 32);
+      entry.time = context.ts_now ();
+
+      m_index.data.push_back (entry);
+    }
+
+  m_index.nump = m_index.data.size ();
+
+  /// For now it's not checking from Java-Bote side
+  auto index_hashcash = hashcash ();
+  LogPrint (eLogDebug, "Email: split: hashcash: ", index_hashcash);
+
+  m_storable_index.hashcash = std::vector<uint8_t> (index_hashcash.begin(),
+                                                 index_hashcash.end());
+  m_storable_index.hc_length = m_storable_index.hashcash.size ();
+  LogPrint (eLogDebug, "EmailWorker: Send: store_index.hc_length: ",
+            m_storable_index.hc_length);
+
+  m_storable_index.data = m_index.toByte ();
+  m_storable_index.length = m_storable_index.data.size ();
+
+  return true;
+}
+
+bool
+Email::restore ()
+{
+  if (!m_metadata->is_full ())
+    {
+      LogPrint(eLogInfo, "Email: restore: Mail not complete");
+      return false;
+    }
+
+  full_bytes = std::vector<uint8_t>();
+
+  auto meta_parts = m_metadata-> get_parts();
+  for (size_t i = 0; i < meta_parts->size (); i++)
+    {
+      auto meta_part = meta_parts->find (i);
+      if (meta_part == meta_parts->end ())
+        {
+          LogPrint(eLogInfo, "Email: restore: Mail not complete");
+          return false;
+        }
+
+      i2p::data::Tag<32> part_dht_key((*meta_part).second.key);
+
+      std::string plain_part_path
+          = pbote::fs::DataDirPath ("incomplete",
+                                    part_dht_key.ToBase64 () + ".pkt");
+
+      if (!pbote::fs::Exists(plain_part_path))
+        {
+          LogPrint(eLogWarning, "Email: restore: Have no file ", plain_part_path);
+          return false;
+        }
+
+      std::ifstream file (plain_part_path, std::ios::binary);
+      std::vector<uint8_t> data ((std::istreambuf_iterator<char> (file)),
+                                 (std::istreambuf_iterator<char> ()));
+      file.close ();
+
+      if (data.empty ())
+        return false;
+
+      EmailUnencryptedPacket packet;
+      bool parsed = packet.fromBuffer (data, true);
+      if (!parsed)
+        {
+          LogPrint(eLogWarning, "Email: restore: Can't parse ", plain_part_path);
+          return false;
+        }
+
+      full_bytes.insert (full_bytes.end (),
+                         packet.data.begin (),
+                         packet.data.end ());
+    }
+
+  decompress (full_bytes);
+
+  return true;
 }
 
 bool
@@ -326,20 +895,25 @@ Email::save (const std::string &dir)
       emailPacketPath = filename ();
     }
 
-  LogPrint (eLogDebug, "Email: save: save packet to ", emailPacketPath);
-
   std::ofstream file (emailPacketPath, std::ofstream::binary | std::ofstream::out);
 
   if (!file.is_open ())
     {
-      LogPrint(eLogError, "Email: save: can't open file ", emailPacketPath);
+      LogPrint(eLogError, "Email: save: Can't open file ", emailPacketPath);
       return false;
     }
 
-  auto message_bytes = bytes ();
-
-  file.write (reinterpret_cast<const char *> (message_bytes.data ()), message_bytes.size ());
+  file.write (reinterpret_cast<const char *> (full_bytes.data ()),
+                                              full_bytes.size ());
   file.close ();
+
+  LogPrint (eLogDebug, "Email: save: Saved to ", emailPacketPath);
+
+  boost::filesystem::path p = emailPacketPath;
+  std::string p_dir = p.parent_path ().string ();
+  std::string subdir = p_dir.substr (pbote::fs::GetDataDir ().size () + 1);
+  LogPrint (eLogDebug, "Email: save: Subdir: ", subdir);
+  m_metadata->save (subdir);
 
   return true;
 }
@@ -350,7 +924,8 @@ Email::move (const std::string &dir)
   if (skip ())
     return false;
 
-  std::string new_path = pbote::fs::DataDirPath (dir, field ("X-I2PBote-DHT-Key") + ".mail");
+  std::string new_path
+      = pbote::fs::DataDirPath (dir, m_metadata->message_id () + ".mail");
 
   LogPrint (eLogDebug, "Email: move: old path: ", filename ());
   LogPrint (eLogDebug, "Email: move: new path: ", new_path);
@@ -362,52 +937,18 @@ Email::move (const std::string &dir)
 
   int status = std::remove (filename ().c_str ());
 
-  if (status == 0)
+  if (status != 0)
     {
-      LogPrint (eLogInfo, "Email: move: File ", filename (), " moved to ", new_path);
-      filename (new_path);
-
-      return true;
+      LogPrint (eLogError, "Email: move: Can't move file ", filename (), " to ", new_path);
+      return false;
     }
 
-  LogPrint (eLogError, "Email: move: Can't move file ", filename (), " to ", new_path);
+  LogPrint (eLogInfo, "Email: move: File ", filename (), " moved to ", new_path);
 
-  return false;
-}
+  filename (new_path);
+  m_metadata->move (dir);
 
-void
-Email::compose ()
-{
-  set_message_id ();
-  set_message_id_bytes ();
-
-  bytes ();
-
-  LogPrint (eLogDebug, "Email: compose: Message-ID: ", get_message_id ());
-  LogPrint (eLogDebug, "Email: compose: Message-ID bytes: ",
-            get_message_id_bytes ().ToBase64 ());
-
-  uint8_t zero_array[32] = {0};
-
-  if (memcmp(packet.DA, zero_array, 32) == 0)
-    context.random_cid (packet.DA, 32);
-
-  i2p::data::Tag<32> del_auth (packet.DA);
-  LogPrint (eLogDebug, "Email: compose: Message DA: ", del_auth.ToBase64 ());
-
-  // ToDo
-  packet.fr_id = 0;
-  packet.fr_count = 1;
-  packet.length = packet.data.size ();
-
-  empty_ = false;
-  incomplete_ = false;
-
-  /// For debug only
-  std::stringstream buffer;
-  buffer << mail;
-  LogPrint (eLogDebug, "Email: compose: content:\n", buffer.str ());
-  ///
+  return true;
 }
 
 void
@@ -416,64 +957,91 @@ Email::encrypt ()
   if (skip ())
     return;
 
-  if (encrypted_)
+  if (m_encrypted)
     return;
 
-  SHA256 (packet.DA, 32, encrypted.delete_hash);
-  /// For debug only
-  i2p::data::Tag<32> del_hash (encrypted.delete_hash), del_auth (packet.DA);
-  LogPrint (eLogDebug, "Email: encrypt: del_auth: ", del_auth.ToBase64 ());
-  LogPrint (eLogDebug, "Email: encrypt: del_hash: ", del_hash.ToBase64 ());
-  ///
-
-  setField ("X-I2PBote-Delete-Auth-Hash", del_hash.ToBase64 ());
-
-  LogPrint (eLogDebug, "Email: encrypt: packet.data.size: ", packet.data.size ());
-
-  auto packet_bytes = packet.toByte ();
-
-  if (!sender)
+  for (uint16_t id = 0; id < m_metadata->fr_count (); id++)
     {
-      LogPrint (eLogError, "Email: encrypt: Sender error");
-      skip (true);
-      return;
+      pbote::EmailEncryptedPacket encrypted;
+
+      SHA256 (m_plain_parts[id]->DA, 32, encrypted.delete_hash);
+
+      //* For debug only
+      i2p::data::Tag<32> del_hash (encrypted.delete_hash),
+                         del_auth (m_plain_parts[id]->DA);
+      LogPrint (eLogDebug, "Email: encrypt: ", id,
+                ": del_auth: ", del_auth.ToBase64 ());
+      LogPrint (eLogDebug, "Email: encrypt: ", id,
+                ": del_hash: ", del_hash.ToBase64 ());
+      //*/
+
+      LogPrint (eLogDebug, "Email: encrypt: ", id,
+                ": plain_part.data.size: ", m_plain_parts[id]->data.size ());
+
+      auto part_bytes = m_plain_parts[id]->toByte ();
+
+      if (!sender)
+        {
+          LogPrint (eLogError, "Email: encrypt: ", id,
+                    ": Sender error");
+          skip (true);
+          return;
+        }
+
+      encrypted.edata = sender->GetPublicIdentity ()->Encrypt (
+              part_bytes.data (), part_bytes.size (),
+              recipient->GetCryptoPublicKey ());
+
+      if (encrypted.edata.empty ())
+        {
+          LogPrint (eLogError, "Email: encrypt: ", id,
+                    ": Encrypted data is empty, skipped");
+          skip (true);
+          return;
+        }
+
+      encrypted.length = encrypted.edata.size ();
+      encrypted.alg = sender->GetKeyType ();
+      encrypted.stored_time = 0;
+
+      LogPrint (eLogDebug, "Email: encrypt: ", id,
+                ": encrypted.edata.size(): ", encrypted.edata.size ());
+
+      /// Get hash of data + length for DHT key
+      const size_t data_for_hash_len = 2 + encrypted.edata.size ();
+      std::vector<uint8_t> data_for_hash
+          = { static_cast<uint8_t> (encrypted.length >> 8),
+              static_cast<uint8_t> (encrypted.length & 0xff) };
+      data_for_hash.insert (data_for_hash.end (), encrypted.edata.begin (), encrypted.edata.end ());
+
+      SHA256 (data_for_hash.data (), data_for_hash_len, encrypted.key);
+
+      i2p::data::Tag<32> dht_key (encrypted.key);
+      LogPrint (eLogDebug, "Email: encrypt: ", id,
+                ": dht_key: ", dht_key.ToBase64 ());
+      LogPrint (eLogDebug, "Email: encrypt: ", id,
+                ": encrypted.length : ", encrypted.length);
+
+      m_enc_parts.push_back (std::make_shared<pbote::EmailEncryptedPacket>(encrypted));
+
+      /// Set DHT key to metadata
+      auto meta_parts = m_metadata->get_parts ();
+
+      auto found = meta_parts->find(id);
+      if (found != meta_parts->end ())
+        {
+          found->second.key = dht_key;
+        }
+      else
+        {
+          LogPrint (eLogError, "Email: encrypt: ", id,
+                    ": No metadata for part, skipped");
+          skip (true);
+          return;
+        }
     }
 
-  encrypted.edata = sender->GetPublicIdentity ()->Encrypt (
-          packet_bytes.data (), packet_bytes.size (),
-          recipient->GetCryptoPublicKey ());
-
-  if (encrypted.edata.empty ())
-    {
-      LogPrint (eLogError, "Email: encrypt: Encrypted data is empty, skipped");
-      skip (true);
-      return;
-    }
-
-  encrypted.length = encrypted.edata.size ();
-  encrypted.alg = sender->GetKeyType ();
-  encrypted.stored_time = 0;
-
-  LogPrint (eLogDebug, "Email: encrypt: encrypted.edata.size(): ",
-            encrypted.edata.size ());
-
-  /// Get hash of data + length for DHT key
-  const size_t data_for_hash_len = 2 + encrypted.edata.size ();
-  std::vector<uint8_t> data_for_hash
-      = { static_cast<uint8_t> (encrypted.length >> 8),
-          static_cast<uint8_t> (encrypted.length & 0xff) };
-  data_for_hash.insert (data_for_hash.end (), encrypted.edata.begin (), encrypted.edata.end ());
-
-  SHA256 (data_for_hash.data (), data_for_hash_len, encrypted.key);
-
-  i2p::data::Tag<32> dht_key (encrypted.key);
-
-  setField ("X-I2PBote-DHT-Key", dht_key.ToBase64 ());
-
-  LogPrint (eLogDebug, "Email: encrypt: dht_key: ", dht_key.ToBase64 ());
-  LogPrint (eLogDebug, "Email: encrypt: encrypted.length : ", encrypted.length);
-
-  encrypted_ = true;
+  m_encrypted = true;
 }
 
 bool
@@ -492,25 +1060,21 @@ Email::compress (CompressionAlgorithm type)
       LogPrint (eLogDebug, "Email: compress: ZLIB, start compress");
 
       std::vector<uint8_t> output;
-      zlibCompress (output, packet.data);
+      zlibCompress (output, full_bytes);
 
-      packet.data.push_back (uint8_t (CompressionAlgorithm::ZLIB));
-      packet.data.insert (packet.data.end (), output.begin (), output.end ());
+      full_bytes.push_back (uint8_t (CompressionAlgorithm::ZLIB));
+      full_bytes.insert (full_bytes.end (), output.begin (), output.end ());
       LogPrint (eLogDebug, "Email: compress: ZLIB compressed");
+
       return true;
     }
 
-  if (type == CompressionAlgorithm::UNCOMPRESSED)
-    {
-      LogPrint (eLogDebug, "Email: compress: data uncompressed, save as is");
-      packet.data.insert (packet.data.begin (),
-                          (uint8_t) CompressionAlgorithm::UNCOMPRESSED);
-      return true;
-    }
+  LogPrint (eLogDebug, "Email: compress: Data uncompressed, save as is");
 
-  LogPrint (eLogWarning, "Email: compress: Unknown compress algorithm");
+  full_bytes.insert (full_bytes.begin (),
+                     (uint8_t) CompressionAlgorithm::UNCOMPRESSED);
 
-  return false;
+  return true;
 }
 
 void
@@ -530,7 +1094,7 @@ Email::decompress (std::vector<uint8_t> v_mail)
       lzmaDecompress (output,
                       std::vector<uint8_t>(v_mail.data() + offset,
                                            v_mail.data() + v_mail.size()));
-      packet.data = output;
+      full_bytes = output;
       LogPrint (eLogDebug, "Email: compress: LZMA decompressed");
       return;
     }
@@ -542,7 +1106,7 @@ Email::decompress (std::vector<uint8_t> v_mail)
       zlibDecompress (output,
                       std::vector<uint8_t>(v_mail.data() + offset,
                                            v_mail.data() + v_mail.size()));
-      packet.data = output;
+      full_bytes = output;
       LogPrint (eLogDebug, "Email: compress: ZLIB decompressed");
       return;
     }
@@ -550,12 +1114,12 @@ Email::decompress (std::vector<uint8_t> v_mail)
   if (compress_alg == CompressionAlgorithm::UNCOMPRESSED)
     {
       LogPrint (eLogDebug, "Email: decompress: data uncompressed, save as is");
-      packet.data = std::vector<uint8_t> (v_mail.begin () + 1, v_mail.end ());
+      full_bytes = std::vector<uint8_t> (v_mail.begin () + 1, v_mail.end ());
       return;
     }
 
   LogPrint(eLogWarning, "Email: decompress: Unknown compress algorithm, try to save as is");
-  packet.data = std::vector<uint8_t>(v_mail.begin() + 1, v_mail.end());
+  full_bytes = std::vector<uint8_t>(v_mail.begin() + 1, v_mail.end());
 }
 
 std::string
@@ -564,7 +1128,7 @@ Email::generate_uuid_v4 ()
   static std::random_device              rd;
   static std::mt19937                    gen (rd ());
   static std::uniform_int_distribution<> dis (0, 15);
-  static std::uniform_int_distribution<> dis2 (8, 11);
+  static std::uniform_int_distribution<> dis2 (8, 11); // variant 1
 
   std::stringstream ss;
   int i;
@@ -703,6 +1267,8 @@ Email::set_recipient_identity (std::string to_address)
 
       return;
     }
+
+  m_metadata->dht (recipient->GetIdentHash ());
 
   LogPrint (eLogDebug, "Email: set_recipient: recipient: ",
             recipient->ToBase64 ());

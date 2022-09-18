@@ -19,7 +19,7 @@ include(ExternalProject)
 include(TargetArch)
 target_architecture(ARCHITECTURE)
 
-set(LIBI2PD_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/i2pd/libi2pd)
+set(LIBI2PD_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/libi2pd)
 set(I2PSAM_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/i2psam)
 set(LIBLZMA_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/lzma)
 set(PBOTE_SRC_DIR ${CMAKE_SOURCE_DIR}/src)
