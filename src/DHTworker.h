@@ -60,19 +60,19 @@ namespace kademlia
 #define BUCKET_REFRESH_INTERVAL 3600
 
 /// Time interval for Kademlia replication
-/// (plus or minus <code>REPLICATE_VARIANCE</code>)
+/// (plus or minus REPLICATE_VARIANCE)
 #define REPLICATE_INTERVAL 3600
 
-/// the maximum amount of time the replication interval
+/// The maximum amount of time the replication interval
 /// can deviate from REPLICATE_INTERVAL
 #define REPLICATE_VARIANCE (5 * 60)
 
 /// Max. number of seconds to wait for replies to retrieve requests
 #define RESPONSE_TIMEOUT 30
 
-/// the maximum amount of time a FIND_CLOSEST_NODES can take
+/// The maximum amount of time a FIND_CLOSEST_NODES can take
 //#define CLOSEST_NODES_LOOKUP_TIMEOUT (5 * 60)
-#define CLOSEST_NODES_LOOKUP_TIMEOUT (3 * 60)
+#define CLOSEST_NODES_LOOKUP_TIMEOUT (2 * 60)
 
 /// 24*60*60
 #define ONE_DAY_SECONDS 86400

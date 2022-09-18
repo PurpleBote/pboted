@@ -53,7 +53,7 @@ DHTStorage::update ()
 }
 
 int
-DHTStorage::safe(const std::vector<uint8_t>& data)
+DHTStorage::safe (const std::vector<uint8_t>& data)
 {
   uint8_t dataType = data[0];
   int success = 0;
@@ -99,9 +99,9 @@ DHTStorage::safe_deleted (pbote::type type, const i2p::data::Tag<32>& key, const
 }
 
 bool
-DHTStorage::Delete(pbote::type type, const i2p::data::Tag<32>& key, const char *ext)
+DHTStorage::Delete (pbote::type type, const i2p::data::Tag<32>& key, const char *ext)
 {
-  if (!exist(type, key))
+  if (!exist (type, key))
     return false;
 
   std::string packet_path;
@@ -132,11 +132,11 @@ DHTStorage::Delete(pbote::type type, const i2p::data::Tag<32>& key, const char *
 }
 
 bool
-DHTStorage::remove_index(const i2p::data::Tag<32>& index_dht_key,
-                         const i2p::data::Tag<32>& email_dht_key,
-                         const i2p::data::Tag<32>& del_auth)
+DHTStorage::remove_index (const i2p::data::Tag<32>& index_dht_key,
+                          const i2p::data::Tag<32>& email_dht_key,
+                          const i2p::data::Tag<32>& del_auth)
 {
-  std::unique_lock<std::mutex> l (index_mutex);
+  std::unique_lock<std::recursive_mutex> l (index_mutex);
 
   pbote::DeletionInfoPacket::item deletion_item;
   memcpy(deletion_item.DA, del_auth.data (), 32);
@@ -144,26 +144,26 @@ DHTStorage::remove_index(const i2p::data::Tag<32>& index_dht_key,
   deletion_item.time = context.ts_now ();
 
   pbote::DeletionInfoPacket deletion_pkt;
-  deletion_pkt.data.push_back(deletion_item);
+  deletion_pkt.data.push_back (deletion_item);
   deletion_pkt.count = 1;
 
   (void)safe_deleted (type::DataI, index_dht_key, deletion_pkt.toByte ());
 
   IndexPacket index_pkt;
 
-  auto index_data = getIndex(index_dht_key);
-  if (index_data.empty())
+  auto index_data = getIndex (index_dht_key);
+  if (index_data.empty ())
     {
-      LogPrint(eLogError, "DHTStorage: remove_index: can't open old index ",
-               index_dht_key.ToBase64());
+      LogPrint (eLogError, "DHTStorage: remove_index: Can't open old index ",
+                index_dht_key.ToBase64 ());
       return false;
     }
 
-  bool parsed = index_pkt.fromBuffer(index_data, true);
+  bool parsed = index_pkt.fromBuffer (index_data, true);
   if (!parsed)
     {
-      LogPrint(eLogError, "DHTStorage: remove_index: Can't parse index ",
-               index_dht_key.ToBase64());
+      LogPrint (eLogError, "DHTStorage: remove_index: Can't parse index ",
+                index_dht_key.ToBase64 ());
       return false;
     }
 
@@ -172,29 +172,32 @@ DHTStorage::remove_index(const i2p::data::Tag<32>& index_dht_key,
 
   if (removed == 0)
     {
-      LogPrint(eLogDebug, "DHTStorage: remove_index: Index without key: ",
-               index_dht_key.ToBase64());
+      LogPrint (eLogDebug, "DHTStorage: remove_index: Index without key: ",
+                index_dht_key.ToBase64 ());
       return false;
     }
 
-  LogPrint(eLogDebug, "DHTStorage: remove_index: Index entry removed, key: ",
-           index_dht_key.ToBase64());
+  LogPrint (eLogDebug, "DHTStorage: remove_index: Index entry removed, key: ",
+            index_dht_key.ToBase64 ());
 
-  Delete(type::DataI, index_dht_key);
+  Delete (type::DataI, index_dht_key);
 
-  std::string pkt_path = pbote::fs::DataDirPath("DHTindex", index_dht_key.ToBase64() + DEFAULT_FILE_EXTENSION);
+  std::string pkt_path = pbote::fs::DataDirPath ("DHTindex",
+      index_dht_key.ToBase64 () + DEFAULT_FILE_EXTENSION);
 
-  LogPrint(eLogDebug, "DHTStorage: remove_index: Save packet to ", pkt_path);
+  LogPrint (eLogDebug, "DHTStorage: remove_index: Save packet to ", pkt_path);
   auto index_bytes = index_pkt.toByte ();
   std::ofstream file(pkt_path, std::ofstream::binary | std::ofstream::out);
-  if (file.is_open())
+  if (file.is_open ())
     {
-      file.write(reinterpret_cast<const char *>(index_bytes.data()), index_bytes.size());
-      file.close();
+      file.write (reinterpret_cast<const char *> (index_bytes.data ()),
+                                                  index_bytes.size ());
+      file.close ();
     }
   else
     {
-      LogPrint(eLogError, "DHTStorage: remove_index: Can't open file ", pkt_path);
+      LogPrint (eLogError, "DHTStorage: remove_index: Can't open file ",
+                pkt_path);
       return STORE_FILE_OPEN_ERROR;
     }
 
@@ -204,8 +207,8 @@ DHTStorage::remove_index(const i2p::data::Tag<32>& index_dht_key,
 }
 
 size_t
-DHTStorage::remove_indices(const i2p::data::Tag<32>& index_dht_key,
-                           const IndexDeleteRequestPacket& packet)
+DHTStorage::remove_indices (const i2p::data::Tag<32>& index_dht_key,
+                            const IndexDeleteRequestPacket& packet)
 {
   size_t counter = 0;
   for (auto item : packet.data)
@@ -263,7 +266,8 @@ DHTStorage::limit_reached(size_t data_size)
 }
 
 std::vector<uint8_t>
-DHTStorage::getPacket (pbote::type type, i2p::data::Tag<32> key, const char *ext)
+DHTStorage::getPacket (pbote::type type, i2p::data::Tag<32> key,
+                       const char *ext)
 {
   std::string dir_path;
   std::set<std::string> local_list;
@@ -312,32 +316,35 @@ DHTStorage::getPacket (pbote::type type, i2p::data::Tag<32> key, const char *ext
 }
 
 bool
-DHTStorage::exist(pbote::type type, i2p::data::Tag<32> key)
+DHTStorage::exist (pbote::type type, i2p::data::Tag<32> key)
 {
   std::string packet_path;
 
-  switch(type)
+  switch (type)
     {
       case pbote::type::DataI:
-        packet_path = pbote::fs::DataDirPath("DHTindex", key.ToBase64() + DEFAULT_FILE_EXTENSION);
+        packet_path = pbote::fs::DataDirPath ("DHTindex", key.ToBase64 () + DEFAULT_FILE_EXTENSION);
         break;
       case pbote::type::DataE:
-        packet_path = pbote::fs::DataDirPath("DHTemail", key.ToBase64() + DEFAULT_FILE_EXTENSION);
+        packet_path = pbote::fs::DataDirPath ("DHTemail", key.ToBase64 () + DEFAULT_FILE_EXTENSION);
         break;
       case pbote::type::DataC:
-        packet_path = pbote::fs::DataDirPath("DHTdirectory", key.ToBase64() + DEFAULT_FILE_EXTENSION);
+        packet_path = pbote::fs::DataDirPath ("DHTdirectory", key.ToBase64 () + DEFAULT_FILE_EXTENSION);
         break;
       default:
         return false;
     }
 
-  return boost::filesystem::exists(packet_path);
+  return pbote::fs::Exists(packet_path);
 }
 
 int
-DHTStorage::safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data)
+DHTStorage::safeIndex (i2p::data::Tag<32> key,
+                       const std::vector<uint8_t>& data)
 {
   std::string packetPath = pbote::fs::DataDirPath("DHTindex", key.ToBase64() + DEFAULT_FILE_EXTENSION);
+
+  LogPrint(eLogDebug, "DHTStorage: safeIndex: Path: ", packetPath);
 
   if (pbote::fs::Exists(packetPath))
     {
@@ -375,7 +382,8 @@ DHTStorage::safeIndex(i2p::data::Tag<32> key, const std::vector<uint8_t>& data)
 }
 
 int
-DHTStorage::safe_deleted_index(i2p::data::Tag<32> key, const std::vector<uint8_t>& data)
+DHTStorage::safe_deleted_index (i2p::data::Tag<32> key,
+                                const std::vector<uint8_t>& data)
 {
   std::string packetPath = pbote::fs::DataDirPath("DHTindex", key.ToBase64() + DELETED_FILE_EXTENSION);
 
@@ -415,7 +423,8 @@ DHTStorage::safe_deleted_index(i2p::data::Tag<32> key, const std::vector<uint8_t
 }
 
 int
-DHTStorage::safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data)
+DHTStorage::safeEmail (i2p::data::Tag<32> key,
+                       const std::vector<uint8_t>& data)
 {
   std::string packetPath = pbote::fs::DataDirPath("DHTemail", key.ToBase64() + DEFAULT_FILE_EXTENSION);
 
@@ -447,7 +456,8 @@ DHTStorage::safeEmail(i2p::data::Tag<32> key, const std::vector<uint8_t>& data)
 }
 
 int
-DHTStorage::safe_deleted_email(i2p::data::Tag<32> key, const std::vector<uint8_t>& data)
+DHTStorage::safe_deleted_email (i2p::data::Tag<32> key,
+                                const std::vector<uint8_t>& data)
 {
   std::string packetPath = pbote::fs::DataDirPath("DHTemail", key.ToBase64() + DELETED_FILE_EXTENSION);
 
@@ -474,7 +484,8 @@ DHTStorage::safe_deleted_email(i2p::data::Tag<32> key, const std::vector<uint8_t
 }
 
 int
-DHTStorage::safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& data)
+DHTStorage::safeContact (i2p::data::Tag<32> key,
+                         const std::vector<uint8_t>& data)
 {
   std::string packetPath = pbote::fs::DataDirPath("DHTdirectory", key.ToBase64() + DEFAULT_FILE_EXTENSION);
 
@@ -501,56 +512,62 @@ DHTStorage::safeContact(i2p::data::Tag<32> key, const std::vector<uint8_t>& data
 }
 
 int
-DHTStorage::update_index(i2p::data::Tag<32> key, const std::vector<uint8_t>& data)
+DHTStorage::update_index (i2p::data::Tag<32> key,
+                          const std::vector<uint8_t>& data)
 {
-  std::unique_lock<std::mutex> l (index_mutex);
+  std::unique_lock<std::recursive_mutex> l (index_mutex);
   IndexPacket new_pkt, old_pkt;
-  new_pkt.fromBuffer(data, true);
+  new_pkt.fromBuffer (data, true);
 
-  auto old_data = getIndex(key);
-  if (old_data.empty())
+  auto old_data = getIndex (key);
+  if (old_data.empty ())
     {
-      LogPrint(eLogError, "DHTStorage: update_index: can't open old index ", key.ToBase64());
+      LogPrint (eLogError, "DHTStorage: update_index: Can't open old index ",
+                key.ToBase64 ());
       return STORE_FILE_OPEN_ERROR;
     }
 
-  old_pkt.fromBuffer(old_data, true);
+  old_pkt.fromBuffer (old_data, true);
   size_t duplicated = 0, added = 0;
 
   for (auto entry : new_pkt.data)
     {
-      if (std::find(old_pkt.data.begin(), old_pkt.data.end(), entry) != old_pkt.data.end())
+      if (std::find (old_pkt.data.begin (), old_pkt.data.end (),entry)
+            != old_pkt.data.end())
         {
           duplicated++;
         }
       else
         {
           entry.time = context.ts_now ();
-          old_pkt.data.push_back(entry);
+          old_pkt.data.push_back (entry);
           added++;
         }
     }
 
-  LogPrint(eLogDebug, "DHTStorage: update_index: new entries: ",
-           new_pkt.data.size(), ", duplicated: ", duplicated,
-           ", added: ", added);
+  LogPrint (eLogDebug, "DHTStorage: update_index: New entries: ",
+            new_pkt.data.size (), ", duplicated: ", duplicated,
+            ", added: ", added);
 
-  Delete(type::DataI, key);
+  Delete (type::DataI, key);
 
-  std::string pkt_path = pbote::fs::DataDirPath("DHTindex", key.ToBase64() + DEFAULT_FILE_EXTENSION);
+  std::string pkt_path = pbote::fs::DataDirPath ("DHTindex", key.ToBase64 () + DEFAULT_FILE_EXTENSION);
 
-  LogPrint(eLogDebug, "DHTStorage: update_index: save packet to ", pkt_path);
+  LogPrint (eLogDebug, "DHTStorage: update_index: Save packet to ", pkt_path);
   std::ofstream file(pkt_path, std::ofstream::binary | std::ofstream::out);
-  if (file.is_open())
+  if (file.is_open ())
     {
-      file.write(reinterpret_cast<const char *>(data.data()), data.size());
-      file.close();
+      file.write (reinterpret_cast<const char *>(data.data ()), data.size ());
+      file.close ();
     }
   else
     {
-      LogPrint(eLogError, "DHTStorage: update_index: can't open file ", pkt_path);
+      LogPrint (eLogError, "DHTStorage: update_index: Can't open file ",
+                pkt_path);
       return STORE_FILE_OPEN_ERROR;
     }
+
+  LogPrint (eLogDebug, "DHTStorage: update_index: Packet saved to ", pkt_path);
 
   update_storage_usage ();
 
@@ -558,12 +575,13 @@ DHTStorage::update_index(i2p::data::Tag<32> key, const std::vector<uint8_t>& dat
 }
 
 int
-DHTStorage::update_deletion_info (pbote::type type, i2p::data::Tag<32> key, const std::vector<uint8_t>& data)
+DHTStorage::update_deletion_info (pbote::type type, i2p::data::Tag<32> key,
+                                  const std::vector<uint8_t>& data)
 {
   if (type == type::DataI)
-    std::unique_lock<std::mutex> l (index_mutex);
+    std::unique_lock<std::recursive_mutex> l (index_mutex);
   if (type == type::DataE)
-    std::unique_lock<std::mutex> l (email_mutex);
+    std::unique_lock<std::recursive_mutex> l (email_mutex);
 
   DeletionInfoPacket new_pkt, old_pkt;
   new_pkt.fromBuffer(data, true);
@@ -571,7 +589,8 @@ DHTStorage::update_deletion_info (pbote::type type, i2p::data::Tag<32> key, cons
   auto old_data = getPacket(type, key, DELETED_FILE_EXTENSION);
   if (old_data.empty())
     {
-      LogPrint(eLogError, "DHTStorage: update_deletion_info: can't open deletion ", key.ToBase64());
+      LogPrint(eLogError, "DHTStorage: update_deletion_info: can't open file ",
+               key.ToBase64());
       return STORE_FILE_OPEN_ERROR;
     }
 
@@ -623,7 +642,8 @@ DHTStorage::update_deletion_info (pbote::type type, i2p::data::Tag<32> key, cons
     }
   else
     {
-      LogPrint(eLogError, "DHTStorage: update_deletion_info: Can't open file ", pkt_path);
+      LogPrint(eLogError, "DHTStorage: update_deletion_info: Can't open file ",
+               pkt_path);
       return STORE_FILE_OPEN_ERROR;
     }
 
@@ -635,7 +655,7 @@ DHTStorage::update_deletion_info (pbote::type type, i2p::data::Tag<32> key, cons
 int
 DHTStorage::clean_index (i2p::data::Tag<32> key, int32_t ts_now)
 {
-  std::unique_lock<std::mutex> l (index_mutex);
+  std::unique_lock<std::recursive_mutex> l (index_mutex);
   IndexPacket index_packet;
   auto index_data = getIndex(key);
 
@@ -650,8 +670,8 @@ DHTStorage::clean_index (i2p::data::Tag<32> key, int32_t ts_now)
 
   for (auto it = index_packet.data.begin(); it != index_packet.data.end(); )
     {
-      LogPrint(eLogDebug, "DHTStorage: clean_index: current_timestamp:   ", ts_now);
-      LogPrint(eLogDebug, "DHTStorage: clean_index: record_timestamp:    ", it->time + store_duration);
+      LogPrint(eLogDebug, "DHTStorage: clean_index: current_timestamp: ", ts_now);
+      LogPrint(eLogDebug, "DHTStorage: clean_index: record_timestamp:  ", it->time + store_duration);
 
       if (it->time + store_duration > ts_now)
         {
@@ -662,7 +682,8 @@ DHTStorage::clean_index (i2p::data::Tag<32> key, int32_t ts_now)
 
       i2p::data::Tag<32> entry_key(it->key);
       it = index_packet.data.erase(it);
-      LogPrint(eLogDebug, "DHTStorage: clean_index: Old record removed: ", entry_key.ToBase64());
+      LogPrint(eLogDebug, "DHTStorage: clean_index: Old record removed: ",
+               entry_key.ToBase64());
       removed++;
     }
 
@@ -672,7 +693,8 @@ DHTStorage::clean_index (i2p::data::Tag<32> key, int32_t ts_now)
 
   if (index_packet.data.empty())
     {
-      LogPrint(eLogDebug, "DHTStorage: clean_index: Empty packet removed: ", key.ToBase64());
+      LogPrint(eLogDebug, "DHTStorage: clean_index: Empty packet removed: ",
+               key.ToBase64());
       return -1;
     }
 
@@ -682,19 +704,21 @@ DHTStorage::clean_index (i2p::data::Tag<32> key, int32_t ts_now)
 }
 
 int
-DHTStorage::clean_deletion_info (pbote::type type, i2p::data::Tag<32> key, int32_t ts_now)
+DHTStorage::clean_deletion_info (pbote::type type, i2p::data::Tag<32> key,
+                                 int32_t ts_now)
 {
   if (type == type::DataI)
-    std::unique_lock<std::mutex> l (index_mutex);
+    std::unique_lock<std::recursive_mutex> l (index_mutex);
   if (type == type::DataE)
-    std::unique_lock<std::mutex> l (email_mutex);
+    std::unique_lock<std::recursive_mutex> l (email_mutex);
 
   DeletionInfoPacket deletion_info;
   auto deletion_data = getPacket(type, key, DELETED_FILE_EXTENSION);
 
   if (deletion_data.empty())
     {
-      LogPrint(eLogError, "DHTStorage: clean_deletion_info: can't open old index ", key.ToBase64());
+      LogPrint(eLogError, "DHTStorage: clean_deletion_info: Can't open old file for key",
+               key.ToBase64());
       return -1;
     }
 
@@ -703,8 +727,10 @@ DHTStorage::clean_deletion_info (pbote::type type, i2p::data::Tag<32> key, int32
 
   for (auto it = deletion_info.data.begin(); it != deletion_info.data.end(); )
     {
-      LogPrint(eLogDebug, "DHTStorage: clean_deletion_info: current_timestamp:   ", ts_now);
-      LogPrint(eLogDebug, "DHTStorage: clean_deletion_info: record_timestamp:    ", it->time + store_duration);
+      LogPrint(eLogDebug, "DHTStorage: clean_deletion_info: current_timestamp: ",
+               ts_now);
+      LogPrint(eLogDebug, "DHTStorage: clean_deletion_info: record_timestamp:  ",
+               it->time + store_duration);
 
       if (it->time + store_duration > ts_now)
         {
@@ -715,27 +741,29 @@ DHTStorage::clean_deletion_info (pbote::type type, i2p::data::Tag<32> key, int32
 
       i2p::data::Tag<32> entry_key(it->key);
       it = deletion_info.data.erase(it);
-      LogPrint(eLogDebug, "DHTStorage: clean_deletion_info: Old record removed: ", entry_key.ToBase64());
+      LogPrint(eLogDebug, "DHTStorage: clean_deletion_info: Old record removed: ",
+               entry_key.ToBase64 ());
       removed++;
     }
 
   Delete(type, key, DELETED_FILE_EXTENSION);
 
-  deletion_info.count = deletion_info.data.size();
+  deletion_info.count = deletion_info.data.size ();
 
-  if (deletion_info.data.empty())
+  if (deletion_info.data.empty ())
     {
-      LogPrint(eLogDebug, "DHTStorage: clean_deletion_info: Empty packet removed: ", key.ToBase64());
+      LogPrint(eLogDebug, "DHTStorage: clean_deletion_info: Empty packet removed: ",
+               key.ToBase64 ());
       return -1;
     }
 
-  safe_deleted(type, key, deletion_info.toByte());
+  safe_deleted (type, key, deletion_info.toByte ());
 
   return removed;
 }
 
 void
-DHTStorage::loadLocalIndexPackets()
+DHTStorage::loadLocalIndexPackets ()
 {
   std::set<std::string> temp_index_packets;
   std::vector<std::string> packets_path;
@@ -761,7 +789,7 @@ DHTStorage::loadLocalIndexPackets()
 }
 
 void
-DHTStorage::loadLocalEmailPackets()
+DHTStorage::loadLocalEmailPackets ()
 {
   std::set<std::string> temp_email_packets;
   std::vector<std::string> packets_path;
@@ -787,7 +815,7 @@ DHTStorage::loadLocalEmailPackets()
 }
 
 void
-DHTStorage::loadLocalContactPackets()
+DHTStorage::loadLocalContactPackets ()
 {
   std::set<std::string> temp_contact_packets;
   std::vector<std::string> packets_path;
@@ -810,7 +838,7 @@ DHTStorage::loadLocalContactPackets()
 }
 
 size_t
-DHTStorage::suffix_to_multiplier(const std::string &size_str)
+DHTStorage::suffix_to_multiplier (const std::string &size_str)
 {
   std::vector<std::string> sizes = { "B", "KiB", "MiB", "GiB", "TiB" };
   std::string suffix = size_str;
@@ -844,7 +872,7 @@ DHTStorage::suffix_to_multiplier(const std::string &size_str)
 }
 
 void
-DHTStorage::set_storage_limit()
+DHTStorage::set_storage_limit ()
 {
   std::string limit_str;
   pbote::config::GetOption("storage", limit_str);
@@ -860,7 +888,7 @@ DHTStorage::set_storage_limit()
 }
 
 void
-DHTStorage::update_storage_usage()
+DHTStorage::update_storage_usage ()
 {
   size_t new_used = 0;
 
@@ -904,7 +932,7 @@ DHTStorage::update_storage_usage()
 }
 
 void
-DHTStorage::remove_old_packets()
+DHTStorage::remove_old_packets ()
 {
   size_t removed_count = 0;
   const int32_t ts = context.ts_now ();
@@ -916,7 +944,7 @@ DHTStorage::remove_old_packets()
     }
 
   {
-    std::unique_lock<std::mutex> l (email_mutex);
+    std::unique_lock<std::recursive_mutex> l (email_mutex);
     for (const auto& pkt : local_email_packets)
       {
         i2p::data::Tag<32> key;
@@ -948,7 +976,7 @@ DHTStorage::remove_old_packets()
 }
 
 void
-DHTStorage::remove_old_entries()
+DHTStorage::remove_old_entries ()
 {
   size_t removed_entries = 0, removed_packets = 0;
 

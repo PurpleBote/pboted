@@ -2051,8 +2051,10 @@ DHTworker::calc_locks (std::vector<sp_comm_pkt> responses)
           if (response->from == node.second->ToBase64 ())
             {
               node.second->gotResponse ();
+              /*
               LogPrint (eLogDebug, "DHT: calc_locks: Node unlocked: ",
                         node.second->short_name ());
+              */
               counter++;
             }
         }

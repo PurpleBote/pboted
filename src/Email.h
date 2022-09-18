@@ -130,7 +130,12 @@ class EmailMetadata
   void deleted (bool del) { m_deleted = del; }
 
   void add_part (EmailMetadata::Part p);
-  std::shared_ptr<std::map<uint16_t, EmailMetadata::Part> > get_parts() { return m_parts; }
+
+  std::shared_ptr<std::map<uint16_t, EmailMetadata::Part> >
+  get_parts()
+  {
+    return m_parts;
+  }
 
   size_t fill (std::shared_ptr<pbote::DeletionInfoPacket> packet);
 
@@ -210,9 +215,21 @@ class Email
   std::string get_to_mailbox ();
   std::string get_to_addresses ();
 
-  //std::string getCCAddresses () { return mail.header().cc().begin()->mailbox().mailbox(); }
-  //std::string getBCCAddresses () { return mail.header().bcc().begin()->mailbox().mailbox(); }
-  //std::string getReplyAddress () { return mail.header().replyto().begin()->mailbox().mailbox(); }
+  /*std::string
+  getCCAddresses ()
+  {
+    return mail.header().cc().begin()->mailbox().mailbox();
+  }*/
+  /*std::string
+  getBCCAddresses ()
+  {
+    return mail.header().bcc().begin()->mailbox().mailbox();
+  }*/
+  /*std::string
+  getReplyAddress ()
+  {
+    return mail.header().replyto().begin()->mailbox().mailbox();
+  }*/
 
   void
   set_from (const std::string& value)
@@ -284,10 +301,21 @@ class Email
   pbote::StoreRequestPacket get_storable_index () { return m_storable_index; }
 
   std::shared_ptr<EmailMetadata> get_metadata() { return m_metadata; }
-  std::map<i2p::data::Tag<32>, pbote::StoreRequestPacket> get_storable () { return m_storable_parts; }
+
+  std::map<i2p::data::Tag<32>, pbote::StoreRequestPacket>
+  get_storable ()
+  {
+    return m_storable_parts;
+  }
 
   v_sp_plain_email decrypted () { return m_plain_parts;};
-  std::vector<std::shared_ptr<pbote::EmailEncryptedPacket>> encrypted () { return m_enc_parts; };
+
+  std::vector<std::shared_ptr<pbote::EmailEncryptedPacket>>
+  encrypted ()
+  {
+    return m_enc_parts;
+  };
+
   void encrypt ();
 
  private:

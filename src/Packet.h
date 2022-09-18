@@ -846,7 +846,8 @@ public:
             memcmp(data[i].DA, DA, 32) == 0)
           {
             i2p::data::Tag<32> da_h (DA);
-            LogPrint (eLogDebug, "Packet: T: item_exist: exist: ", da_h.ToBase64 ());
+            LogPrint (eLogDebug, "Packet: T: item_exist: exist: ",
+                      da_h.ToBase64 ());
             return true;
           }
       }
@@ -1128,8 +1129,8 @@ public:
     /// Because COMM_DATA_LEN + status[1] + length[2] = 41
     if (len < 41)
       {
-        LogPrint (eLogWarning,
-                  "Packet: N: fromBuffer: Payload is too short: ", len);
+        LogPrint (eLogWarning, "Packet: N: fromBuffer: Payload is too short: ",
+                  len);
         return false;
       }
     /// Skipping prefix
@@ -1808,12 +1809,7 @@ parseCommPacket (const sp_queue_pkt &packet)
       return nullptr;
     }
 
-  //CommunicationPacket res (data.type);
-  //res.ver = data.ver;
-  //memcpy (res.cid, data.cid, 32);
-
   data.from = std::move (packet->destination);
-
   data.payload = std::vector<uint8_t> (packet->payload.begin () + offset,
                                        packet->payload.end ());
 
