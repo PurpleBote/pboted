@@ -57,11 +57,11 @@ Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/in
 
 ## Building
 
-See [documentation](https://pboted.readthedocs.io/en/latest/building/requirements/)([I2P](http://polistern.i2p/pbote/building/requirements/)) for how to build **pboted** from source.
+See [documentation](https://pboted.readthedocs.io/en/latest/building/requirements/)([I2P](http://polistern.i2p/pbote/user-guide/install/#building-from-source)) for how to build **pboted** from source.
 
 ## Usage
 
-See [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/#building-from-source)([I2P](http://polistern.i2p/pbote/user-guide/install/#building-from-source)) and [example config file](https://github.com/polistern/pboted/blob/master/contrib/pboted.conf).
+See [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/#building-from-source)([I2P](http://polistern.i2p/pbote/user-guide/usage/)) and [example config file](https://github.com/polistern/pboted/blob/master/contrib/pboted.conf).
 
 ## Donations
 
