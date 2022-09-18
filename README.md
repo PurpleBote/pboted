@@ -7,7 +7,7 @@
 pboted (Plus Bote Daemon) - is a standalone C++ implementation of I2P-Bote protocol.
 
 I2P-Bote is a server-less encrypted KademliaDHT-based email protocol.  
-You can find more details in the [documentation](https://pboted.readthedocs.io/en/latest/bote/v5/version5/)([I2P](http://polistern.i2p/pbote/en/latest/bote/v5/version5/)).
+You can find more details in the [documentation](https://pboted.readthedocs.io/en/latest/bote/v5/version5/)([I2P](http://polistern.i2p/pbote/bote/v5/version5/)).
 
 Interaction with the I2P network occurs through the [SAMv3](https://geti2p.net/ru/docs/api/samv3) interface.  
 Tested with [i2pd](https://github.com/PurpleI2P/i2pd) and [Java I2P](https://github.com/i2p/i2p.i2p).
@@ -23,28 +23,28 @@ Transition to **beta** planned in version **0.9.X**
 
 - Sending and receiving emails
 - Support for short recipient names (alias)
-- [End-to-End encryption](https://pboted.readthedocs.io/en/latest/bote/v5/cryptography/)([I2P](http://polistern.i2p/pbote/en/latest/bote/v5/cryptography/))
+- [End-to-End encryption](https://pboted.readthedocs.io/en/latest/bote/v5/cryptography/)([I2P](http://polistern.i2p/pbote/bote/v5/cryptography/))
 - Runnable as daemon
 - [CLI utility](https://github.com/polistern/pbotectl) (work in progress)
 - SMTP / POP3 support (tested with [Mozilla Thunderbird](https://www.thunderbird.net/en-US/))
+- Delivery confirmation
 
 ### Planned Features
 
 - Custom per identity/user email folders
 - Sending email anonymously
-- Delivery confirmation
 - Sending and receiving via relays, similar to Mixmaster
 - Interfaces for interaction with third-party applications (IMAP, etc.)
 
 ## Resources
 
-- [Documentation](https://pboted.readthedocs.io/en/latest/)([I2P](http://polistern.i2p/pbote/en/latest/))
+- [Documentation](https://pboted.readthedocs.io/en/latest/)([I2P](http://polistern.i2p/pbote/))
 - [Tickets/Issues](https://github.com/polistern/pboted/issues)
 
 ## Installing
 
 You can fetch precompiled packages and binaries on [release](https://github.com/polistern/pboted/releases/latest) page.  
-Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/)([I2P](http://polistern.i2p/pbote/en/latest/user-guide/install/)) for more info.
+Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/)([I2P](http://polistern.i2p/pbote/user-guide/install/)) for more info.
 
 ### Supported systems
 
@@ -57,11 +57,11 @@ Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/in
 
 ## Building
 
-See [documentation](https://pboted.readthedocs.io/en/latest/building/requirements/)([I2P](http://polistern.i2p/pbote/en/latest/building/requirements/)) for how to build **pboted** from source.
+See [documentation](https://pboted.readthedocs.io/en/latest/building/requirements/)([I2P](http://polistern.i2p/pbote/building/requirements/)) for how to build **pboted** from source.
 
 ## Usage
 
-See [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/#building-from-source)([I2P](http://polistern.i2p/pbote/en/latest/user-guide/install/#building-from-source)) and [example config file](https://github.com/polistern/pboted/blob/master/contrib/pboted.conf).
+See [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/#building-from-source)([I2P](http://polistern.i2p/pbote/user-guide/install/#building-from-source)) and [example config file](https://github.com/polistern/pboted/blob/master/contrib/pboted.conf).
 
 ## Donations
 
