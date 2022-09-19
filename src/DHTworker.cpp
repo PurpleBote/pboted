@@ -21,7 +21,9 @@ namespace kademlia
 DHTworker DHT_worker;
 
 DHTworker::DHTworker ()
-    : started_ (false), m_worker_thread_ (nullptr), local_node_ (nullptr)
+    : m_started (false),
+      m_worker_thread (nullptr),
+      m_local_node (nullptr)
 {
 }
 
@@ -29,18 +31,18 @@ DHTworker::~DHTworker ()
 {
   stop ();
 
-  if (m_worker_thread_)
+  if (m_worker_thread)
     {
-      m_worker_thread_->join ();
-      delete m_worker_thread_;
-      m_worker_thread_ = nullptr;
+      m_worker_thread->join ();
+      delete m_worker_thread;
+      m_worker_thread = nullptr;
     }
 }
 
 void
 DHTworker::start ()
 {
-  local_node_
+  m_local_node
       = std::make_shared<Node> (context.getLocalDestination ()->ToBase64 ());
   if (isStarted ())
     return;
@@ -49,11 +51,11 @@ DHTworker::start ()
     LogPrint (eLogWarning, "DHT: Have no nodes for start");
 
   LogPrint (eLogDebug, "DHT: Load local packets");
-  dht_storage_.set_storage_limit ();
-  dht_storage_.update ();
+  m_dht_storage.set_storage_limit ();
+  m_dht_storage.update ();
 
-  started_ = true;
-  m_worker_thread_ = new std::thread (std::bind (&DHTworker::run, this));
+  m_started = true;
+  m_worker_thread = new std::thread (std::bind (&DHTworker::run, this));
 }
 
 void
@@ -62,7 +64,7 @@ DHTworker::stop ()
   if (!isStarted ())
     return;
 
-  started_ = false;
+  m_started = false;
 
   LogPrint (eLogInfo, "DHT: Stopped");
 }
@@ -117,8 +119,8 @@ DHTworker::addNode (const i2p::data::IdentityEx &identity)
 
   node->lastseen (context.ts_now ());
 
-  std::unique_lock<std::mutex> l (m_nodes_mutex_);
-  return m_nodes_
+  std::unique_lock<std::mutex> l (m_nodes_mutex);
+  return m_nodes
       .insert (std::pair<HashKey, sp_node> (node->GetIdentHash (), node))
       .second;
 }
@@ -126,9 +128,9 @@ DHTworker::addNode (const i2p::data::IdentityEx &identity)
 sp_node
 DHTworker::findNode (const HashKey &ident) const
 {
-  std::unique_lock<std::mutex> l (m_nodes_mutex_);
-  auto it = m_nodes_.find (ident);
-  if (it != m_nodes_.end ())
+  std::unique_lock<std::mutex> l (m_nodes_mutex);
+  auto it = m_nodes.find (ident);
+  if (it != m_nodes.end ())
     return it->second;
   else
     return nullptr;
@@ -161,11 +163,11 @@ DHTworker::getClosestNodes (HashKey key, size_t num, bool to_us)
 
   i2p::data::XORMetric our_metric;
   if (to_us)
-    our_metric = key ^ local_node_->GetIdentHash ();
+    our_metric = key ^ m_local_node->GetIdentHash ();
 
   {
-    std::unique_lock<std::mutex> l (m_nodes_mutex_);
-    for (const auto &it : m_nodes_)
+    std::unique_lock<std::mutex> l (m_nodes_mutex);
+    for (const auto &it : m_nodes)
       {
         if (it.second->locked ())
           continue;
@@ -218,7 +220,7 @@ DHTworker::getAllNodes ()
 {
   std::vector<sp_node> result;
 
-  for (const auto &node : m_nodes_)
+  for (const auto &node : m_nodes)
     result.push_back (node.second);
 
   return result;
@@ -228,9 +230,9 @@ std::vector<sp_node>
 DHTworker::getUnlockedNodes ()
 {
   std::vector<sp_node> res;
-  std::unique_lock<std::mutex> l (m_nodes_mutex_);
+  std::unique_lock<std::mutex> l (m_nodes_mutex);
 
-  for (const auto &it : m_nodes_)
+  for (const auto &it : m_nodes)
     {
       if (!it.second->locked ())
         {
@@ -244,7 +246,7 @@ DHTworker::getUnlockedNodes ()
 std::vector<sp_comm_pkt>
 DHTworker::findOne (HashKey hash, uint8_t type)
 {
-  if (!started_)
+  if (!m_started)
   {
     LogPrint (eLogDebug, "DHT: Stopping");
     return {};
@@ -256,7 +258,7 @@ DHTworker::findOne (HashKey hash, uint8_t type)
 std::vector<sp_comm_pkt>
 DHTworker::findAll (HashKey hash, uint8_t type)
 {
-  if (!started_)
+  if (!m_started)
   {
     LogPrint (eLogDebug, "DHT: Stopping");
     return {};
@@ -268,7 +270,7 @@ DHTworker::findAll (HashKey hash, uint8_t type)
 std::vector<sp_comm_pkt>
 DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
 {
-  if (!started_)
+  if (!m_started)
   {
     LogPrint (eLogDebug, "DHT: Stopping");
     return {};
@@ -291,7 +293,7 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
     {
       LogPrint (eLogInfo, "DHT: find: Not enough nodes, try usual nodes");
 
-      for (const auto &node : m_nodes_)
+      for (const auto &node : m_nodes)
         closestNodes.push_back (node.second);
 
       LogPrint (eLogDebug, "DHT: find: Usual nodes: ", closestNodes.size ());
@@ -325,7 +327,7 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
 
   int counter = 0;
 
-  while (batch->responseCount () < 1 && counter < 5 && started_)
+  while (batch->responseCount () < 1 && counter < 5 && m_started)
     {
       LogPrint (eLogWarning, "DHT: find: No responses, resend: #", counter);
       context.removeBatch (batch);
@@ -372,7 +374,7 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
 std::vector<std::string>
 DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 {
-  if (!started_)
+  if (!m_started)
   {
     LogPrint (eLogDebug, "DHT: Stopping");
     return {};
@@ -392,7 +394,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
     {
       LogPrint (eLogWarning, "DHT: store: Not enough nodes, try usual nodes");
 
-      for (const auto &node : m_nodes_)
+      for (const auto &node : m_nodes)
         closestNodes.push_back (node.second);
 
       LogPrint (eLogDebug, "DHT: store: Usual nodes: ", closestNodes.size ());
@@ -425,7 +427,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 
   // ToDo:
   //while (batch->responseCount () < KADEMLIA_CONSTANT_K && counter <= 5)
-  while (batch->responseCount () < 2 && counter <= 5 && started_)
+  while (batch->responseCount () < 2 && counter <= 5 && m_started)
     {
       LogPrint (eLogWarning, "DHT: store: No responses, resend: #", counter);
       context.removeBatch (batch);
@@ -473,7 +475,7 @@ std::vector<std::string>
 DHTworker::deleteEmail (HashKey hash, uint8_t type,
                         pbote::EmailDeleteRequestPacket packet)
 {
-  if (!started_)
+  if (!m_started)
   {
     LogPrint (eLogDebug, "DHT: Stopping");
     return {};
@@ -482,7 +484,7 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
   LogPrint (eLogDebug, "DHT: deleteEmail: Start for type: ", type,
             ", hash: ", hash.ToBase64 ());
 
-  if (dht_storage_.Delete (type::DataE, hash))
+  if (m_dht_storage.Delete (type::DataE, hash))
     {
       LogPrint (eLogDebug, "DHT: deleteEmail: Removed local packet, hash: ",
         hash.ToBase64 ());
@@ -497,7 +499,7 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
   deletion_pkt.data.push_back(deletion_item);
   deletion_pkt.count = 1;
 
-  dht_storage_.safe_deleted (type::DataE, hash, deletion_pkt.toByte ());
+  m_dht_storage.safe_deleted (type::DataE, hash, deletion_pkt.toByte ());
 
   auto batch = std::make_shared<batch_comm_packet> ();
   batch->owner = "DHT::deleteEmail";
@@ -512,7 +514,7 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
       LogPrint (eLogInfo,
                 "DHT: deleteEmail: Not enough nodes, try usual nodes");
 
-      for (const auto &node : m_nodes_)
+      for (const auto &node : m_nodes)
         closestNodes.push_back (node.second);
 
       LogPrint (eLogDebug,
@@ -544,7 +546,7 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
   batch->waitLast (RESPONSE_TIMEOUT);
 
   int counter = 0;
-  while (batch->responseCount () < 1 && counter <= 5 && started_)
+  while (batch->responseCount () < 1 && counter <= 5 && m_started)
     {
       LogPrint (eLogWarning, "DHT: deleteEmail: No responses, resend: #",
                 counter);
@@ -585,7 +587,7 @@ std::vector<std::string>
 DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
                              HashKey del_auth)
 {
-  if (!started_)
+  if (!m_started)
   {
     LogPrint (eLogDebug, "DHT: Stopped");
     return {};
@@ -595,7 +597,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
             email_dht_key.ToBase64 (), ", hash: ", del_auth.ToBase64 ());
 
   // ToDo: Need to check if we need to remove part
-  if (dht_storage_.remove_index (index_dht_key, email_dht_key, del_auth))
+  if (m_dht_storage.remove_index (index_dht_key, email_dht_key, del_auth))
     {
       LogPrint (eLogDebug,
         "DHT: deleteIndexEntry: Removed local index, hash: ",
@@ -615,7 +617,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
       LogPrint (eLogInfo,
                 "DHT: deleteIndexEntry: Not enough nodes, try usual nodes");
 
-      for (const auto &node : m_nodes_)
+      for (const auto &node : m_nodes)
         closestNodes.push_back (node.second);
 
       LogPrint (eLogDebug,
@@ -658,7 +660,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
   batch->waitLast (RESPONSE_TIMEOUT);
 
   int counter = 0;
-  while (batch->responseCount () < 1 && counter < 5 && started_)
+  while (batch->responseCount () < 1 && counter < 5 && m_started)
     {
       LogPrint (eLogWarning, "DHT: deleteIndexEntry: No responses, resend: #",
                 counter);
@@ -699,7 +701,7 @@ std::vector<std::string>
 DHTworker::deleteIndexEntries (HashKey index_dht_key,
                                IndexDeleteRequestPacket packet)
 {
-  if (!started_)
+  if (!m_started)
   {
     LogPrint (eLogDebug, "DHT: Stopped");
     return {};
@@ -709,7 +711,7 @@ DHTworker::deleteIndexEntries (HashKey index_dht_key,
             index_dht_key.ToBase64 ());
 
   // ToDo: Need to check if we need to remove part
-  size_t removed_localy = dht_storage_.remove_indices (index_dht_key, packet);
+  size_t removed_localy = m_dht_storage.remove_indices (index_dht_key, packet);
   if (removed_localy > 0)
     {
       LogPrint (eLogDebug, "DHT: deleteIndexEntries: Removed ", removed_localy,
@@ -729,7 +731,7 @@ DHTworker::deleteIndexEntries (HashKey index_dht_key,
       LogPrint (eLogInfo,
                 "DHT: deleteIndexEntries: Not enough nodes, try usual nodes");
 
-      for (const auto &node : m_nodes_)
+      for (const auto &node : m_nodes)
         closestNodes.push_back (node.second);
 
       LogPrint (eLogDebug,
@@ -763,7 +765,7 @@ DHTworker::deleteIndexEntries (HashKey index_dht_key,
   batch->waitLast (RESPONSE_TIMEOUT);
 
   int counter = 0;
-  while (batch->responseCount () < 1 && counter < 5 && started_)
+  while (batch->responseCount () < 1 && counter < 5 && m_started)
     {
       LogPrint (eLogWarning, "DHT: deleteIndexEntries: No responses, resend: #",
                 counter);
@@ -803,7 +805,7 @@ DHTworker::deleteIndexEntries (HashKey index_dht_key,
 std::vector<std::shared_ptr<DeletionInfoPacket> >
 DHTworker::deletion_query (const HashKey &key)
 {
-  if (!started_)
+  if (!m_started)
   {
     LogPrint (eLogDebug, "DHT: Stopping");
     return {};
@@ -816,14 +818,14 @@ DHTworker::deletion_query (const HashKey &key)
   std::vector<uint8_t> deletion_info;
   pbote::type packet_type = type::DataI;
 
-  deletion_info = dht_storage_.getPacket (packet_type, key,
-                                          DELETED_FILE_EXTENSION);
+  deletion_info = m_dht_storage.getPacket (packet_type, key,
+                                           DELETED_FILE_EXTENSION);
 
   if (deletion_info.empty ())
     {
       packet_type = type::DataE;
-      deletion_info = dht_storage_.getPacket (packet_type, key,
-                                              DELETED_FILE_EXTENSION);
+      deletion_info = m_dht_storage.getPacket (packet_type, key,
+                                               DELETED_FILE_EXTENSION);
     }
 
   if (!deletion_info.empty ())
@@ -857,7 +859,7 @@ DHTworker::deletion_query (const HashKey &key)
       LogPrint (eLogInfo,
                 "DHT: deletion_query: Not enough nodes, try usual nodes");
 
-      for (const auto &node : m_nodes_)
+      for (const auto &node : m_nodes)
         close_nodes.push_back (node.second);
 
       LogPrint (eLogDebug,
@@ -893,7 +895,7 @@ DHTworker::deletion_query (const HashKey &key)
   batch->waitLast (RESPONSE_TIMEOUT);
 
   int counter = 0;
-  while (batch->responseCount () < 1 && counter < 5 && started_)
+  while (batch->responseCount () < 1 && counter < 5 && m_started)
     {
       LogPrint (eLogWarning, "DHT: deletion_query: No responses, resend: #",
                 counter);
@@ -936,7 +938,7 @@ DHTworker::deletion_query (const HashKey &key)
 std::vector<sp_node>
 DHTworker::closestNodesLookupTask (HashKey key)
 {
-  if (!started_)
+  if (!m_started)
   {
     LogPrint (eLogDebug, "DHT: Stopping");
     return {};
@@ -975,7 +977,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
   size_t counter = 1;
 
   /// While we have unanswered requests and timeout not reached
-  while (!active_requests.empty ()  && started_
+  while (!active_requests.empty ()  && m_started
          && exec_duration < CLOSEST_NODES_LOOKUP_TIMEOUT)
     {
       LogPrint (eLogDebug, "DHT: closestNodesLookup: Request #", counter);
@@ -1018,7 +1020,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
       LogPrint (eLogDebug, "DHT: closestNodesLookup: Duration: ", exec_duration);
     }
 
-  if (!started_)
+  if (!m_started)
   {
     LogPrint (eLogDebug, "DHT: Stopping");
     return {};
@@ -1186,14 +1188,14 @@ DHTworker::closestNodesLookupTask (HashKey key)
     LogPrint (eLogDebug, "DHT: closestNodesLookup: Silent interval sec.: ",
               (ONE_DAY_SECONDS * days));
 
-    std::unique_lock<std::mutex> l (m_nodes_mutex_);
+    std::unique_lock<std::mutex> l (m_nodes_mutex);
     size_t nodes_removed = 0;
     long sec_now = context.ts_now ();
 
     LogPrint (eLogDebug, "DHT: closestNodesLookup: Current time: ", sec_now);
 
-    auto node_itr = m_nodes_.begin ();
-    while (node_itr != m_nodes_.end ())
+    auto node_itr = m_nodes.begin ();
+    while (node_itr != m_nodes.end ())
       {
         long node_ls = (*node_itr).second->lastseen ();
         long diff = sec_now - node_ls;
@@ -1205,7 +1207,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
             nodes_removed++;
             LogPrint (eLogDebug, "DHT: closestNodesLookup: Remove node: ",
                       (*node_itr).second->short_name ());
-            node_itr = m_nodes_.erase (node_itr);
+            node_itr = m_nodes.erase (node_itr);
             continue;
           }
         ++node_itr;
@@ -1226,7 +1228,7 @@ DHTworker::receiveRetrieveRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: receiveRetrieveRequest: Request from: ",
             packet->from.substr (0, 15), "...");
 
-  if (packet->from == local_node_->ToBase64 ())
+  if (packet->from == m_local_node->ToBase64 ())
     {
       LogPrint (eLogWarning,
                 "DHT: receiveRetrieveRequest: Self request, skipped");
@@ -1268,13 +1270,13 @@ DHTworker::receiveRetrieveRequest (const sp_comm_pkt &packet)
   switch (ret_packet.data_type)
     {
     case ((uint8_t)'I'):
-      data = dht_storage_.getIndex (hash);
+      data = m_dht_storage.getIndex (hash);
       break;
     case ((uint8_t)'E'):
-      data = dht_storage_.getEmail (hash);
+      data = m_dht_storage.getEmail (hash);
       break;
     case ((uint8_t)'C'):
-      data = dht_storage_.getContact (hash);
+      data = m_dht_storage.getContact (hash);
       break;
     default:
       break;
@@ -1310,7 +1312,7 @@ DHTworker::receiveDeletionQuery (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: receiveDeletionQuery: request from: ",
             packet->from.substr (0, 15), "...");
 
-  if (packet->from == local_node_->ToBase64 ())
+  if (packet->from == m_local_node->ToBase64 ())
     {
       LogPrint (eLogWarning,
                 "DHT: receiveDeletionQuery: Self request, skipped");
@@ -1349,14 +1351,14 @@ DHTworker::receiveDeletionQuery (const sp_comm_pkt &packet)
   std::vector<uint8_t> deletion_info;
   pbote::type packet_type = type::DataI;
 
-  deletion_info = dht_storage_.getPacket (packet_type, t_key,
-                                          DELETED_FILE_EXTENSION);
+  deletion_info = m_dht_storage.getPacket (packet_type, t_key,
+                                           DELETED_FILE_EXTENSION);
 
   if (deletion_info.empty ())
     {
       packet_type = type::DataE;
-      deletion_info = dht_storage_.getPacket (packet_type, t_key,
-                                              DELETED_FILE_EXTENSION);
+      deletion_info = m_dht_storage.getPacket (packet_type, t_key,
+                                               DELETED_FILE_EXTENSION);
     }
 
   if (deletion_info.empty ())
@@ -1389,7 +1391,7 @@ DHTworker::receiveStoreRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: StoreRequest: request from: ",
             packet->from.substr (0, 15), "...");
 
-  if (packet->from == local_node_->ToBase64 ())
+  if (packet->from == m_local_node->ToBase64 ())
     {
       LogPrint (eLogWarning, "DHT: StoreRequest: Self request, skipped");
       return;
@@ -1418,7 +1420,7 @@ DHTworker::receiveStoreRequest (const sp_comm_pkt &packet)
     {
       bool prev_status = true;
 
-      if (dht_storage_.limit_reached (store_packet.data.size ()))
+      if (m_dht_storage.limit_reached (store_packet.data.size ()))
         {
           LogPrint (eLogWarning, "DHT: StoreRequest: Storage limit reached");
           response.status = pbote::StatusCode::NO_DISK_SPACE;
@@ -1434,7 +1436,7 @@ DHTworker::receiveStoreRequest (const sp_comm_pkt &packet)
       int save_status = 0;
 
       if (prev_status)
-        save_status = dht_storage_.safe (store_packet.data);
+        save_status = m_dht_storage.safe (store_packet.data);
 
       if (prev_status && save_status == STORE_SUCCESS)
         {
@@ -1471,7 +1473,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: EmailPacketDelete: request from: ",
             packet->from.substr (0, 15), "...");
 
-  if (packet->from == local_node_->ToBase64 ())
+  if (packet->from == m_local_node->ToBase64 ())
     {
       LogPrint (eLogWarning, "DHT: EmailPacketDelete: Self request, skipped");
       return;
@@ -1503,8 +1505,8 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
             t_key.ToBase64 ());
 
   // Check if we have Deletion Info for key
-  auto deletion_info = dht_storage_.getPacket (type::DataE, t_key,
-                                               DELETED_FILE_EXTENSION);
+  auto deletion_info = m_dht_storage.getPacket (type::DataE, t_key,
+                                                DELETED_FILE_EXTENSION);
   if (!deletion_info.empty ())
     {
       pbote::DeletionInfoPacket deletion_packet;
@@ -1527,7 +1529,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
         }
     }
 
-  auto email_packet_data = dht_storage_.getEmail (t_key);
+  auto email_packet_data = m_dht_storage.getEmail (t_key);
 
   if (email_packet_data.empty ())
     {
@@ -1573,7 +1575,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
 
   LogPrint (eLogDebug, "DHT: EmailPacketDelete: DA hash match");
 
-  if (dht_storage_.Delete (type::DataE, t_key))
+  if (m_dht_storage.Delete (type::DataE, t_key))
     {
       LogPrint (eLogDebug, "DHT: EmailPacketDelete: Packet removed");
 
@@ -1587,7 +1589,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
       deleted_packet.data.push_back (item);
 
       //response.data = deleted_packet.toByte ();
-      dht_storage_.safe_deleted (type::DataE, t_key, deleted_packet.toByte ());
+      m_dht_storage.safe_deleted (type::DataE, t_key, deleted_packet.toByte ());
       response.status = pbote::StatusCode::OK;
     }
   else
@@ -1609,7 +1611,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: IndexPacketDelete: Request from: ",
             packet->from.substr (0, 15), "...");
 
-  if (packet->from == local_node_->ToBase64 ())
+  if (packet->from == m_local_node->ToBase64 ())
     {
       LogPrint (eLogWarning, "DHT: IndexPacketDelete: Self request, skipped");
       return;
@@ -1641,8 +1643,8 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
             t_key.ToBase64 ());
 
   // Check if we have Deletion Info for key
-  auto deletion_info = dht_storage_.getPacket (type::DataI, t_key,
-                                               DELETED_FILE_EXTENSION);
+  auto deletion_info = m_dht_storage.getPacket (type::DataI, t_key,
+                                                DELETED_FILE_EXTENSION);
   if (!deletion_info.empty ())
     {
       pbote::DeletionInfoPacket deletion_packet;
@@ -1673,7 +1675,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
         }
     }
 
-  auto data = dht_storage_.getIndex (t_key);
+  auto data = m_dht_storage.getIndex (t_key);
   if (data.empty ())
     {
       LogPrint (eLogDebug, "DHT: IndexPacketDelete: Key not found: ",
@@ -1726,7 +1728,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
     }
 
   deleted_packet.count = deleted_packet.data.size ();
-  dht_storage_.safe_deleted (type::DataI, t_key, deleted_packet.toByte ());
+  m_dht_storage.safe_deleted (type::DataI, t_key, deleted_packet.toByte ());
 
   if (!erased)
     {
@@ -1743,12 +1745,12 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: IndexPacketDelete: There are matching DA's");
 
   /// Delete "old" packet
-  bool deleted = dht_storage_.Delete (type::DataI, t_key);
+  bool deleted = m_dht_storage.Delete (type::DataI, t_key);
   int saved = STORE_FILE_NOT_STORED;
 
   /// Write "new" packet, if not empty
   if (!index_packet.data.empty ())
-    saved = dht_storage_.safe (index_packet.toByte ());
+    saved = m_dht_storage.safe (index_packet.toByte ());
 
   /// Compare statuses and prepare response
   if (deleted && saved == STORE_SUCCESS)
@@ -1799,7 +1801,7 @@ DHTworker::receiveFindClosePeers (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Request from: ",
             packet->from.substr (0, 15), "...");
 
-  if (packet->from == local_node_->ToBase64 ())
+  if (packet->from == m_local_node->ToBase64 ())
     {
       LogPrint (eLogWarning,
                 "DHT: receiveFindClosePeers: Self request, skipped");
@@ -1894,10 +1896,10 @@ DHTworker::receiveFindClosePeers (const sp_comm_pkt &packet)
 void
 DHTworker::run ()
 {
-  while (started_)
+  while (m_started)
     {
       writeNodes ();
-      dht_storage_.update ();
+      m_dht_storage.update ();
       std::this_thread::sleep_for (std::chrono::seconds (60));
     }
 }
@@ -1948,7 +1950,7 @@ DHTworker::loadNodes ()
           LogPrint (eLogDebug, "DHT: loadNodes: Node: ", node->short_name ());
           auto t_hash = node->GetIdentHash ();
           bool result
-              = m_nodes_.insert (std::pair<HashKey, sp_node> (t_hash, node))
+              = m_nodes.insert (std::pair<HashKey, sp_node> (t_hash, node))
                     .second;
 
           if (result)
@@ -1965,7 +1967,7 @@ DHTworker::loadNodes ()
 
       /// Now we need lock all loaded nodes for initial check in
       /// first running of closestNodesLookupTask
-      for (auto node : m_nodes_)
+      for (auto node : m_nodes)
         {
           node.second->lastseen (context.ts_now ());
           node.second->noResponse ();
@@ -1993,7 +1995,7 @@ DHTworker::loadNodes ()
             }
         }
 
-      for (auto node : m_nodes_)
+      for (auto node : m_nodes)
         {
           node.second->lastseen (context.ts_now ());
           node.second->noResponse ();
@@ -2024,10 +2026,10 @@ DHTworker::writeNodes ()
   nodes_file << "# Each line is one Base64-encoded I2P destination.\n";
   nodes_file << "# Do not edit this file while pbote is running as it will be "
                 "overwritten.\n\n";
-  std::unique_lock<std::mutex> l (m_nodes_mutex_);
+  std::unique_lock<std::mutex> l (m_nodes_mutex);
 
   size_t saved = 0;
-  for (const auto &node : m_nodes_)
+  for (const auto &node : m_nodes)
     {
       nodes_file << node.second->ToBase64 ();
       nodes_file << "\n";
@@ -2042,7 +2044,7 @@ void
 DHTworker::calc_locks (std::vector<sp_comm_pkt> responses)
 {
   size_t counter = 0;
-  for (const auto &node : m_nodes_)
+  for (const auto &node : m_nodes)
     {
       /// If we found response later node will be unlocked
       node.second->noResponse ();

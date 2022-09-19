@@ -67,19 +67,20 @@ public:
 private:
   void run ();
 
-  void checkEmailTask (const sp_id_full &identity);
-  void incompleteEmailTask ();
-  void sendEmailTask ();
+  void check_email_task (const sp_id_full &identity);
+  void incomplete_email_task ();
+  void send_email_task ();
   void check_delivery_task ();
 
-  v_index retrieveIndex (const sp_id_full &identity);
-  v_enc_email retrieveEmail (const v_index &indices);
+  v_index retrieve_index (const sp_id_full &identity);
+  v_enc_email retrieve_email (const v_index &indices);
 
   static void check_outbox (v_sp_email &emails);
   static void check_sentbox (v_sp_email_meta &metas);
   static map_sp_email_meta get_incomplete ();
 
-  void processEmail (const sp_id_full &identity, const v_enc_email &mail_packets);
+  void process_emails (const sp_id_full &identity,
+                       const v_enc_email &mail_packets);
 
   bool check_thread_exist (const std::string &identity_name);
 

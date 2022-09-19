@@ -24,6 +24,7 @@ namespace kademlia
 #define STORE_FILE_OPEN_ERROR (-2)
 #define STORE_FILE_NOT_STORED (-3)
 
+/// How long the packet is kept in DHT storage
 const int32_t store_duration = 8640000; /// 100 * 24 * 3600 (100 days)
 
 template<class T>

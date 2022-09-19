@@ -21,20 +21,27 @@ BoteContext::BoteContext()
       routerPortTCP(0),
       routerPortUDP(0),
       bytes_recv_(0),
-      bytes_sent_(0),
-      m_recvQueue(std::make_shared<pbote::util::Queue<sp_queue_pkt>>()),
-      m_sendQueue(std::make_shared<pbote::util::Queue<sp_queue_pkt>>()),
-      localDestination(std::make_shared<i2p::data::IdentityEx>()),
-      local_keys_(std::make_shared<i2p::data::PrivateKeys>())
+      bytes_sent_(0)
 {
   start_time_ = ts_now ();
   rbe.seed(time (NULL));
+
+  m_recvQueue = std::make_shared<pbote::util::Queue<sp_queue_pkt>>();
+  m_sendQueue = std::make_shared<pbote::util::Queue<sp_queue_pkt>>();
+
+  localDestination = std::make_shared<i2p::data::IdentityEx>();
+  local_keys_ = std::make_shared<i2p::data::PrivateKeys>();
+  identities_storage_ = std::make_shared<pbote::identitiesStorage>();
 }
 
 BoteContext::~BoteContext()
 {
   m_recvQueue = nullptr;
   m_sendQueue = nullptr;
+
+  localDestination = nullptr;
+  local_keys_ = nullptr;
+  identities_storage_ = nullptr;
 }
 
 void
@@ -76,7 +83,6 @@ BoteContext::init()
                "try to create");
     }
 
-  identities_storage_ = new pbote::identitiesStorage();
   identities_storage_->init();
 
   auto ident_test = identities_storage_->getIdentities();

@@ -198,7 +198,7 @@ public:
   size_t
   getNodesCount ()
   {
-    return m_nodes_.size ();
+    return m_nodes.size ();
   }
   size_t
   get_unlocked_nodes_count ()
@@ -235,31 +235,31 @@ public:
   float
   get_storage_usage ()
   {
-    return dht_storage_.limit_used ();
+    return m_dht_storage.limit_used ();
   }
 
   bool
   safe (const std::vector<uint8_t> &data)
   {
-    return dht_storage_.safe (data);
+    return m_dht_storage.safe (data);
   }
 
   std::vector<uint8_t>
   getIndex (HashKey key)
   {
-    return dht_storage_.getIndex (key);
+    return m_dht_storage.getIndex (key);
   }
 
   std::vector<uint8_t>
   getEmail (HashKey key)
   {
-    return dht_storage_.getEmail (key);
+    return m_dht_storage.getEmail (key);
   }
 
   std::vector<uint8_t>
   getContact (HashKey key)
   {
-    return dht_storage_.getContact (key);
+    return m_dht_storage.getContact (key);
   }
 
 private:
@@ -278,7 +278,7 @@ private:
   bool
   isStarted () const
   {
-    return started_;
+    return m_started;
   };
 
   static bool
@@ -287,17 +287,17 @@ private:
     return true;
   };
 
-  bool started_;
-  std::thread *m_worker_thread_;
-  sp_node local_node_;
+  bool m_started;
+  std::thread *m_worker_thread;
+  sp_node m_local_node;
 
-  mutable std::mutex m_nodes_mutex_, check_closest_mutex;
-  std::map<HashKey, sp_node> m_nodes_;
+  mutable std::mutex m_nodes_mutex;
+  std::map<HashKey, sp_node> m_nodes;
 
-  // ToDo: K-bucket/routing table and S-bucket (NEED MORE DISCUSSION)
+  //ToDo: K-bucket/routing table and S-bucket (NEED MORE DISCUSSION)
 
-  // pbote::fs::HashedStorage m_storage_;
-  kademlia::DHTStorage dht_storage_;
+  //pbote::fs::HashedStorage m_storage_;
+  kademlia::DHTStorage m_dht_storage;
 };
 
 extern DHTworker DHT_worker;

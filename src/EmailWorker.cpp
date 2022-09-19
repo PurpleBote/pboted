@@ -99,7 +99,7 @@ EmailWorker::startCheckEmailTasks ()
         }
 
       auto new_thread = std::make_shared<std::thread> (
-          [this, identity] { checkEmailTask (identity); });
+          [this, identity] { check_email_task (identity); });
 
       m_check_threads[identity->publicName] = std::move (new_thread);
 
@@ -133,7 +133,7 @@ EmailWorker::startIncompleteEmailTask ()
     return;
 
   LogPrint (eLogInfo, "EmailWorker: Starting incomplete task");
-  m_incomplete_thread = new std::thread ([this] { incompleteEmailTask (); });
+  m_incomplete_thread = new std::thread ([this] { incomplete_email_task (); });
 }
 
 bool
@@ -160,7 +160,7 @@ EmailWorker::startSendEmailTask ()
     return;
 
   LogPrint (eLogInfo, "EmailWorker: Starting send task");
-  m_send_thread = new std::thread ([this] { sendEmailTask (); });
+  m_send_thread = new std::thread ([this] { send_email_task (); });
 }
 
 bool
@@ -260,7 +260,7 @@ EmailWorker::run ()
 }
 
 void
-EmailWorker::checkEmailTask (const sp_id_full &email_identity)
+EmailWorker::check_email_task (const sp_id_full &email_identity)
 {
   bool first_complete = false;
   std::string id_name = email_identity->publicName;
@@ -275,32 +275,39 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
 
       first_complete = true;
 
-      auto index_packets = retrieveIndex (email_identity);
+      auto index_packets = retrieve_index (email_identity);
 
-      auto local_index_packet
-          = DHT_worker.getIndex (email_identity->identity.GetIdentHash ());
-
-      if (!local_index_packet.empty ())
+      if (!index_packets.empty ())
         {
           LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
-                    ": Got local indices");
+                    ": Got ", index_packets.size (), " index packets from DHT");
+        }
+      else
+        {
+          LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
+                    ": Can't find index packets in DHT");
+        }
+
+      auto local_index_data
+          = DHT_worker.getIndex (email_identity->identity.GetIdentHash ());
+
+      if (!local_index_data.empty ())
+        {
+          LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
+                    ": Got index packet from local storage");
 
           /// from_net is true, because we save it as is
-          IndexPacket parsed_local_index_packet;
-          bool parsed = parsed_local_index_packet.fromBuffer (
-              local_index_packet, true);
-
-          if (parsed
-              && parsed_local_index_packet.data.size ()
-                     == parsed_local_index_packet.nump)
+          IndexPacket local_index_pkt;
+          bool parsed = local_index_pkt.fromBuffer (local_index_data, true);
+          if (parsed && local_index_pkt.data.size () == local_index_pkt.nump)
             {
-              index_packets.push_back (parsed_local_index_packet);
+              index_packets.push_back (local_index_pkt);
             }
         }
       else
         {
           LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
-                    ": Can't find local index");
+                    ": Can't find index packet in local storage");
         }
 
       LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
@@ -309,7 +316,7 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
       if (index_packets.empty ())
         {
           LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
-                    ": Have no indices");
+                ": Have no index for processing");
           LogPrint (eLogInfo, "EmailWorker: Check: ", id_name,
                     ": Round complete");
           continue;
@@ -322,7 +329,7 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
           continue;
         }
 
-      auto enc_mail_packets = retrieveEmail (index_packets);
+      auto enc_mail_packets = retrieve_email (index_packets);
 
       LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
                 ": Mail count: ", enc_mail_packets.size ());
@@ -336,7 +343,7 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
           continue;
         }
 
-      processEmail (email_identity, enc_mail_packets);    
+      process_emails (email_identity, enc_mail_packets);    
 
       LogPrint (eLogInfo, "EmailWorker: Check: ", id_name, ": Round complete");
     }
@@ -345,7 +352,7 @@ EmailWorker::checkEmailTask (const sp_id_full &email_identity)
 }
 
 void
-EmailWorker::incompleteEmailTask ()
+EmailWorker::incomplete_email_task ()
 {
   bool first_complete = false;
 
@@ -485,7 +492,7 @@ EmailWorker::incompleteEmailTask ()
 }
 
 void
-EmailWorker::sendEmailTask ()
+EmailWorker::send_email_task ()
 {
   v_sp_email outbox;
   LogPrint (eLogDebug, "EmailWorker: Send: Started");
@@ -676,10 +683,10 @@ EmailWorker::check_delivery_task ()
 }
 
 v_index
-EmailWorker::retrieveIndex (const sp_id_full &identity)
+EmailWorker::retrieve_index (const sp_id_full &identity)
 {
   auto identity_hash = identity->identity.GetIdentHash ();
-  LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Try to find index for: ",
+  LogPrint (eLogDebug, "EmailWorker: retrieve_index: Try to find index for: ",
             identity_hash.ToBase64 ());
 
   /* Use findAll rather than findOne because some peers might have an
@@ -690,7 +697,7 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
   if (results.empty ())
     {
       LogPrint (eLogWarning,
-                "EmailWorker: retrieveIndex: Can't find index for: ",
+                "EmailWorker: retrieve_index: Can't find index for: ",
                 identity_hash.ToBase64 ());
       return {};
     }
@@ -703,13 +710,13 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
         {
           // ToDo: looks like in case if we got request to ourself, for now we
           // just skip it
-          LogPrint (eLogWarning, "EmailWorker: retrieveIndex: Got ",
+          LogPrint (eLogWarning, "EmailWorker: retrieve_index: Got ",
                     "non-response packet in batch, type: ", response->type,
                     ", ver: ", unsigned (response->ver));
           continue;
         }
 
-      LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Got response from: ",
+      LogPrint (eLogDebug, "EmailWorker: retrieve_index: Got response from: ",
                 response->from.substr (0, 15), "...");
       
       ResponsePacket res_packet;
@@ -717,41 +724,41 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
 
       if (!parsed)
         {
-          LogPrint (eLogDebug, "EmailWorker: retrieveIndex: ",
+          LogPrint (eLogDebug, "EmailWorker: retrieve_index: ",
                     "Can't parse packet, skipped");
           continue;
         }
 
       if (res_packet.status != StatusCode::OK)
         {
-          LogPrint (eLogWarning, "EmailWorker: retrieveIndex: Status: ",
+          LogPrint (eLogWarning, "EmailWorker: retrieve_index: Status: ",
                     statusToString (res_packet.status));
           continue;
         }
 
       if (res_packet.length < 38)
         {
-          LogPrint (eLogDebug, "EmailWorker: retrieveIndex: ",
+          LogPrint (eLogDebug, "EmailWorker: retrieve_index: ",
                     "Empty packet, skipped");
           continue;
         }
 
       if (DHT_worker.safe (res_packet.data))
-        LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Index packet saved");
+        LogPrint (eLogDebug, "EmailWorker: retrieve_index: Index packet saved");
 
       IndexPacket index_packet;
       parsed = index_packet.fromBuffer (res_packet.data, true);
 
       if (!parsed)
         {
-          LogPrint (eLogDebug, "EmailWorker: retrieveIndex: ",
+          LogPrint (eLogDebug, "EmailWorker: retrieve_index: ",
                     "Can't parse packet, skipped");
           continue;
         }
 
       if (index_packet.data.empty ())
         {
-          LogPrint (eLogWarning, "EmailWorker: retrieveIndex: Empty packet");
+          LogPrint (eLogWarning, "EmailWorker: retrieve_index: Empty packet");
           continue;
         }
 
@@ -761,7 +768,7 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
       indices.insert (std::pair<i2p::data::Tag<32>, IndexPacket> (hash, index_packet));
     }
 
-  LogPrint (eLogDebug, "EmailWorker: retrieveIndex: Indices parsed: ",
+  LogPrint (eLogDebug, "EmailWorker: retrieve_index: Indices parsed: ",
             indices.size ());
 
   v_index res;
@@ -774,7 +781,7 @@ EmailWorker::retrieveIndex (const sp_id_full &identity)
 }
 
 v_enc_email
-EmailWorker::retrieveEmail (const v_index &indices)
+EmailWorker::retrieve_email (const v_index &indices)
 {
   std::vector<std::shared_ptr<CommunicationPacket> > responses;
   v_enc_email local_email_packets;
@@ -789,7 +796,7 @@ EmailWorker::retrieveEmail (const v_index &indices)
           if (!email_packet_data.empty ())
             {
               LogPrint (eLogDebug,
-                        "EmailWorker: retrieveEmail: Got local "
+                        "EmailWorker: retrieve_email: Got local "
                         "encrypted email for key: ", hash.ToBase64 ());
               EmailEncryptedPacket email_packet;
               bool parsed = email_packet.fromBuffer (
@@ -802,17 +809,17 @@ EmailWorker::retrieveEmail (const v_index &indices)
                   continue;
                 }
 
-              LogPrint (eLogDebug, "EmailWorker: retrieveEmail: ",
+              LogPrint (eLogDebug, "EmailWorker: retrieve_email: ",
                             "Can't parse local packet ", hash.ToBase64 ());
               // ToDo: remove malformed packet?
             }
 
-          LogPrint (eLogDebug, "EmailWorker: retrieveEmail: Can't find packet"
+          LogPrint (eLogDebug, "EmailWorker: retrieve_email: Can't find packet"
                     " for key: ", hash.ToBase64 (), " localy, try to ask DHT");
 
           auto dht_results = DHT_worker.findAll (hash, DataE);
 
-          LogPrint (eLogDebug, "EmailWorker: retrieveEmail: Got ",
+          LogPrint (eLogDebug, "EmailWorker: retrieve_email: Got ",
                     dht_results.size (), " DHT results for key ",
                     hash.ToBase64 ());
 
@@ -821,7 +828,7 @@ EmailWorker::retrieveEmail (const v_index &indices)
         }
     }
 
-  LogPrint (eLogDebug, "EmailWorker: retrieveEmail: Got ",
+  LogPrint (eLogDebug, "EmailWorker: retrieve_email: Got ",
             local_email_packets.size (), " local and ", responses.size (),
             " DHT results: ");
 
@@ -832,7 +839,7 @@ EmailWorker::retrieveEmail (const v_index &indices)
         {
           // ToDo: looks like we got request to ourself, for now just skip it
           LogPrint (eLogWarning,
-                    "EmailWorker: retrieveIndex: Got non-response packet in "
+                    "EmailWorker: retrieve_email: Got non-response packet in "
                     "batch, type: ", response->type, ", ver: ",
                     unsigned (response->ver));
           continue;
@@ -843,30 +850,30 @@ EmailWorker::retrieveEmail (const v_index &indices)
 
       if (!parsed)
         {
-          LogPrint (eLogDebug, "EmailWorker: retrieveEmail: ",
+          LogPrint (eLogDebug, "EmailWorker: retrieve_email: ",
                     "Can't parse packet, skipped");
           continue;
         }
 
       if (res_packet.status != StatusCode::OK)
         {
-          LogPrint (eLogWarning, "EmailWorker: retrieveEmail: Status: ",
+          LogPrint (eLogWarning, "EmailWorker: retrieve_email: Status: ",
                     statusToString (res_packet.status));
           continue;
         }
 
       if (res_packet.length <= 0)
         {
-          LogPrint (eLogDebug, "EmailWorker: retrieveEmail: ",
+          LogPrint (eLogDebug, "EmailWorker: retrieve_email: ",
                     "Empty packet, skipped");
           continue;
         }
 
-      LogPrint (eLogDebug, "EmailWorker: retrieveEmail: Got email ",
+      LogPrint (eLogDebug, "EmailWorker: retrieve_email: Got email ",
                 "packet, payload size: ", res_packet.length);
 
       if (DHT_worker.safe (res_packet.data))
-        LogPrint (eLogDebug, "EmailWorker: retrieveEmail: Encrypted ",
+        LogPrint (eLogDebug, "EmailWorker: retrieve_email: Encrypted ",
                   "email packet saved locally");
 
       EmailEncryptedPacket email_packet;
@@ -875,7 +882,7 @@ EmailWorker::retrieveEmail (const v_index &indices)
 
       if (!parsed || email_packet.edata.empty ())
         {
-          LogPrint (eLogWarning, "EmailWorker: retrieveEmail: Mail packet",
+          LogPrint (eLogWarning, "EmailWorker: retrieve_email: Mail packet",
                     " without entries");
           continue;
         }
@@ -885,7 +892,7 @@ EmailWorker::retrieveEmail (const v_index &indices)
                                      EmailEncryptedPacket> (hash, email_packet));
     }
 
-  LogPrint (eLogDebug, "EmailWorker: retrieveEmail: Parsed mail packets: ",
+  LogPrint (eLogDebug, "EmailWorker: retrieve_email: Parsed mail packets: ",
             mail_packets.size ());
 
   for (auto local_packet : local_email_packets)
@@ -895,7 +902,7 @@ EmailWorker::retrieveEmail (const v_index &indices)
                                      EmailEncryptedPacket> (hash, local_packet));
     }
 
-  LogPrint (eLogDebug, "EmailWorker: retrieveEmail: Mail packets: ",
+  LogPrint (eLogDebug, "EmailWorker: retrieve_email: Mail packets: ",
             mail_packets.size ());
 
   v_enc_email res;
@@ -1357,10 +1364,10 @@ EmailWorker::check_inbox ()
 }
 
 void
-EmailWorker::processEmail (const sp_id_full &identity,
+EmailWorker::process_emails (const sp_id_full &identity,
                            const v_enc_email &mail_packets)
 {
-  LogPrint (eLogDebug, "EmailWorker: processEmail: Emails for process: ",
+  LogPrint (eLogDebug, "EmailWorker: process_emails: Emails for process: ",
             mail_packets.size ());
 
   size_t counter = 0;
@@ -1371,7 +1378,7 @@ EmailWorker::processEmail (const sp_id_full &identity,
 
       if (enc_mail.edata.empty ())
         {
-          LogPrint (eLogWarning, "EmailWorker: processEmail: Packet is empty ");
+          LogPrint (eLogWarning, "EmailWorker: process_emails: Packet is empty ");
           continue;
         }
 
@@ -1380,7 +1387,7 @@ EmailWorker::processEmail (const sp_id_full &identity,
 
       if (unencrypted_email_data.empty ())
         {
-          LogPrint (eLogWarning, "EmailWorker: processEmail: Can't decrypt");
+          LogPrint (eLogWarning, "EmailWorker: process_emails: Can't decrypt");
           continue;
         }
 
@@ -1389,14 +1396,14 @@ EmailWorker::processEmail (const sp_id_full &identity,
       bool parsed = plain_packet.fromBuffer (unencrypted_email_data, true);
       if (!parsed)
         {
-          LogPrint (eLogWarning, "EmailWorker: processEmail: Can't parse");
+          LogPrint (eLogWarning, "EmailWorker: process_emails: Can't parse");
           continue;
         }
 
       if (!plain_packet.check (enc_mail.delete_hash))
         {
           i2p::data::Tag<32> cur_hash (enc_mail.delete_hash);
-          LogPrint (eLogWarning, "EmailWorker: processEmail: email ",
+          LogPrint (eLogWarning, "EmailWorker: process_emails: email ",
                     cur_hash.ToBase64 (), " is unequal");
           continue;
         }
@@ -1409,7 +1416,7 @@ EmailWorker::processEmail (const sp_id_full &identity,
 
       if (!file.is_open ())
         {
-          LogPrint(eLogError, "Email: processEmail: Can't open file ",
+          LogPrint(eLogError, "Email: process_emails: Can't open file ",
                    pkt_path);
           continue;
         }
@@ -1424,7 +1431,7 @@ EmailWorker::processEmail (const sp_id_full &identity,
       counter++;
     }
 
-  LogPrint (eLogDebug, "EmailWorker: processEmail: Emails processed: ", counter);
+  LogPrint (eLogDebug, "EmailWorker: process_emails: Emails processed: ", counter);
 }
 
 bool

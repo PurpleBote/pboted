@@ -92,7 +92,7 @@ class BoteContext
   uint16_t routerPortTCP;
   uint16_t routerPortUDP;
 
-  identitiesStorage *identities_storage_;
+  std::shared_ptr<identitiesStorage> identities_storage_;
 
   pbote::AddressBook address_book_;
 

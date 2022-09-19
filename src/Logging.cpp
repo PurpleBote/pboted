@@ -47,7 +47,7 @@ static const char *LogMsgColors[] = {
  * @return syslog priority LOG_*, as defined in syslog.h
  */
 static inline int
-GetSyslogPrio(enum LogLevel l)
+GetSyslogPrio (enum LogLevel l)
 {
   int priority = LOG_DEBUG;
   switch (l)
@@ -68,59 +68,71 @@ GetSyslogPrio(enum LogLevel l)
   return priority;
 }
 
-Logging::Logging()
-    : m_Destination(eLogStdout), m_MinLevel(eLogInfo), m_LogStream(nullptr),
-      m_Logfile(""), m_HasColors(true), m_TimeFormat("%H:%M:%S"),
-      m_IsRunning(false), m_Thread(nullptr) {}
+Logging::Logging ()
+    : m_Destination (eLogStdout),
+      m_MinLevel (eLogInfo),
+      m_LogStream (nullptr),
+      m_Logfile (""),
+      m_HasColors (true),
+      m_TimeFormat ("%H:%M:%S"),
+      m_IsRunning (false),
+      m_Thread (nullptr)
+{
+}
 
-Logging::~Logging() { delete m_Thread; }
+Logging::~Logging ()
+{
+  delete m_Thread;
+}
 
 void
-Logging::Start()
+Logging::Start ()
 {
   if (!m_IsRunning)
     {
       m_IsRunning = true;
-      m_Thread = new std::thread(std::bind(&Logging::Run, this));
+      m_Thread = new std::thread (std::bind (&Logging::Run, this));
     }
 }
 
 void
-Logging::Stop()
+Logging::Stop ()
 {
   switch (m_Destination)
     {
-      case eLogSyslog:closelog();
+      case eLogSyslog:
+        closelog ();
         break;
       case eLogFile:
       case eLogStream:
         if (m_LogStream)
-          m_LogStream->flush();
+          m_LogStream->flush ();
         break;
       default:
         /* do nothing */
         break;
     }
   m_IsRunning = false;
-  m_Queue.WakeUp();
+  m_Queue.WakeUp ();
   if (m_Thread)
     {
-      m_Thread->join();
+      m_Thread->join ();
       delete m_Thread;
       m_Thread = nullptr;
     }
 }
 
 std::string
-str_tolower(std::string s)
+str_tolower (std::string s)
 {
-  std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
+  std::transform (s.begin (), s.end (), s.begin (),
+                  [](unsigned char c) { return std::tolower (c); });
   return s;
 }
 
-void Logging::SetLogLevel(const std::string &level_)
+void Logging::SetLogLevel (const std::string &level_)
 {
-  std::string level = str_tolower(level_);
+  std::string level = str_tolower (level_);
   if (level == "none")
     {
       m_MinLevel = eLogNone;
@@ -143,19 +155,19 @@ void Logging::SetLogLevel(const std::string &level_)
     }
   else
     {
-      LogPrint(eLogError, "Log: unknown loglevel: ", level);
+      LogPrint (eLogError, "Log: Unknown loglevel: ", level);
       return;
     }
-  LogPrint(eLogInfo, "Log: min messages level set to ", level);
+  LogPrint (eLogInfo, "Log: Min messages level set to ", level);
 }
 
 const char *
-Logging::TimeAsString(std::time_t t)
+Logging::TimeAsString (std::time_t t)
 {
   if (t != m_LastTimestamp)
     {
-      strftime(m_LastDateTime, sizeof(m_LastDateTime),
-               m_TimeFormat.c_str(), localtime(&t));
+      strftime (m_LastDateTime, sizeof (m_LastDateTime),
+                m_TimeFormat.c_str (), localtime (&t));
       m_LastTimestamp = t;
     }
   return m_LastDateTime;
@@ -167,32 +179,32 @@ Logging::TimeAsString(std::time_t t)
  * will give us nothing but pain. Maybe later. See in NetDb as example.
  */
 void
-Logging::Process(std::shared_ptr<LogMsg> msg)
+Logging::Process (std::shared_ptr<LogMsg> msg)
 {
   if (!msg)
     return;
 
   std::hash<std::thread::id> hasher;
   unsigned short short_tid;
-  short_tid = (short) (hasher(msg->tid) % 1000);
+  short_tid = (short) (hasher (msg->tid) % 1000);
   switch (m_Destination)
     {
 #ifndef _WIN32
       case eLogSyslog:
-        syslog(GetSyslogPrio(msg->level), "[%03u] %s", short_tid,
-               msg->text.c_str());
+        syslog (GetSyslogPrio (msg->level), "[%03u] %s", short_tid,
+                msg->text.c_str ());
         break;
 #endif
       case eLogFile:
       case eLogStream:
         if (m_LogStream)
-          *m_LogStream << TimeAsString(msg->timestamp) << "@" << short_tid << "\t"
+          *m_LogStream << TimeAsString (msg->timestamp) << "@" << short_tid << "\t"
                        << g_LogLevelStr[msg->level] << "\t" << msg->text
                        << std::endl;
         break;
       case eLogStdout:
       default:
-        std::cout << TimeAsString(msg->timestamp) << "@" << short_tid << "\t"
+        std::cout << TimeAsString (msg->timestamp) << "@" << short_tid << "\t"
                   << LogMsgColors[msg->level] << g_LogLevelStr[msg->level]
                   << LogMsgColors[eNumLogLevels] << "\t" << msg->text << std::endl;
         break;
@@ -200,36 +212,41 @@ Logging::Process(std::shared_ptr<LogMsg> msg)
 }
 
 void
-Logging::Run()
+Logging::Run ()
 {
-  Reopen();
+  Reopen ();
   while (m_IsRunning)
     {
       std::shared_ptr<LogMsg> msg;
-      while ((msg = m_Queue.Get()))
-        Process(msg);
+
+      while ((msg = m_Queue.Get ()))
+        Process (msg);
+
       if (m_LogStream)
-        m_LogStream->flush();
+        m_LogStream->flush ();
+
       if (m_IsRunning)
-        m_Queue.Wait();
+        m_Queue.Wait ();
     }
 }
 
 void
-Logging::Append(std::shared_ptr<pbote::log::LogMsg> &msg)
+Logging::Append (std::shared_ptr<pbote::log::LogMsg> &msg)
 {
-  m_Queue.Put(msg);
+  m_Queue.Put (msg);
 }
 
-void Logging::SendTo(const std::string &path)
+void Logging::SendTo (const std::string &path)
 {
   if (m_LogStream)
     m_LogStream = nullptr; // close previous
+
   if (m_MinLevel == eLogNone)
     return;
+
   auto flags = std::ofstream::out | std::ofstream::app;
-  auto os = std::make_shared<std::ofstream>(path, flags);
-  if (os->is_open())
+  auto os = std::make_shared<std::ofstream> (path, flags);
+  if (os->is_open ())
     {
       m_HasColors = false;
       m_Logfile = path;
@@ -237,11 +254,11 @@ void Logging::SendTo(const std::string &path)
       m_LogStream = os;
       return;
     }
-  LogPrint(eLogError, "Log: can't open file ", path);
+  LogPrint (eLogError, "Log: can't open file ", path);
 }
 
 void
-Logging::SendTo(std::shared_ptr<std::ostream> os)
+Logging::SendTo (std::shared_ptr<std::ostream> os)
 {
   m_HasColors = false;
   m_Destination = eLogStream;
@@ -250,25 +267,26 @@ Logging::SendTo(std::shared_ptr<std::ostream> os)
 
 #ifndef _WIN32
 void
-Logging::SendTo(const char *name, int facility)
+Logging::SendTo (const char *name, int facility)
 {
   if (m_MinLevel == eLogNone)
     return;
+
   m_HasColors = false;
   m_Destination = eLogSyslog;
   m_LogStream = nullptr;
-  openlog(name, LOG_CONS | LOG_PID, facility);
+  openlog (name, LOG_CONS | LOG_PID, facility);
 }
 #endif
 
 void
-Logging::Reopen()
+Logging::Reopen ()
 {
   if (m_Destination == eLogFile)
-    SendTo(m_Logfile);
+    SendTo (m_Logfile);
 }
 
-Logging &Logger() { return logger; }
+Logging &Logger () { return logger; }
 
 static ThrowFunction g_ThrowFunction;
 

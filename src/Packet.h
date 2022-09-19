@@ -34,7 +34,7 @@
 namespace pbote
 {
 
-/// prefix[4] + type[1] + ver[1] +  cid[32] = 38
+/// prefix[4] + type[1] + ver[1] + cid[32] = 38
 #define COMM_DATA_LEN 38
 
 //#define PACKET_ERROR_MALFORMED -1
@@ -1792,7 +1792,6 @@ parseCommPacket (const sp_queue_pkt &packet)
 
   auto found_type = std::find (std::begin (PACKET_TYPE),
                                std::end (PACKET_TYPE), data.type);
-
   if (found_type == std::end (PACKET_TYPE))
     {
       LogPrint (eLogWarning, "Packet: Bad type");
@@ -1801,7 +1800,6 @@ parseCommPacket (const sp_queue_pkt &packet)
 
   auto found_ver = std::find (std::begin (BOTE_VERSION),
                               std::end (BOTE_VERSION), data.ver);
-
   if (found_ver == std::end (BOTE_VERSION))
     {
       LogPrint (eLogWarning, "Packet: Bad version");

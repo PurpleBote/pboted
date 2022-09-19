@@ -1,6 +1,6 @@
 /**
- * Copyright (c) 2013-2016, The PurpleI2P Project
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2013-2016, The PurpleI2P Project
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted project and licensed under BSD3
  *
@@ -22,7 +22,8 @@
 
 #include "Queue.h"
 
-enum LogLevel {
+enum LogLevel
+{
   eLogNone = 0,
   eLogError,
   eLogWarning,
@@ -31,19 +32,23 @@ enum LogLevel {
   eNumLogLevels
 };
 
-enum LogType {
+enum LogType
+{
   eLogStdout = 0,
   eLogStream,
   eLogFile,
   eLogSyslog,
 };
 
-namespace pbote {
-namespace log {
+namespace pbote
+{
+namespace log
+{
 
 struct LogMsg; /* forward declaration */
 
-class Logging {
+class Logging
+{
  private:
   enum LogType m_Destination;
   enum LogLevel m_MinLevel;
@@ -59,11 +64,11 @@ class Logging {
 
  private:
   /** prevent making copies */
-  Logging(const Logging &);
-  const Logging &operator=(const Logging &);
+  Logging (const Logging &);
+  const Logging &operator= (const Logging &);
 
-  void Run();
-  void Process(std::shared_ptr<LogMsg> msg);
+  void Run ();
+  void Process (std::shared_ptr<LogMsg> msg);
 
   /**
    * @brief Makes formatted string from unix timestamp
@@ -71,41 +76,41 @@ class Logging {
    *
    * This function internally caches the result for last provided value
    */
-  const char *TimeAsString(std::time_t ts);
+  const char *TimeAsString (std::time_t ts);
 
  public:
-  Logging();
-  ~Logging();
+  Logging ();
+  ~Logging ();
 
-  LogType GetLogType() { return m_Destination; };
-  LogLevel GetLogLevel() { return m_MinLevel; };
+  LogType GetLogType () { return m_Destination; };
+  LogLevel GetLogLevel () { return m_MinLevel; };
 
-  void Start();
-  void Stop();
+  void Start ();
+  void Stop ();
 
   /**
    * @brief  Sets minimal allowed level for log messages
    * @param  level  String with wanted minimal msg level
    */
-  void SetLogLevel(const std::string &level);
+  void SetLogLevel (const std::string &level);
 
   /**
    * @brief Sets log destination to logfile
    * @param path  Path to logfile
    */
-  void SendTo(const std::string &path);
+  void SendTo (const std::string &path);
 
   /**
    * @brief Sets log destination to given output stream
    * @param os  Output stream
    */
-  void SendTo(std::shared_ptr<std::ostream> os);
+  void SendTo (std::shared_ptr<std::ostream> os);
 
   /**
    * @brief  Sets format for timestamps in log
    * @param  format  String with timestamp format
    */
-  void SetTimeFormat(std::string format) { m_TimeFormat = format; };
+  void SetTimeFormat (std::string format) { m_TimeFormat = format; };
 
 #ifndef _WIN32
   /**
@@ -113,17 +118,17 @@ class Logging {
    * @param name     Wanted program name
    * @param facility Wanted log category
    */
-  void SendTo(const char *name, int facility);
+  void SendTo (const char *name, int facility);
 #endif
 
   /**
    * @brief  Format log message and write to output stream/syslog
    * @param  msg  Pointer to processed message
    */
-  void Append(std::shared_ptr<pbote::log::LogMsg> &);
+  void Append (std::shared_ptr<pbote::log::LogMsg> &);
 
   /** @brief  Reopen log file */
-  void Reopen();
+  void Reopen ();
 };
 
 /**
@@ -133,17 +138,22 @@ class Logging {
  * We creating it somewhere with LogPrint(),
  * then put in MsgQueue for later processing.
  */
-struct LogMsg {
+struct LogMsg
+{
   std::time_t timestamp;
   std::string text;    /**< message text as single string */
   LogLevel level;      /**< message level */
   std::thread::id tid; /**< id of thread that generated message */
 
-  LogMsg(LogLevel lvl, std::time_t ts, const std::string &txt)
-      : timestamp(ts), text(txt), level(lvl) {};
+  LogMsg (LogLevel lvl, std::time_t ts, const std::string &txt)
+      : timestamp (ts),
+        text (txt),
+        level (lvl)
+  {
+  };
 };
 
-Logging &Logger();
+Logging &Logger ();
 
 typedef std::function<void (const std::string&)>  ThrowFunction;
 ThrowFunction GetThrowFunction ();
@@ -154,15 +164,17 @@ void SetThrowFunction (ThrowFunction f);
 
 /** internal usage only -- folding args array to single string */
 template<typename TValue>
-void LogPrint(std::stringstream &s, TValue &&arg) noexcept {
-  s << std::forward<TValue>(arg);
+void LogPrint (std::stringstream &s, TValue &&arg) noexcept
+{
+  s << std::forward<TValue> (arg);
 }
 
 /** internal usage only -- folding args array to single string */
 template<typename TValue, typename... TArgs>
-void LogPrint(std::stringstream &s, TValue &&arg, TArgs &&... args) noexcept {
-  LogPrint(s, std::forward<TValue>(arg));
-  LogPrint(s, std::forward<TArgs>(args)...);
+void LogPrint (std::stringstream &s, TValue &&arg, TArgs &&... args) noexcept
+{
+  LogPrint (s, std::forward<TValue> (arg));
+  LogPrint (s, std::forward<TArgs> (args)...);
 }
 
 /**
@@ -171,19 +183,20 @@ void LogPrint(std::stringstream &s, TValue &&arg, TArgs &&... args) noexcept {
  * @param args Array of message parts
  */
 template<typename... TArgs>
-void LogPrint(LogLevel level, TArgs &&... args) noexcept {
-  pbote::log::Logging &log = pbote::log::Logger();
-  if (level > log.GetLogLevel())
+void LogPrint (LogLevel level, TArgs &&... args) noexcept
+{
+  pbote::log::Logging &log = pbote::log::Logger ();
+  if (level > log.GetLogLevel ())
     return;
 
   // fold message to single string
-  std::stringstream ss("");
+  std::stringstream ss ("");
 
-  LogPrint(ss, std::forward<TArgs>(args)...);
+  LogPrint (ss, std::forward<TArgs> (args)...);
 
-  auto msg = std::make_shared<pbote::log::LogMsg>(level, std::time(nullptr), ss.str());
-  msg->tid = std::this_thread::get_id();
-  log.Append(msg);
+  auto msg = std::make_shared<pbote::log::LogMsg> (level, std::time(nullptr), ss.str ());
+  msg->tid = std::this_thread::get_id ();
+  log.Append (msg);
 }
 
 /**
@@ -196,7 +209,7 @@ void ThrowFatal (TArgs&&... args) noexcept
   auto f = pbote::log::GetThrowFunction ();
   if (!f) return;
   // fold message to single string
-  std::stringstream ss("");
+  std::stringstream ss ("");
 #if (__cplusplus >= 201703L) // C++ 17 or higher
   (LogPrint (ss, std::forward<TArgs>(args)), ...);
 #else
