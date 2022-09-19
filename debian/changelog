@@ -1,3 +1,11 @@
+pboted (0.7.11-1) unstable; urgency=medium
+
+  * updated to version 0.7.11
+  * updated systemd service file
+  * updated default config file
+
+ -- polistern <polistern@i2pmail.org>  Mon, 19 Sep 2022 10:00:00 +0000
+
 pboted (0.7.10-1) unstable; urgency=medium
 
   * updated to version 0.7.10
