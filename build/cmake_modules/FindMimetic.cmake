@@ -27,12 +27,22 @@
 #  MIMETIC_DEFINITIONS - Compiler switches required for using MIMETIC
 
 find_package(PkgConfig)
+
 pkg_check_modules(PC_MIMETIC QUIET mimetic)
+
 set(MIMETIC_DEFINITIONS ${PC_MIMETIC_CFLAGS_OTHER})
 
 find_path(MIMETIC_INCLUDE_DIR mimetic.h
           HINTS ${PC_MIMETIC_INCLUDEDIR} ${PC_MIMETIC_INCLUDE_DIRS}
           PATH_SUFFIXES mimetic)
+
+if(MIMETIC_USE_STATIC_LIBS)
+  if(WIN32)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .lib .a ${CMAKE_FIND_LIBRARY_SUFFIXES})
+  else()
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+  endif()
+endif()
 
 find_library(MIMETIC_LIBRARY NAMES mimetic libmimetic
              HINTS ${PC_MIMETIC_LIBDIR} ${PC_MIMETIC_LIBRARY_DIRS} )
