@@ -22,18 +22,18 @@ RequestHandler packet_handler;
 IncomingRequest::IncomingRequest (RequestHandler &owner) : m_owner (owner)
 {
   // ToDo: re-make with std::function?
-  i_handlers_[type::CommR] = &IncomingRequest::receiveRelayRequest;
-  i_handlers_[type::CommK] = &IncomingRequest::receiveRelayReturnRequest;
-  // i_handlers_[type::CommF] = &IncomingRequest::receiveFetchRequest;
-  i_handlers_[type::CommN] = &IncomingRequest::receiveResponsePkt;
-  i_handlers_[type::CommA] = &IncomingRequest::receivePeerListRequest;
+  i_handlers[type::CommR] = &IncomingRequest::receiveRelayRequest;
+  i_handlers[type::CommK] = &IncomingRequest::receiveRelayReturnRequest;
+  // i_handlers[type::CommF] = &IncomingRequest::receiveFetchRequest;
+  i_handlers[type::CommN] = &IncomingRequest::receiveResponsePkt;
+  i_handlers[type::CommA] = &IncomingRequest::receivePeerListRequest;
   ///
-  i_handlers_[type::CommQ] = &IncomingRequest::receiveRetrieveRequest;
-  i_handlers_[type::CommY] = &IncomingRequest::receiveDeletionQueryRequest;
-  i_handlers_[type::CommS] = &IncomingRequest::receiveStoreRequest;
-  i_handlers_[type::CommD] = &IncomingRequest::receiveEmailPacketDeleteRequest;
-  i_handlers_[type::CommX] = &IncomingRequest::receiveIndexPacketDeleteRequest;
-  i_handlers_[type::CommF] = &IncomingRequest::receiveFindClosePeersRequest;
+  i_handlers[type::CommQ] = &IncomingRequest::receiveRetrieveRequest;
+  i_handlers[type::CommY] = &IncomingRequest::receiveDeletionQueryRequest;
+  i_handlers[type::CommS] = &IncomingRequest::receiveStoreRequest;
+  i_handlers[type::CommD] = &IncomingRequest::receiveEmailPacketDeleteRequest;
+  i_handlers[type::CommX] = &IncomingRequest::receiveIndexPacketDeleteRequest;
+  i_handlers[type::CommF] = &IncomingRequest::receiveFindClosePeersRequest;
 }
 
 bool
@@ -59,8 +59,8 @@ IncomingRequest::handleNewPacket (const sp_queue_pkt &queuePacket)
 
   LogPrint (eLogDebug, "Packet: Non-batch packet with type ", packet->type);
 
-  if (i_handlers_[packet->type])
-    return (this->*(i_handlers_[packet->type])) (packet);
+  if (i_handlers[packet->type])
+    return (this->*(i_handlers[packet->type])) (packet);
   else
     {
       LogPrint (eLogWarning, "Packet: Got unknown packet type ", packet->type);
@@ -120,8 +120,7 @@ IncomingRequest::receiveResponsePkt (const sp_comm_pkt &packet)
     }
 
   /// Peer List
-  /// L for mhatta, P for str4d
-  if (response.data[0] == (uint8_t)'L' || response.data[0] == (uint8_t)'P')
+  if (response.data[0] == (uint8_t)'L')
     {
       if (response.ver == (uint8_t)4)
         {
@@ -170,16 +169,23 @@ IncomingRequest::receivePeerListRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "Packet: PeerListRequest");
   if (packet->ver == 4)
     {
-      m_owner.get_IO_service ().post (
-          std::bind (&pbote::relay::RelayWorker::peerListRequestV4,
-                     &pbote::relay::relay_worker, packet));
+      auto req_thread = m_owner.get_request_thread ();
+      //req_thread = new std::thread ([pbote::relay::relay_worker](sp_comm_pkt packet) { peerListRequestV4 (packet); });
+      req_thread = std::make_shared<std::thread> (std::bind (
+          &pbote::relay::RelayWorker::peerListRequestV4,
+          &pbote::relay::relay_worker, packet));
+      req_thread->join ();
+
       return true;
     }
   else if (packet->ver == 5)
     {
-      m_owner.get_IO_service ().post (
-          std::bind (&pbote::relay::RelayWorker::peerListRequestV5,
-                     &pbote::relay::relay_worker, packet));
+      auto req_thread = m_owner.get_request_thread ();
+      req_thread = std::make_shared<std::thread> (std::bind (
+          &pbote::relay::RelayWorker::peerListRequestV5,
+          &pbote::relay::relay_worker, packet));
+      req_thread->join ();
+
       return true;
     }
   else
@@ -198,9 +204,12 @@ IncomingRequest::receiveRetrieveRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "Packet: RetrieveRequest");
   if (packet->ver >= 4 && packet->type == type::CommQ)
     {
-      m_owner.get_IO_service ().post (
-          std::bind (&pbote::kademlia::DHTworker::receiveRetrieveRequest,
-                     &pbote::kademlia::DHT_worker, packet));
+      auto req_thread = m_owner.get_request_thread ();
+      req_thread = std::make_shared<std::thread> (std::bind (
+          &pbote::kademlia::DHTworker::receiveRetrieveRequest,
+          &pbote::kademlia::DHT_worker, packet));
+      req_thread->join ();
+
       return true;
     }
 
@@ -213,21 +222,15 @@ bool
 IncomingRequest::receiveDeletionQueryRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: DeletionQueryRequest");
-  /// Y for mhatta
+
   if (packet->ver >= 4 && packet->type == type::CommY)
     {
-      m_owner.get_IO_service ().post (
-          std::bind (&pbote::kademlia::DHTworker::receiveDeletionQuery,
-                     &pbote::kademlia::DHT_worker, packet));
-      return true;
-    }
+      auto req_thread = m_owner.get_request_thread ();
+      req_thread = std::make_shared<std::thread> (std::bind (
+          &pbote::kademlia::DHTworker::receiveDeletionQuery,
+          &pbote::kademlia::DHT_worker, packet));
+      req_thread->join ();
 
-  /// L for str4d
-  if (packet->ver >= 4 && packet->type == (uint8_t)'L')
-    {
-      m_owner.get_IO_service ().post (
-          std::bind (&pbote::kademlia::DHTworker::receiveDeletionQuery,
-                     &pbote::kademlia::DHT_worker, packet));
       return true;
     }
 
@@ -242,9 +245,12 @@ IncomingRequest::receiveStoreRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "Packet: StoreRequest");
   if (packet->ver >= 4 && packet->type == type::CommS)
     {
-      m_owner.get_IO_service ().post (
-          std::bind (&pbote::kademlia::DHTworker::receiveStoreRequest,
-                     &pbote::kademlia::DHT_worker, packet));
+      auto req_thread = m_owner.get_request_thread ();
+      req_thread = std::make_shared<std::thread> (std::bind (
+          &pbote::kademlia::DHTworker::receiveStoreRequest,
+          &pbote::kademlia::DHT_worker, packet));
+      req_thread->join ();
+
       return true;
     }
 
@@ -259,9 +265,12 @@ IncomingRequest::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "Packet: EmailPacketDeleteRequest");
   if (packet->ver >= 4 && packet->type == type::CommD)
     {
-      m_owner.get_IO_service ().post (std::bind (
+      auto req_thread = m_owner.get_request_thread ();
+      req_thread = std::make_shared<std::thread> (std::bind (
           &pbote::kademlia::DHTworker::receiveEmailPacketDeleteRequest,
           &pbote::kademlia::DHT_worker, packet));
+      req_thread->join ();
+
       return true;
     }
 
@@ -277,9 +286,12 @@ IncomingRequest::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "Packet: IndexPacketDeleteRequest");
   if (packet->ver >= 4 && packet->type == type::CommX)
     {
-      m_owner.get_IO_service ().post (std::bind (
+      auto req_thread = m_owner.get_request_thread ();
+      req_thread = std::make_shared<std::thread> (std::bind (
           &pbote::kademlia::DHTworker::receiveIndexPacketDeleteRequest,
           &pbote::kademlia::DHT_worker, packet));
+      req_thread->join ();
+
       return true;
     }
 
@@ -295,9 +307,12 @@ IncomingRequest::receiveFindClosePeersRequest (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "Packet: FindClosePeersRequest");
   if (packet->ver >= 4 && packet->type == type::CommF)
     {
-      m_owner.get_IO_service ().post (
-          std::bind (&pbote::kademlia::DHTworker::receiveFindClosePeers,
-                     &pbote::kademlia::DHT_worker, packet));
+      auto req_thread = m_owner.get_request_thread ();
+      req_thread = std::make_shared<std::thread> (std::bind (
+          &pbote::kademlia::DHTworker::receiveFindClosePeers,
+          &pbote::kademlia::DHT_worker, packet));
+      req_thread->join ();
+
       return true;
     }
 
@@ -308,9 +323,11 @@ IncomingRequest::receiveFindClosePeersRequest (const sp_comm_pkt &packet)
 }
 
 RequestHandler::RequestHandler ()
-    : running (false), m_PHandlerThread (nullptr),
-      m_IO_service_thread (nullptr), m_recvQueue (nullptr),
-      m_sendQueue (nullptr), m_IO_work (get_IO_service ())
+    : m_running (false),
+      m_main_thread (nullptr),
+      m_request_thread (nullptr),
+      m_recv_queue (nullptr),
+      m_send_queue (nullptr)
 {
 }
 
@@ -318,49 +335,69 @@ RequestHandler::~RequestHandler ()
 {
   stop ();
 
-  if (m_PHandlerThread)
+  if (m_main_thread)
     {
-      m_PHandlerThread->join ();
-      m_PHandlerThread = nullptr;
+      m_main_thread->join ();
+      m_main_thread = nullptr;
+    }
+
+  if (m_request_thread)
+    {
+      m_request_thread->join ();
+      m_request_thread = nullptr;
     }
 }
 
 void
 RequestHandler::start ()
 {
-  m_recvQueue = context.getRecvQueue ();
-  m_sendQueue = context.getSendQueue ();
-  running = true;
+  m_recv_queue = context.getRecvQueue ();
+  m_send_queue = context.getSendQueue ();
+  m_running = true;
 
-  if (m_PHandlerThread)
-    m_PHandlerThread = nullptr;
+  if (m_main_thread)
+    m_main_thread = nullptr;
 
-  if (m_IO_service_thread)
-    m_IO_service_thread = nullptr;
+  if (m_request_thread)
+    m_request_thread = nullptr;
 
-  m_PHandlerThread.reset (
+  m_main_thread.reset (
       new std::thread (std::bind (&RequestHandler::run, this)));
-  m_IO_service_thread.reset (
-      new std::thread (std::bind (&RequestHandler::run_IO_service, this)));
 }
 
 void
 RequestHandler::stop ()
 {
-  running = false;
+  m_running = false;
 
-  m_IO_service.stop ();
-
-  if (m_IO_service_thread)
+  if (m_main_thread)
     {
-      m_IO_service_thread->join ();
-      m_IO_service_thread = nullptr;
+      m_main_thread->join ();
+      m_main_thread = nullptr;
     }
 
-  m_recvQueue = nullptr;
-  m_sendQueue = nullptr;
+  if (m_request_thread)
+    {
+      m_request_thread->join ();
+      m_request_thread = nullptr;
+    }
+
+  m_recv_queue = nullptr;
+  m_send_queue = nullptr;
 
   LogPrint (eLogInfo, "PacketHandler: Stopped");
+}
+
+std::shared_ptr<std::thread>
+RequestHandler::get_request_thread ()
+{
+  if (m_request_thread)
+    {
+      if (m_request_thread->joinable ())
+        m_request_thread->join ();
+    }
+
+  return m_request_thread;
 }
 
 void
@@ -368,9 +405,9 @@ RequestHandler::run ()
 {
   LogPrint (eLogInfo, "PacketHandler: Started");
 
-  while (running)
+  while (m_running)
     {
-      auto packet = m_recvQueue->GetNextWithTimeout (PACKET_RECEIVE_TIMEOUT);
+      auto packet = m_recv_queue->GetNextWithTimeout (PACKET_RECEIVE_TIMEOUT);
 
       if (!packet)
         continue;
@@ -389,30 +426,8 @@ RequestHandler::run ()
       response.length = 0;
       auto data = response.toByte ();
 
-      m_sendQueue->Put (std::make_shared<PacketForQueue> (
+      m_send_queue->Put (std::make_shared<PacketForQueue> (
           packet->destination, data.data (), data.size ()));
-    }
-}
-
-void
-RequestHandler::run_IO_service ()
-{
-  while (running)
-    {
-      std::this_thread::sleep_for (std::chrono::seconds (2));
-
-      try
-        {
-          size_t executed = m_IO_service.run ();
-          if (executed > 0)
-            LogPrint (eLogDebug,
-                      "PacketHandler: IO service round results: ", executed);
-        }
-      catch (std::exception &ex)
-        {
-          LogPrint (eLogError, "PacketHandler: IO service runtime exception: ",
-                    ex.what ());
-        }
     }
 }
 

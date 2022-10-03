@@ -9,13 +9,12 @@
 #ifndef PACKET_HANDLER_H__
 #define PACKET_HANDLER_H__
 
-#include <boost/asio.hpp>
 #include <cstdint>
 #include <functional>
 #include <future>
 #include <map>
 #include <memory>
-#include <queue>
+//#include <queue>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -60,7 +59,7 @@ private:
   bool receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet);
   bool receiveFindClosePeersRequest (const sp_comm_pkt &packet);
 
-  incomingPacketHandler i_handlers_[256];
+  incomingPacketHandler i_handlers[256];
   RequestHandler& m_owner;
 };
 
@@ -73,28 +72,21 @@ public:
   void start ();
   void stop ();
 
-  boost::asio::io_service&
-  get_IO_service ()
-  {
-    return m_IO_service;
-  }
-
   bool
   isRunning () const
   {
-    return running;
+    return m_running;
   };
+
+  std::shared_ptr<std::thread> get_request_thread ();
 
 private:
   void run ();
-  void run_IO_service ();
 
-  bool running;
-  std::unique_ptr<std::thread> m_PHandlerThread, m_IO_service_thread;
-  queue_type m_recvQueue, m_sendQueue;
-
-  boost::asio::io_service m_IO_service;
-  boost::asio::io_service::work m_IO_work;
+  bool m_running;
+  std::unique_ptr<std::thread> m_main_thread; //, m_request_thread;
+  std::shared_ptr<std::thread> m_request_thread;
+  queue_type m_recv_queue, m_send_queue;
 };
 
 extern RequestHandler packet_handler;
