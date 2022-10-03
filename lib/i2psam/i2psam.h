@@ -74,7 +74,7 @@ namespace SAM
 
 typedef u_int SOCKET;
 
-static void print_error(const std::string &err)
+static inline void print_error(const std::string &err)
 {
 #ifdef DEBUG_ON_STDOUT
 #ifdef WIN32
@@ -347,7 +347,7 @@ struct FullDestination
 {
   std::string pub;
   std::string priv;
-  bool isGenerated;
+  bool isGenerated = false;
 
   FullDestination() {}
   FullDestination(const std::string &pub, const std::string &priv, bool isGenerated)
