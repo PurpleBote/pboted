@@ -1,5 +1,5 @@
-[![GitHub release](https://img.shields.io/github/release/polistern/pboted.svg?label=latest%20release)](https://github.com/polistern/pboted/releases/latest)
-[![License](https://img.shields.io/github/license/polistern/pboted.svg)](https://github.com/polistern/pboted/blob/master/LICENSE)
+[![GitHub release](https://img.shields.io/github/release/PurpleBote/pboted.svg?label=latest%20release)](https://github.com/PurpleBote/pboted/releases/latest)
+[![License](https://img.shields.io/github/license/PurpleBote/pboted.svg)](https://github.com/PurpleBote/pboted/blob/master/LICENSE)
 [![Documentation Status](https://readthedocs.org/projects/pboted/badge/?version=latest)](http://pboted.readthedocs.io/?badge=latest)
 
 # pboted
@@ -25,7 +25,7 @@ Transition to **beta** planned in version **0.9.X**
 - Support for short recipient names (alias)
 - [End-to-End encryption](https://pboted.readthedocs.io/en/latest/bote/v5/cryptography/)([I2P](http://polistern.i2p/pbote/bote/v5/cryptography/))
 - Runnable as daemon
-- [CLI utility](https://github.com/polistern/pbotectl) (work in progress)
+- [CLI utility](https://github.com/PurpleBote/pbotectl) (work in progress)
 - SMTP / POP3 support (tested with [Mozilla Thunderbird](https://www.thunderbird.net/en-US/))
 - Delivery confirmation
 
@@ -39,20 +39,20 @@ Transition to **beta** planned in version **0.9.X**
 ## Resources
 
 - [Documentation](https://pboted.readthedocs.io/en/latest/)([I2P](http://polistern.i2p/pbote/))
-- [Tickets/Issues](https://github.com/polistern/pboted/issues)
+- [Tickets/Issues](https://github.com/PurpleBote/pboted/issues)
 
 ## Installing
 
-You can fetch precompiled packages and binaries on [release](https://github.com/polistern/pboted/releases/latest) page.  
+You can fetch precompiled packages and binaries on [release](https://github.com/PurpleBote/pboted/releases/latest) page.  
 Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/)([I2P](http://polistern.i2p/pbote/user-guide/install/)) for more info.
 
 ### Supported systems
 
-- GNU/Linux - [![Build](https://github.com/polistern/pboted/actions/workflows/build.yml/badge.svg)](https://github.com/polistern/pboted/actions/workflows/build.yml)
+- GNU/Linux - [![Build](https://github.com/PurpleBote/pboted/actions/workflows/build.yml/badge.svg)](https://github.com/polistern/pboted/actions/workflows/build.yml)
   - Debian / Ubuntu - [![Build DEB](https://github.com/polistern/pboted/actions/workflows/build-deb.yml/badge.svg)](https://github.com/polistern/pboted/actions/workflows/build-deb.yml)
   - CentOS / Fedora
 <!---
-- [![Build RPM](https://github.com/polistern/pboted/actions/workflows/build-rpm.yml/badge.svg)](https://github.com/polistern/pboted/actions/workflows/build-rpm.yml)
+- [![Build RPM](https://github.com/PurpleBote/pboted/actions/workflows/build-rpm.yml/badge.svg)](https://github.com/PurpleBote/pboted/actions/workflows/build-rpm.yml)
 --->
 
 ## Building
@@ -61,7 +61,7 @@ See [documentation](https://pboted.readthedocs.io/en/latest/building/requirement
 
 ## Usage
 
-See [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/#building-from-source)([I2P](http://polistern.i2p/pbote/user-guide/usage/)) and [example config file](https://github.com/polistern/pboted/blob/master/contrib/pboted.conf).
+See [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/#building-from-source)([I2P](http://polistern.i2p/pbote/user-guide/usage/)) and [example config file](https://github.com/PurpleBote/pboted/blob/master/contrib/pboted.conf).
 
 ## Donations
 
