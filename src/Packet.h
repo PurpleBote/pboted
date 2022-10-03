@@ -932,10 +932,10 @@ public:
     for (auto identity : data)
     {
       size_t sz = identity.GetFullLen ();
-      uint8_t t_key[sz] = {0};
-      identity.ToBuffer (t_key, sz);
+      std::vector<uint8_t> t_key = {0};
+      identity.ToBuffer (t_key.data (), sz);
       uint8_t cut_key[384] = {0};
-      memcpy(cut_key, t_key, 384);
+      memcpy(cut_key, t_key.data (), 384);
       result.insert (result.end (), cut_key, cut_key + 384);
     }
 
@@ -1012,9 +1012,9 @@ public:
     for (auto identity : data)
     {
       size_t sz = identity.GetFullLen ();
-      uint8_t t_key[sz] = {0};
-      identity.ToBuffer (t_key, sz);
-      result.insert (result.end (), t_key, t_key + sz);
+      std::vector<uint8_t> t_key = {0};
+      identity.ToBuffer (t_key.data (), sz);
+      result.insert (result.end (), t_key.begin (), t_key.end ());
     }
 
     return result;

@@ -33,6 +33,9 @@ static const char *g_LogLevelStr[eNumLogLevels] = {
  * @brief Colorize log output -- array of terminal control sequences
  * @note Using ISO 6429 (ANSI) color sequences
  */
+#ifdef _WIN32
+static const char *LogMsgColors[] = { "", "", "", "", "", "" };
+#else /* UNIX */
 static const char *LogMsgColors[] = {
   "\033[0m",    /* reset */
   "\033[1;31m", /* red */
@@ -41,6 +44,7 @@ static const char *LogMsgColors[] = {
   "\033[1;34m", /* blue */
   "\033[0m",    /* reset */
 };
+#endif
 
 /**
  * @brief  Maps our log levels to syslog one

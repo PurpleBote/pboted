@@ -65,7 +65,7 @@ private:
 
   const std::string socket_path;
   int conn_sockfd, data_sockfd;
-  struct sockaddr_un conn_addr, data_addr;
+  struct sockaddr_un conn_addr; //, data_addr;
 
   std::map<std::string, Handler> handlers;
 };

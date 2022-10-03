@@ -1167,6 +1167,9 @@ Email::lzmaDecompress (std::vector<uint8_t> &outBuf,
   SRes res = LzmaDec_Allocate (&dec, &inBuf[0], LZMA_PROPS_SIZE, &_allocFuncs);
   assert (res == SZ_OK);
 
+  if (res == SZ_OK)
+    LogPrint (eLogDebug, "Email: lzmaDecompress: Assert passed");
+
   LzmaDec_Init (&dec);
 
   unsigned outPos = 0, inPos = LZMA_PROPS_SIZE;

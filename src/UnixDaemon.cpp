@@ -129,7 +129,14 @@ int DaemonLinux::start()
 
       char pid[10];
       sprintf(pid, "%d\n", getpid());
-      ftruncate(pidFH, 0);
+      int trcd = ftruncate (pidFH, 0);
+
+      if (trcd < 0)
+        {
+          LogPrint(eLogError, "Daemon: Can't truncate pidfile: ", strerror(errno));
+          return EXIT_FAILURE;
+        }
+
       if (write(pidFH, pid, strlen(pid)) < 0)
         {
           LogPrint(eLogError, "Daemon: Can't write pidfile: ", strerror(errno));

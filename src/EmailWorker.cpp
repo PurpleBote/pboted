@@ -382,6 +382,8 @@ EmailWorker::incomplete_email_task ()
               continue;
             }
 
+          // ToDo: Check if mail already received
+
           Email mail;
           mail.metadata (meta.second);
           bool restored = mail.restore ();
@@ -413,18 +415,14 @@ EmailWorker::incomplete_email_task ()
               LogPrint (eLogInfo, "EmailWorker: Incomplete: Saved: ",
                         mail.get_message_id ());
             }
-
-          LogPrint (eLogInfo, "EmailWorker: Incomplete: Received: ",
-                    mail.metadata ()->received ());
-          LogPrint (eLogInfo, "EmailWorker: Incomplete: Received: ",
-                    meta.second->received ());
         }
 
       for (auto meta : metas)
         {
           if (meta.second->received () == 0)
             {
-              LogPrint (eLogWarning, "EmailWorker: Incomplete: Not received");
+              LogPrint (eLogWarning, "EmailWorker: Incomplete: Not received: ",
+                        meta.second->message_id ());
               continue;
             }
 
@@ -449,7 +447,7 @@ EmailWorker::incomplete_email_task ()
               memcpy (delete_email_packet.key, meta_part.second.key, 32);
 
               i2p::data::Tag<32> email_dht_key (meta_part.second.key);
-              i2p::data::Tag<32> email_del_auth (meta_part.second.DA);
+              //i2p::data::Tag<32> email_del_auth (meta_part.second.DA);
 
               /// We need to remove packets for all received email from nodes
               std::vector<std::string> responses;
@@ -830,7 +828,7 @@ EmailWorker::retrieve_email (const v_index &indices)
 
   LogPrint (eLogDebug, "EmailWorker: retrieve_email: Got ",
             local_email_packets.size (), " local and ", responses.size (),
-            " DHT results: ");
+            " DHT results");
 
   std::map<i2p::data::Tag<32>, EmailEncryptedPacket> mail_packets;
   for (const auto &response : responses)

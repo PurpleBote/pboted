@@ -150,7 +150,7 @@ inline byte *
 agree_EC_secret (EC_KEY *private_key, const EC_POINT *public_key, int *secret_len)
 {
   int field_size;
-  unsigned char *secret;
+  unsigned char *secret = nullptr;
 
   field_size = EC_GROUP_get_degree (EC_KEY_get0_group (private_key));
 
