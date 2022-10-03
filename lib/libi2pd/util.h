@@ -14,27 +14,8 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <type_traits>
 #include <utility>
-#include <boost/asio.hpp>
-
-#ifdef ANDROID
-#ifndef __clang__
-#include <boost/lexical_cast.hpp>
-namespace std
-{
-	template <typename T>
-	std::string to_string(T value)
-	{
-		return boost::lexical_cast<std::string>(value);
-	}
-
-	inline int stoi(const std::string& str)
-	{
-		return boost::lexical_cast<int>(str);
-	}
-}
-#endif
-#endif
 
 namespace i2p
 {
@@ -44,7 +25,7 @@ namespace util
 	template<class T>
 	class MemoryPool
 	{
-		//BOOST_STATIC_ASSERT_MSG(sizeof(T) >= sizeof(void*), "size cannot be less that general pointer size");
+		static_assert(sizeof(T) >= sizeof(void*), "size cannot be less that general pointer size");
 
 		public:
 
@@ -162,43 +143,6 @@ namespace util
 			std::mutex m_Mutex;
 	};
 
-	class RunnableService
-	{
-		protected:
-
-			RunnableService (const std::string& name): m_Name (name), m_IsRunning (false) {}
-			virtual ~RunnableService () {}
-
-			boost::asio::io_service& GetIOService () { return m_Service; }
-			bool IsRunning () const { return m_IsRunning; };
-
-			void StartIOService ();
-			void StopIOService ();
-
-		private:
-
-			void Run ();
-
-		private:
-
-			std::string m_Name;
-			volatile bool m_IsRunning;
-			std::unique_ptr<std::thread> m_Thread;
-			boost::asio::io_service m_Service;
-	};
-
-	class RunnableServiceWithWork: public RunnableService
-	{
-		protected:
-
-			RunnableServiceWithWork (const std::string& name):
-				RunnableService (name), m_Work (GetIOService ()) {}
-
-		private:
-
-			boost::asio::io_service::work m_Work;
-	};
-
 	void SetThreadName (const char *name);
 
 	template<typename T>
@@ -214,16 +158,6 @@ namespace util
 			T& m_Original;
 			T m_Copy;
 	};
-
-	namespace net
-	{
-		int GetMTU (const boost::asio::ip::address& localAddress);
-		const boost::asio::ip::address GetInterfaceAddress (const std::string & ifname, bool ipv6=false);
-		boost::asio::ip::address_v6 GetYggdrasilAddress ();
-		bool IsLocalAddress (const boost::asio::ip::address& addr);
-		bool IsInReservedRange (const boost::asio::ip::address& host);
-		bool IsYggdrasilAddress (const boost::asio::ip::address& addr);
-	}
 }
 }
 

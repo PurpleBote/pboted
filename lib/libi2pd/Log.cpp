@@ -35,12 +35,12 @@ namespace log {
 	static const char *LogMsgColors[] = { "", "", "", "", "", "" };
 #else /* UNIX */
 	static const char *LogMsgColors[] = {
-		[eLogNone]      = "\033[0m",    /* reset */
-		[eLogError]     = "\033[1;31m", /* red */
-		[eLogWarning]   = "\033[1;33m", /* yellow */
-		[eLogInfo]      = "\033[1;36m", /* cyan */
-		[eLogDebug]     = "\033[1;34m", /* blue */
-		[eNumLogLevels] = "\033[0m",    /* reset */
+		"\033[0m",    /* reset */
+		"\033[1;31m", /* red */
+		"\033[1;33m", /* yellow */
+		"\033[1;36m", /* cyan */
+		"\033[1;34m", /* blue */
+		"\033[0m",    /* reset */
 	};
 #endif
 
@@ -246,4 +246,3 @@ namespace log {
 
 } // log
 } // i2p
-

@@ -9,9 +9,10 @@
 #ifndef TAG_H__
 #define TAG_H__
 
-#include <boost/static_assert.hpp>
-#include <string.h>
 #include <openssl/rand.h>
+#include <string.h>
+#include <type_traits>
+
 #include "Base.h"
 
 namespace i2p {
@@ -19,7 +20,7 @@ namespace data {
 	template<size_t sz>
 	class Tag
 	{
-		BOOST_STATIC_ASSERT_MSG(sz % 8 == 0, "Tag size must be multiple of 8 bytes");
+		static_assert(sz % 8 == 0, "Tag size must be multiple of 8 bytes");
 
 		public:
 
