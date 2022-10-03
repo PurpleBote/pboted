@@ -19,8 +19,11 @@ namespace network
 NetworkWorker network_worker;
 
 UDPReceiver::UDPReceiver (const std::string &address, int port)
-  : running_ (false), m_RecvThread (nullptr), f_port (port),
-    f_addr (address), m_recvQueue (nullptr)
+    : m_running (false),
+      m_recv_thread (nullptr),
+      f_port (port),
+      f_addr (address),
+      m_recv_queue (nullptr)
 {
   // ToDo: restart on error
   int errcode;
@@ -69,9 +72,9 @@ UDPReceiver::~UDPReceiver ()
 {
   stop ();
 
-  if (m_recvQueue)
+  if (m_recv_queue)
     {
-      m_recvQueue = nullptr;
+      m_recv_queue = nullptr;
     }
 
   freeaddrinfo (f_addrinfo);
@@ -81,27 +84,27 @@ UDPReceiver::~UDPReceiver ()
 void
 UDPReceiver::start ()
 {
-  if (m_RecvThread)
+  if (m_recv_thread)
     {
-      delete m_RecvThread;
-      m_RecvThread = nullptr;
+      delete m_recv_thread;
+      m_recv_thread = nullptr;
     }
 
-  running_ = true;
-  m_RecvThread = new std::thread ([this] { run (); });
+  m_running = true;
+  m_recv_thread = new std::thread ([this] { run (); });
 }
 
 void
 UDPReceiver::stop ()
 {
-  running_ = false;
+  m_running = false;
 
-  if (m_RecvThread)
+  if (m_recv_thread)
     {
-      m_RecvThread->join ();
+      m_recv_thread->join ();
 
-      delete m_RecvThread;
-      m_RecvThread = nullptr;
+      delete m_recv_thread;
+      m_recv_thread = nullptr;
     }
 
   LogPrint (eLogInfo, "Network: UDPReceiver: Stopped");
@@ -112,7 +115,7 @@ UDPReceiver::run ()
 {
   LogPrint (eLogInfo, "Network: UDPReceiver: Started");
 
-  while (running_)
+  while (m_running)
     {
       handle_receive ();
     }
@@ -166,14 +169,17 @@ UDPReceiver::handle_receive ()
 
   auto packet = std::make_shared<PacketForQueue> (dest, (uint8_t *)eol,
                                                   payload_len);
-  m_recvQueue->Put (packet);
+  m_recv_queue->Put (packet);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 
 UDPSender::UDPSender (const std::string &addr, int port)
-  : running_ (false), m_SendThread (nullptr), f_port (port),
-    f_addr (addr), m_sendQueue (nullptr)
+    : m_running (false),
+      m_send_thread (nullptr),
+      f_port (port),
+      f_addr (addr),
+      m_send_queue (nullptr)
 {
   // ToDo: restart on error
   int errcode;
@@ -213,9 +219,9 @@ UDPSender::~UDPSender ()
 {
   stop ();
 
-  if (m_sendQueue)
+  if (m_send_queue)
     {
-      m_sendQueue = nullptr;
+      m_send_queue = nullptr;
     }
 
   freeaddrinfo (f_addrinfo);
@@ -225,27 +231,27 @@ UDPSender::~UDPSender ()
 void
 UDPSender::start ()
 {
-  if (m_SendThread)
+  if (m_send_thread)
     {
-      delete m_SendThread;
-      m_SendThread = nullptr;
+      delete m_send_thread;
+      m_send_thread = nullptr;
     }
 
-  running_ = true;
-  m_SendThread = new std::thread ([this] { run (); });
+  m_running = true;
+  m_send_thread = new std::thread ([this] { run (); });
 }
 
 void
 UDPSender::stop ()
 {
-  running_ = false;
+  m_running = false;
 
-  if (m_SendThread)
+  if (m_send_thread)
     {
-      m_SendThread->join ();
+      m_send_thread->join ();
 
-      delete m_SendThread;
-      m_SendThread = nullptr;
+      delete m_send_thread;
+      m_send_thread = nullptr;
     }
 
   LogPrint (eLogInfo, "Network: UDPSender: Stopped");
@@ -256,7 +262,7 @@ UDPSender::run ()
 {
   LogPrint (eLogInfo, "Network: UDPSender: Started");
 
-  while (running_)
+  while (m_running)
     {
       send ();
     }
@@ -265,7 +271,7 @@ UDPSender::run ()
 void
 UDPSender::send ()
 {
-  auto packet = m_sendQueue->GetNextWithTimeout (UDP_SEND_TIMEOUT);
+  auto packet = m_send_queue->GetNextWithTimeout (UDP_SEND_TIMEOUT);
 
   if (!packet)
     return;
@@ -274,7 +280,7 @@ UDPSender::send ()
 
   std::string payload (packet->payload.begin (), packet->payload.end ());
   std::string message
-      = SAM::Message::datagramSend (m_sessionID_, packet->destination);
+      = SAM::Message::datagramSend (m_session_id, packet->destination);
   message.append (payload);
 
   ssize_t bytes_transferred
@@ -309,9 +315,14 @@ UDPSender::check_session()
 ///////////////////////////////////////////////////////////////////////////////
 
 NetworkWorker::NetworkWorker ()
-  : listenPortUDP_ (0), routerPortTCP_ (0), routerPortUDP_ (0),
-    router_session_ (nullptr), m_RecvHandler (nullptr),
-    m_SendHandler (nullptr), m_recvQueue (nullptr), m_sendQueue (nullptr)
+    : m_listen_port_udp (0),
+      m_router_port_tcp (0),
+      m_router_port_udp (0),
+      m_router_session (nullptr),
+      m_recv_handler (nullptr),
+      m_send_handler (nullptr),
+      m_recv_queue (nullptr),
+      m_send_queue (nullptr)
 {
 }
 
@@ -319,25 +330,25 @@ NetworkWorker::~NetworkWorker ()
 {
   stop ();
 
-  router_session_ = nullptr;
-  m_RecvHandler = nullptr;
-  m_SendHandler = nullptr;
+  m_router_session = nullptr;
+  m_recv_handler = nullptr;
+  m_send_handler = nullptr;
 }
 
 void
 NetworkWorker::init ()
 {
-  m_nickname_ = context.get_nickname ();
+  m_nickname = context.get_nickname ();
 
-  listenAddress_ = context.get_listen_host ();
-  listenPortUDP_ = context.get_listen_port_SAM ();
+  m_listen_address = context.get_listen_host ();
+  m_listen_port_udp = context.get_listen_port_SAM ();
 
-  routerAddress_ = context.get_router_host ();
-  routerPortTCP_ = context.get_router_port_TCP ();
-  routerPortUDP_ = context.get_router_port_UDP ();
+  m_router_address = context.get_router_host ();
+  m_router_port_tcp = context.get_router_port_TCP ();
+  m_router_port_udp = context.get_router_port_UDP ();
 
-  m_recvQueue = context.getRecvQueue ();
-  m_sendQueue = context.getSendQueue ();
+  m_recv_queue = context.getRecvQueue ();
+  m_send_queue = context.getSendQueue ();
 
   createRecvHandler ();
   createSendHandler ();
@@ -346,14 +357,14 @@ NetworkWorker::init ()
 void
 NetworkWorker::start ()
 {
-  LogPrint (eLogInfo, "Network: SAM TCP endpoint: ", routerAddress_, ":",
-            routerPortTCP_);
-  LogPrint (eLogInfo, "Network: SAM UDP endpoint: ", routerAddress_, ":",
-            routerPortUDP_);
+  LogPrint (eLogInfo, "Network: SAM TCP endpoint: ", m_router_address, ":",
+            m_router_port_tcp);
+  LogPrint (eLogInfo, "Network: SAM UDP endpoint: ", m_router_address, ":",
+            m_router_port_udp);
 
   // ToDo: we can init with empty listen port for auto port
   //   and use it in SAM init
-  m_RecvHandler->start ();
+  m_recv_handler->start ();
 
   LogPrint (eLogInfo, "Network: Starting SAM session");
   try
@@ -383,10 +394,10 @@ NetworkWorker::start ()
         context.save_new_keys (key);
 
       /// Because we get sessionID after SAM initialization
-      m_SendHandler->set_sam_session (router_session_);
-      m_SendHandler->setSessionID (
-          const_cast<std::string &> (router_session_->getSessionID ()));
-      m_SendHandler->start ();
+      m_send_handler->set_sam_session (m_router_session);
+      m_send_handler->setSessionID (
+          const_cast<std::string &> (m_router_session->getSessionID ()));
+      m_send_handler->start ();
 
       LogPrint (eLogInfo, "Network: SAM session started");
     }
@@ -399,8 +410,8 @@ NetworkWorker::start ()
 void
 NetworkWorker::stop ()
 {
-  m_RecvHandler->stop ();
-  m_SendHandler->stop ();
+  m_recv_handler->stop ();
+  m_send_handler->stop ();
 
   // ToDo: Close SAM session
 
@@ -410,8 +421,8 @@ NetworkWorker::stop ()
 void
 NetworkWorker::running ()
 {
-  bool recv_run = m_RecvHandler->running ();
-  bool send_run = m_SendHandler->running ();
+  bool recv_run = m_recv_handler->running ();
+  bool send_run = m_send_handler->running ();
   LogPrint (recv_run ? eLogDebug : eLogError, "Network: UDPReceiver: running: ",
             recv_run ? "true" : "false");
   LogPrint (send_run ? eLogDebug : eLogError, "Network: UDPSender: running: ",
@@ -427,35 +438,35 @@ NetworkWorker::createSAMSession ()
     {
       std::shared_ptr<SAM::DatagramSession> new_session
           = std::make_shared<SAM::DatagramSession> (
-              m_nickname_, routerAddress_, routerPortTCP_, routerPortUDP_,
-              listenAddress_, listenPortUDP_, localKeys->ToBase64 ());
+              m_nickname, m_router_address, m_router_port_tcp, m_router_port_udp,
+              m_listen_address, m_listen_port_udp, localKeys->ToBase64 ());
 
-      router_session_ = new_session;
+      m_router_session = new_session;
     }
   else
     {
       std::shared_ptr<SAM::DatagramSession> new_session
           = std::make_shared<SAM::DatagramSession> (
-              m_nickname_, routerAddress_, routerPortTCP_, routerPortUDP_,
-              listenAddress_, listenPortUDP_);
+              m_nickname, m_router_address, m_router_port_tcp, m_router_port_udp,
+              m_listen_address, m_listen_port_udp);
 
       localKeys->FromBase64 (new_session->getMyDestination ().priv);
-      router_session_ = new_session;
+      m_router_session = new_session;
     }
 
-  if (router_session_->getMyDestination ().priv.empty ()
-      || router_session_->getMyDestination ().pub.empty ())
+  if (m_router_session->getMyDestination ().priv.empty ()
+      || m_router_session->getMyDestination ().pub.empty ())
     {
       LogPrint (eLogError, "Network: SAM session failed");
       return {};
     }
 
-  bool sick = router_session_->isSick ();
+  bool sick = m_router_session->isSick ();
   LogPrint (sick ? eLogError : eLogInfo, "Network: SAM session: ",
             sick ? "Sick" : "OK");
 
-  LogPrint (eLogInfo, "Network: SAM session created, nickname: ", m_nickname_,
-            ", sessionID: ", router_session_->getSessionID ());
+  LogPrint (eLogInfo, "Network: SAM session created, nickname: ", m_nickname,
+            ", sessionID: ", m_router_session->getSessionID ());
 
   return localKeys;
 }
@@ -464,25 +475,26 @@ void
 NetworkWorker::createRecvHandler ()
 {
   LogPrint (eLogInfo, "Network: Starting UDP receiver with address ",
-            listenAddress_, ":", listenPortUDP_);
+            m_listen_address, ":", m_listen_port_udp);
 
-  m_RecvHandler
-      = std::make_shared<UDPReceiver> (listenAddress_, listenPortUDP_);
+  m_recv_handler = std::make_shared<UDPReceiver> (m_listen_address,
+                                                  m_listen_port_udp);
 
-  m_RecvHandler->setNickname (m_nickname_);
-  m_RecvHandler->setQueue (m_recvQueue);
+  m_recv_handler->setNickname (m_nickname);
+  m_recv_handler->setQueue (m_recv_queue);
 }
 
 void
 NetworkWorker::createSendHandler ()
 {
   LogPrint (eLogInfo, "Network: Starting UDP sender to address ",
-            routerAddress_, ":", routerPortUDP_);
+            m_router_address, ":", m_router_port_udp);
 
-  m_SendHandler = std::make_shared<UDPSender> (routerAddress_, routerPortUDP_);
+  m_send_handler = std::make_shared<UDPSender> (m_router_address,
+                                                m_router_port_udp);
 
-  m_SendHandler->setNickname (m_nickname_);
-  m_SendHandler->setQueue (m_sendQueue);
+  m_send_handler->setNickname (m_nickname);
+  m_send_handler->setQueue (m_send_queue);
 }
 
 } // namespace network

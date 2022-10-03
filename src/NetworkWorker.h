@@ -55,13 +55,13 @@ public:
   void
   setNickname (const std::string &nickname = SAM_DEFAULT_NICKNAME)
   {
-    m_nickname_ = nickname;
+    m_nickname = nickname;
   };
 
   void
-  setQueue (const queue_type &recvQueue)
+  setQueue (const queue_type &recv_queue)
   {
-    m_recvQueue = recvQueue;
+    m_recv_queue = recv_queue;
   };
 
   int
@@ -85,7 +85,7 @@ public:
   bool
   running () const
   {
-    return running_;
+    return m_running;
   };
 
 private:
@@ -93,16 +93,16 @@ private:
   ssize_t recv ();
   void handle_receive ();
 
-  bool running_;
-  std::thread *m_RecvThread;
-  std::string m_nickname_;
+  bool m_running;
+  std::thread *m_recv_thread;
+  std::string m_nickname;
   int f_socket;
   int f_port;
   std::string f_addr;
   struct addrinfo *f_addrinfo{};
 
   uint8_t UDP_recv_buffer[MAX_DATAGRAM_SIZE + 1] = {0};
-  queue_type m_recvQueue;
+  queue_type m_recv_queue;
 };
 
 class UDPSender
@@ -117,19 +117,19 @@ public:
   void
   setNickname (const std::string &nickname = SAM_DEFAULT_NICKNAME)
   {
-    m_nickname_ = nickname;
+    m_nickname = nickname;
   };
 
   void
-  setSessionID (const std::string &sessionID)
+  setSessionID (const std::string &session_id)
   {
-    m_sessionID_ = sessionID;
+    m_session_id = session_id;
   };
 
   void
-  setQueue (const queue_type &sendQueue)
+  setQueue (const queue_type &send_queue)
   {
-    m_sendQueue = sendQueue;
+    m_send_queue = send_queue;
   };
 
   void
@@ -159,7 +159,7 @@ public:
   bool
   running () const
   {
-    return running_;
+    return m_running;
   };
 
 private:
@@ -168,10 +168,10 @@ private:
 
   void check_session();
 
-  bool running_;
-  std::thread *m_SendThread;
-  std::string m_nickname_;
-  std::string m_sessionID_;
+  bool m_running;
+  std::thread *m_send_thread;
+  std::string m_nickname;
+  std::string m_session_id;
 
   std::shared_ptr<SAM::DatagramSession> sam_session;
 
@@ -180,7 +180,7 @@ private:
   std::string f_addr;
   struct addrinfo *f_addrinfo{};
 
-  queue_type m_sendQueue;
+  queue_type m_send_queue;
 };
 
 class NetworkWorker
@@ -194,7 +194,7 @@ public:
   void stop ();
 
   void running ();
-  bool is_sick() { return router_session_->isSick (); };
+  bool is_sick() { return m_router_session->isSick (); };
 
 private:
   /** prevent making copies */
@@ -206,22 +206,22 @@ private:
   void createRecvHandler ();
   void createSendHandler ();
 
-  std::string m_nickname_;
+  std::string m_nickname;
 
-  std::string listenAddress_;
-  uint16_t listenPortUDP_;
+  std::string m_listen_address;
+  uint16_t m_listen_port_udp;
 
-  std::string routerAddress_;
-  uint16_t routerPortTCP_;
-  uint16_t routerPortUDP_;
+  std::string m_router_address;
+  uint16_t m_router_port_tcp;
+  uint16_t m_router_port_udp;
 
-  std::shared_ptr<SAM::DatagramSession> router_session_;
+  std::shared_ptr<SAM::DatagramSession> m_router_session;
 
-  std::shared_ptr<UDPReceiver> m_RecvHandler;
-  std::shared_ptr<UDPSender> m_SendHandler;
+  std::shared_ptr<UDPReceiver> m_recv_handler;
+  std::shared_ptr<UDPSender> m_send_handler;
 
-  queue_type m_recvQueue;
-  queue_type m_sendQueue;
+  queue_type m_recv_queue;
+  queue_type m_send_queue;
 };
 
 extern NetworkWorker network_worker;
