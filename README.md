@@ -49,7 +49,7 @@ Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/in
 ### Supported systems
 
 - GNU/Linux - [![Build](https://github.com/PurpleBote/pboted/actions/workflows/build.yml/badge.svg)](https://github.com/polistern/pboted/actions/workflows/build.yml)
-  - Debian / Ubuntu - [![Build DEB](https://github.com/polistern/pboted/actions/workflows/build-deb.yml/badge.svg)](https://github.com/polistern/pboted/actions/workflows/build-deb.yml)
+  - Debian / Ubuntu - [![Build DEB](https://github.com/PurpleBote/pboted/actions/workflows/build-deb.yml/badge.svg)](https://github.com/polistern/pboted/actions/workflows/build-deb.yml)
   - CentOS / Fedora
 <!---
 - [![Build RPM](https://github.com/PurpleBote/pboted/actions/workflows/build-rpm.yml/badge.svg)](https://github.com/PurpleBote/pboted/actions/workflows/build-rpm.yml)
