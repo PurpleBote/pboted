@@ -224,6 +224,7 @@ BoteContext::identityByName(const std::string &name)
 int32_t
 BoteContext::get_uptime()
 {
+  // ToDo: libi2pd Timestamp.h
   return ts_now () - start_time_;
   //return raw_uptime * std::chrono::system_clock::period::num / 
   //  std::chrono::system_clock::period::den;
