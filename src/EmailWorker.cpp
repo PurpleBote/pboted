@@ -72,7 +72,11 @@ EmailWorker::stop ()
   if (!m_main_started)
     return;
 
+  LogPrint (eLogInfo, "EmailWorker: Stopping");
+
   m_main_started = false;
+
+  m_check_cv.notify_all ();
 
   stopSendEmailTask ();
   stopIncompleteEmailTask ();
@@ -262,18 +266,30 @@ EmailWorker::run ()
 void
 EmailWorker::check_email_task (const sp_id_full &email_identity)
 {
-  bool first_complete = false;
+  bool first_run = true;
+  auto check_timeout = std::chrono::seconds (FIRST_RUN_WAITING);
   std::string id_name = email_identity->publicName;
 
   LogPrint (eLogDebug, "EmailWorker: Check: ", id_name, ": Started");
 
   while (m_main_started)
     {
-      // ToDo: read interval parameter from config
-      if (first_complete)
-        std::this_thread::sleep_for (std::chrono::seconds (CHECK_EMAIL_INTERVAL));
+      /* ToDo: read interval parameter from config */
+      if (!first_run)
+        check_timeout = std::chrono::seconds(CHECK_EMAIL_INTERVAL);
+      first_run = false;
 
-      first_complete = true;
+      {
+        std::unique_lock<std::mutex> lk (m_check_mutex);
+        auto rc = m_check_cv.wait_for (lk, check_timeout);
+        if (rc == std::cv_status::no_timeout)
+          LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
+                    ": Got notification");
+        if (rc == std::cv_status::timeout)
+          LogPrint (eLogDebug, "EmailWorker: Check: ", id_name,
+                    ": Waiting finished");
+        lk.unlock ();
+      }
 
       auto index_packets = retrieve_index (email_identity);
 
@@ -354,16 +370,27 @@ EmailWorker::check_email_task (const sp_id_full &email_identity)
 void
 EmailWorker::incomplete_email_task ()
 {
-  bool first_complete = false;
+  bool first_run = true;
+  auto check_timeout = std::chrono::seconds (FIRST_RUN_WAITING);
 
   LogPrint (eLogInfo, "EmailWorker: Incomplete: Started");
 
   while (m_main_started)
     {
-      // ToDo: read interval parameter from config
-      if (first_complete)
-        std::this_thread::sleep_for (std::chrono::seconds (CHECK_EMAIL_INTERVAL));
-      first_complete = true;
+      /* ToDo: read interval parameter from config */
+      if (!first_run)
+        check_timeout = std::chrono::seconds(CHECK_EMAIL_INTERVAL);
+      first_run = false;
+
+      {
+        std::unique_lock<std::mutex> lk (m_incomplete_mutex);
+        auto rc = m_check_cv.wait_for (lk, check_timeout);
+        if (rc == std::cv_status::no_timeout)
+          LogPrint (eLogDebug, "EmailWorker: Incomplete: Got notification");
+        if (rc == std::cv_status::timeout)
+          LogPrint (eLogDebug, "EmailWorker: Incomplete: Waiting finished");
+        lk.unlock ();
+      }
 
       auto metas = get_incomplete ();
 
@@ -492,13 +519,28 @@ EmailWorker::incomplete_email_task ()
 void
 EmailWorker::send_email_task ()
 {
+  bool first_run = true;
+  auto check_timeout = std::chrono::seconds (FIRST_RUN_WAITING);
   v_sp_email outbox;
+
   LogPrint (eLogDebug, "EmailWorker: Send: Started");
 
   while (m_main_started)
     {
-      // ToDo: read interval parameter from config
-      std::this_thread::sleep_for (std::chrono::seconds (SEND_EMAIL_INTERVAL));
+      /* ToDo: read interval parameter from config */
+      if (!first_run)
+        check_timeout = std::chrono::seconds(CHECK_EMAIL_INTERVAL);
+      first_run = false;
+
+      {
+        std::unique_lock<std::mutex> lk (m_send_mutex);
+        auto rc = m_check_cv.wait_for (lk, check_timeout);
+        if (rc == std::cv_status::no_timeout)
+          LogPrint (eLogDebug, "EmailWorker: Send: Got notification");
+        if (rc == std::cv_status::timeout)
+          LogPrint (eLogDebug, "EmailWorker: Send: Waiting finished");
+        lk.unlock ();
+      }
 
       std::vector<std::string> nodes;
       check_outbox (outbox);
@@ -595,18 +637,29 @@ EmailWorker::send_email_task ()
 void
 EmailWorker::check_delivery_task ()
 {
-  bool first_complete = false;
-  LogPrint (eLogInfo, "EmailWorker: Delivery: Started");
-
+  bool first_run = true;
+  auto check_timeout = std::chrono::seconds (FIRST_RUN_WAITING);
   v_sp_email_meta sentbox;
   std::vector<std::shared_ptr<DeletionInfoPacket> > results;
 
+  LogPrint (eLogInfo, "EmailWorker: Delivery: Started");
+
   while (m_main_started)
     {
-      if (first_complete)
-        std::this_thread::sleep_for (std::chrono::seconds (CHECK_EMAIL_INTERVAL));
+      /* ToDo: read interval parameter from config */
+      if (!first_run)
+        check_timeout = std::chrono::seconds(DELIVERY_EMAIL_INTERVAL);
+      first_run = false;
 
-      first_complete = true;
+      {
+        std::unique_lock<std::mutex> lk (m_delivery_mutex);
+        auto rc = m_check_cv.wait_for (lk, check_timeout);
+        if (rc == std::cv_status::no_timeout)
+          LogPrint (eLogDebug, "EmailWorker: Delivery: Got notification");
+        if (rc == std::cv_status::timeout)
+          LogPrint (eLogDebug, "EmailWorker: Delivery: Waiting finished");
+        lk.unlock ();
+      }
 
       check_sentbox (sentbox);
 

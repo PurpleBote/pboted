@@ -6,8 +6,8 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTED_SRC_EMAIL_WORKER_H_
-#define PBOTED_SRC_EMAIL_WORKER_H_
+#ifndef PBOTED_SRC_EMAIL_WORKER_H
+#define PBOTED_SRC_EMAIL_WORKER_H
 
 #include <algorithm>
 #include <cstdint>
@@ -30,6 +30,10 @@ namespace kademlia
 #endif // NDEBUG
 
 #define CHECK_EMAIL_INTERVAL (5 * 60)
+
+#define DELIVERY_EMAIL_INTERVAL (5 * 60)
+
+#define FIRST_RUN_WAITING 30
 
 using sp_id_full = std::shared_ptr<BoteIdentityFull>;
 using thread_map
@@ -91,6 +95,12 @@ private:
   std::thread *m_delivery_thread;
   std::thread *m_incomplete_thread;
   thread_map m_check_threads;
+
+  mutable std::mutex m_check_mutex,
+                     m_incomplete_mutex,
+                     m_send_mutex,
+                     m_delivery_mutex;
+  std::condition_variable m_check_cv;
 };
 
 extern EmailWorker email_worker;
@@ -98,4 +108,4 @@ extern EmailWorker email_worker;
 } // namespace kademlia
 } // namespace pbote
 
-#endif // PBOTED_SRC_EMAIL_WORKER_H_
+#endif // PBOTED_SRC_EMAIL_WORKER_H
