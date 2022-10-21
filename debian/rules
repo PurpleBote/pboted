@@ -6,7 +6,7 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 include /usr/share/dpkg/architecture.mk
 
-export DEB_CXXFLAGS_MAINT_APPEND  = -Wall -pedantic
+export DEB_CXXFLAGS_MAINT_APPEND  = -O3 -Wall -pedantic
 export DEB_LDFLAGS_MAINT_APPEND =
 
 
@@ -25,6 +25,9 @@ override_dh_auto_configure:
 
 override_dh_auto_build:
 	dh_auto_build --buildsystem=cmake
+
+override_dh_shlibdeps:
+	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info
 
 #override_dh_builddeb:
 #	dh_builddeb -- -Zxz

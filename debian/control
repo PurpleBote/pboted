@@ -8,19 +8,16 @@ Build-Depends:
  debhelper (>= 10),
  dpkg-dev (>= 1.18),
  gcc (>= 6.3) | clang (>= 3.8),
- libboost-filesystem-dev (>= 1.62),
  libboost-system-dev (>= 1.62),
  libboost-program-options-dev (>= 1.62),
- libboost-date-time-dev (>= 1.62),
- libboost-thread-dev (>= 1.62),
  libmimetic-dev (>= 0.9.8),
  libssl-dev,
  pkg-config,
  zlib1g-dev
 Standards-Version: 4.6.0
-Homepage: http://github.com/polistern/pboted
-Vcs-Git: git://github.com/polistern/pboted.git
-Vcs-Browser: https://github.com/polistern/pboted
+Homepage: http://github.com/PurpleBote/pboted
+Vcs-Git: git://github.com/PurpleBote/pboted.git
+Vcs-Browser: https://github.com/PurpleBote/pboted
 
 Package: pboted
 Architecture: any

@@ -1,21 +1,35 @@
 cmake_minimum_required(VERSION 3.7)
-project("pboted")
+
+if(${CMAKE_VERSION} VERSION_LESS 3.22)
+  cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
+else()
+  cmake_policy(VERSION 3.22)
+endif()
 
 #set(CMAKE_VERBOSE_MAKEFILE on) # for debugging
 
-# Configuration options
-option(WITH_STATIC "Static build" OFF)
+# Paths
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules")
+set(CMAKE_SOURCE_DIR "..")
 
+set(PBOTED_SRC_DIR ${CMAKE_SOURCE_DIR}/src)
+
+include(Version)
+set_version("${PBOTED_SRC_DIR}/version.h" PROJECT_VERSION)
+
+project(
+    pboted
+    LANGUAGES C CXX
+    VERSION ${PROJECT_VERSION})
+
+# Configuration options
+option(WITH_STATIC "Static build"         OFF)
 # ToDo?
-#option(WITH_CLANG "Use Clang compiler" OFF)
+#option(WITH_CLANG  "Force Clang compiler" OFF)
 #if (WITH_CLANG)
 #    set (CMAKE_C_COMPILER "/usr/bin/clang")
 #    set (CMAKE_CXX_COMPILER "/usr/bin/clang++")
 #endif ()
-
-# Paths
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules")
-set(CMAKE_SOURCE_DIR "..")
 
 # Handle paths nicely
 include(GNUInstallDirs)
@@ -26,49 +40,49 @@ include(ExternalProject)
 include(TargetArch)
 target_architecture(ARCHITECTURE)
 
-#
+include(CheckAtomic)
+
+# libi2pd stuff
 set(LIBI2PD_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/libi2pd)
-set(I2PSAM_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/i2psam)
-set(LIBLZMA_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/lzma)
-set(PBOTE_SRC_DIR ${CMAKE_SOURCE_DIR}/src)
-
 include_directories(${LIBI2PD_SRC_DIR})
-include_directories(${I2PSAM_SRC_DIR})
-include_directories(${LIBLZMA_SRC_DIR})
-include_directories(${PBOTE_SRC_DIR})
-
 file(GLOB LIBI2PD_SRC ${LIBI2PD_SRC_DIR}/*.cpp)
 add_library(libi2pd ${LIBI2PD_SRC})
 set_target_properties(libi2pd PROPERTIES PREFIX "")
 
-file(GLOB I2PSAM_SRC ${I2PSAM_SRC_DIR}/*.cpp)
-add_library(i2psam ${I2PSAM_SRC})
-set_target_properties(i2psam PROPERTIES PREFIX "")
+# libi2psam stuff
+set(LIBI2PSAM_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/i2psam)
+include_directories(${LIBI2PSAM_SRC_DIR})
+file(GLOB LIBI2PSAM_SRC ${LIBI2PSAM_SRC_DIR}/*.cpp)
+add_library(libi2psam ${LIBI2PSAM_SRC})
+set_target_properties(libi2psam PROPERTIES PREFIX "")
 
+# liblzma stuff
+set(LIBLZMA_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/lzma)
+set_source_files_properties(${LIBLZMA_SRC_DIR} PROPERTIES LANGUAGE C)
+include_directories(${LIBLZMA_SRC_DIR})
 file(GLOB LIBLZMA_SRC ${LIBLZMA_SRC_DIR}/*.c)
 add_library(liblzma ${LIBLZMA_SRC})
 set_target_properties(liblzma PROPERTIES PREFIX "")
 
-file(GLOB PBOTE_SRC ${PBOTE_SRC_DIR}/*.cpp)
+# pboted stuff
+include_directories(${PBOTE_SRC_DIR})
+file(GLOB PBOTED_SRC ${PBOTED_SRC_DIR}/*.cpp)
 
 # Compiler flags customization (by vendor)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Winvalid-pch -Wno-unused-parameter")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall -Wextra -Winvalid-pch -Wno-unused-parameter")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -Wall -Wextra")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -pedantic")
 set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -flto -s -ffunction-sections -fdata-sections")
 set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-Wl,--gc-sections") # -flto is added from above
 
-# Check for C++17 & C++11 support
+# Check for C++17 support
 include(CheckCXXCompilerFlag)
 CHECK_CXX_COMPILER_FLAG("-std=c++17" CXX17_SUPPORTED)
-CHECK_CXX_COMPILER_FLAG("-std=c++11" CXX11_SUPPORTED)
 if (CXX17_SUPPORTED)
     set (CMAKE_CXX_STANDARD 17)
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -std=gnu++17")
-elseif (CXX11_SUPPORTED)
-    set (CMAKE_CXX_STANDARD 11)
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -std=gnu++11")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
 else ()
-    message(SEND_ERROR "C++17 nor C++11 standard not seems to be supported by compiler. Too old version?")
+    message(SEND_ERROR "C++17 standard not seems to be supported by compiler. Too old version?")
 endif ()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -108,10 +122,11 @@ if (WITH_STATIC)
 
     set(MIMETIC_USE_STATIC_LIBS ON)
 
+    set(BUILD_STATIC_LIBS ON)
     set(BUILD_SHARED_LIBS OFF)
 endif ()
 
-find_package(Boost COMPONENTS filesystem program_options REQUIRED)
+find_package(Boost COMPONENTS program_options REQUIRED)
 if (NOT Boost_FOUND)
     message(SEND_ERROR "Boost is not found. Please download and install it first!")
 endif ()
@@ -135,13 +150,17 @@ if (WITH_STATIC)
     if (${CMAKE_CXX_COMPILER} MATCHES ".*-openwrt-.*")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
         #set(CMAKE_THREAD_LIBS_INIT "gcc_eh -Wl,--whole-archive -lpthread -Wl,--no-whole-archive")
-        set(CMAKE_THREAD_LIBS_INIT "gcc_eh -Wl,-u,pthread_create,-u,pthread_once,-u,pthread_mutex_lock,-u,pthread_mutex_unlock,-u,pthread_join,-u,pthread_equal,-u,pthread_detach,-u,pthread_cond_wait,-u,pthread_cond_signal,-u,pthread_cond_destroy,-u,pthread_cond_broadcast,-u,pthread_cancel")
+        set(CMAKE_THREAD_LIBS_INIT
+            "gcc_eh -Wl,-u,pthread_create,-u,pthread_once,-u,pthread_mutex_lock,
+            -u,pthread_mutex_unlock,-u,pthread_join,-u,pthread_equal,
+            -u,pthread_detach,-u,pthread_cond_wait,-u,pthread_cond_signal,
+            -u,pthread_cond_destroy,-u,pthread_cond_broadcast,-u,pthread_cancel")
     endif ()
 else ()
     # No need in -fPIC overhead for binary if not interested in library
     # HINT: revert c266cff CMakeLists.txt: compilation speed up
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
-    add_definitions(-DBOOST_FILESYSTEM_DYN_LINK -DBOOST_PROGRAM_OPTIONS_DYN_LINK)
+    add_definitions(-DBOOST_PROGRAM_OPTIONS_DYN_LINK)
 endif ()
 
 # Load includes
@@ -150,11 +169,6 @@ include_directories(SYSTEM
                     ${Boost_INCLUDE_DIRS}
                     ${OPENSSL_INCLUDE_DIR}
                     ${ZLIB_INCLUDE_DIRS})
-
-include(CheckAtomic)
-
-include(Version)
-set_version("${PBOTE_SRC_DIR}/version.h" PROJECT_VERSION)
 
 # Show summary
 message(STATUS "Project            : ${PROJECT_NAME}")
@@ -165,14 +179,14 @@ message(STATUS "Compiler vendor    : ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "Compiler version   : ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "C compiler path    : ${CMAKE_C_COMPILER}")
 message(STATUS "C++ compiler path  : ${CMAKE_CXX_COMPILER}")
-message(STATUS "Standart           : ${CMAKE_CXX_STANDARD}")
+message(STATUS "C++ standard       : ${CMAKE_CXX_STANDARD}")
 message(STATUS "Architecture       : ${ARCHITECTURE}")
 message(STATUS "Install prefix     : ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "Options:")
 message(STATUS "  STATIC BUILD     : ${WITH_STATIC}")
 message(STATUS "----------------------------------------")
 
-add_executable("${PROJECT_NAME}" ${PBOTE_SRC})
+add_executable("${PROJECT_NAME}" ${PBOTED_SRC})
 
 if (NOT MSVC)
     if (WITH_STATIC)
@@ -191,15 +205,25 @@ if (WITH_STATIC)
     set(DL_LIB ${CMAKE_DL_LIBS})
 endif ()
 
-target_link_libraries("${PROJECT_NAME}"
-                      libi2pd
-                      i2psam
-                      liblzma
-                      Threads::Threads
-                      ${ZLIB_LIBRARIES}
-                      ${MIMETIC_LIBRARIES}
-                      ${Boost_LIBRARIES}
-                      ${OPENSSL_LIBRARIES}
-                      ${MINGW_EXTRA}
-                      ${DL_LIB}
-                      ${CMAKE_REQUIRED_LIBRARIES})
+set(LIBS
+    libi2pd
+    libi2psam
+    liblzma
+    Threads::Threads
+    ${ZLIB_LIBRARIES}
+    ${MIMETIC_LIBRARIES}
+    ${Boost_LIBRARIES}
+    ${OPENSSL_LIBRARIES}
+    ${MINGW_EXTRA}
+    ${DL_LIB}
+    ${CMAKE_REQUIRED_LIBRARIES})
+
+# If GCC version is less than 9
+# we need to link filesystem manually
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    if (NOT (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9.0))
+        list(APPEND LIBS libstdc++fs)
+    endif ()
+endif ()
+
+target_link_libraries("${PROJECT_NAME}" ${LIBS})

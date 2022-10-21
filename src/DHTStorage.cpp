@@ -6,9 +6,9 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#include <boost/filesystem.hpp>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <cstdio>
@@ -895,27 +895,27 @@ DHTStorage::update_storage_usage ()
   try
     {
       std::string dir_path = pbote::fs::DataDirPath("DHTindex");
-      for (boost::filesystem::recursive_directory_iterator it(dir_path);
-           it != boost::filesystem::recursive_directory_iterator(); ++it)
+      for (std::filesystem::recursive_directory_iterator it(dir_path);
+           it != std::filesystem::recursive_directory_iterator(); ++it)
         {
-          if (boost::filesystem::is_regular_file(*it))
-            new_used += boost::filesystem::file_size(*it);
+          if (std::filesystem::is_regular_file(*it))
+            new_used += std::filesystem::file_size(*it);
         }
 
       dir_path = pbote::fs::DataDirPath("DHTemail");
-      for (boost::filesystem::recursive_directory_iterator it(dir_path);
-           it != boost::filesystem::recursive_directory_iterator(); ++it)
+      for (std::filesystem::recursive_directory_iterator it(dir_path);
+           it != std::filesystem::recursive_directory_iterator(); ++it)
         {
-          if (boost::filesystem::is_regular_file(*it))
-            new_used += boost::filesystem::file_size(*it);
+          if (std::filesystem::is_regular_file(*it))
+            new_used += std::filesystem::file_size(*it);
         }
 
       dir_path = pbote::fs::DataDirPath("DHTdirectory");
-      for (boost::filesystem::recursive_directory_iterator it(dir_path);
-           it != boost::filesystem::recursive_directory_iterator(); ++it)
+      for (std::filesystem::recursive_directory_iterator it(dir_path);
+           it != std::filesystem::recursive_directory_iterator(); ++it)
         {
-          if (boost::filesystem::is_regular_file(*it))
-            new_used += boost::filesystem::file_size(*it);
+          if (std::filesystem::is_regular_file(*it))
+            new_used += std::filesystem::file_size(*it);
         }
 
       used = new_used;
@@ -937,7 +937,7 @@ DHTStorage::remove_old_packets ()
   size_t removed_count = 0;
   const int32_t ts = context.ts_now ();
 
-  if (boost::filesystem::is_empty(pbote::fs::DataDirPath("DHTemail").c_str()))
+  if (std::filesystem::is_empty(pbote::fs::DataDirPath("DHTemail").c_str()))
     {
       LogPrint(eLogDebug, "DHTStorage: remove_old_packets: DHTemail directory is empty");
       return;
@@ -980,7 +980,7 @@ DHTStorage::remove_old_entries ()
 {
   size_t removed_entries = 0, removed_packets = 0;
 
-  if (boost::filesystem::is_empty(pbote::fs::DataDirPath("DHTindex").c_str()))
+  if (std::filesystem::is_empty(pbote::fs::DataDirPath("DHTindex").c_str()))
     {
       LogPrint(eLogDebug, "DHTStorage: remove_old_entries: DHTindex directory is empty");
       return;

@@ -14,7 +14,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "i2psam.h"
+#include "i2psam.hpp"
 
 #define PORT_ZERO 0
 #define I2P_MIN_DESTINATION_SIZE 521
