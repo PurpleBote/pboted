@@ -45,6 +45,7 @@ const std::array<std::uint8_t, 12> PACKET_TYPE{ 0x52, 0x4b, 0x46, 0x4e,
 const std::array<std::uint8_t, 4> COMM_PREFIX{ 0x6D, 0x30, 0x52, 0xE9 };
 const std::array<std::uint8_t, 5> BOTE_VERSION{ 0x1, 0x2, 0x3, 0x4, 0x5 };
 
+/// Status codes availible for Response Packets
 enum StatusCode
 {
   OK,
@@ -57,6 +58,7 @@ enum StatusCode
   DUPLICATED_DATA
 };
 
+/// Protocol versions
 enum version
 {
   V1 = 0x01,
@@ -66,6 +68,7 @@ enum version
   V5 = 0x05
 };
 
+/// Packet type codes
 enum type : uint8_t
 {
   /// Data Packets
@@ -93,13 +96,13 @@ enum type : uint8_t
 /**
  * @brief Converts status code to printable text
  *
- * @param status_code Status code
+ * @param code Status code
  * @return std::string Status message
  */
 inline std::string
-statusToString (uint8_t status_code)
+statusToString (uint8_t code)
 {
-  switch (status_code)
+  switch (code)
     {
     case StatusCode::OK:
       return { "OK" };
@@ -122,6 +125,7 @@ statusToString (uint8_t status_code)
     }
 }
 
+/// Packet prepared to sending
 struct PacketForQueue
 {
   PacketForQueue (std::string destination, uint8_t *buf, size_t len)
@@ -132,6 +136,7 @@ struct PacketForQueue
   std::vector<uint8_t> payload;
 };
 
+/// Batch of packet for correlation requests
 template <typename T> struct PacketBatch
 {
   std::map<std::vector<uint8_t>, PacketForQueue> outgoingPackets;
@@ -283,6 +288,7 @@ public:
   uint8_t ver = version::V4;
 };
 
+/// Packet with encrypted EmailUnencryptedPacket
 struct EmailEncryptedPacket : public DataPacket
 {
 public:
@@ -420,6 +426,7 @@ public:
   }
 };
 
+/// Packet with part of MIME message
 struct EmailUnencryptedPacket : public DataPacket
 {
 public:
@@ -560,6 +567,7 @@ public:
   }
 };
 
+/// Packet with Encrypted Mail available for receiving
 struct IndexPacket : public DataPacket
 {
 public:
@@ -726,6 +734,7 @@ public:
   }
 };
 
+/// DeletionInfoPacket
 struct DeletionInfoPacket : public DataPacket
 {
 public:
@@ -855,6 +864,7 @@ public:
   }
 };
 
+/// Packet with list of I2P nodes
 struct PeerListPacketV4 : public DataPacket
 {
 public:
@@ -932,17 +942,23 @@ public:
     for (auto identity : data)
     {
       size_t sz = identity.GetFullLen ();
-      std::vector<uint8_t> t_key = {0};
-      identity.ToBuffer (t_key.data (), sz);
-      uint8_t cut_key[384] = {0};
-      memcpy(cut_key, t_key.data (), 384);
-      result.insert (result.end (), cut_key, cut_key + 384);
+      std::vector<uint8_t> t_key (sz, 0); // = {0};
+      size_t res = identity.ToBuffer (t_key.data (), sz);
+      if (res == 0)
+        LogPrint (eLogWarning, "Packet: L: V4: Empty buffer");
+      else
+        {
+          uint8_t cut_key[384] = {0};
+          memcpy(cut_key, t_key.data (), 384);
+          result.insert (result.end (), cut_key, cut_key + 384);
+        }
     }
 
     return result;
   }
 };
 
+/// Packet with list of I2P nodes
 struct PeerListPacketV5 : public DataPacket
 {
 public:
@@ -1012,15 +1028,19 @@ public:
     for (auto identity : data)
     {
       size_t sz = identity.GetFullLen ();
-      std::vector<uint8_t> t_key = {0};
-      identity.ToBuffer (t_key.data (), sz);
-      result.insert (result.end (), t_key.begin (), t_key.end ());
+      std::vector<uint8_t> t_key (sz, 0); // = {0};
+      size_t res = identity.ToBuffer (t_key.data (), sz);
+      if (res == 0)
+        LogPrint (eLogWarning, "Packet: L: V5: Empty buffer");
+      else
+        result.insert (result.end (), t_key.begin (), t_key.end ());
     }
 
     return result;
   }
 };
 
+/// Packet with contact data
 struct DirectoryEntryPacket : public DataPacket
 {
 public:
@@ -1069,6 +1089,7 @@ public:
   std::vector<uint8_t> payload;
 };
 
+/// CommunicationPacket for inherit
 struct CleanCommunicationPacket
 {
 public:
@@ -1110,6 +1131,7 @@ struct FetchRequestPacket : public CleanCommunicationPacket
 };
 */
 
+/// Packet for response to request
 struct ResponsePacket : public CleanCommunicationPacket
 {
 public:
@@ -1243,6 +1265,7 @@ public:
   }
 };
 
+/// Request for Peers
 struct PeerListRequestPacket : public CleanCommunicationPacket
 {
 public:
@@ -1268,6 +1291,9 @@ public:
     offset += 32;
     /// End basic part
 
+    LogPrint (eLogDebug, "Packet: A: fromBuffer: from_net: ",
+              from_net ? "true" : "false");
+
     return true;
   }
 
@@ -1287,6 +1313,7 @@ public:
 
 /// DHT packets
 
+/// Request for getting data
 struct RetrieveRequestPacket : public CleanCommunicationPacket
 {
 public:
@@ -1348,6 +1375,7 @@ public:
   }
 };
 
+/// DeletionQueryPacket
 struct DeletionQueryPacket : public CleanCommunicationPacket
 {
 public:
@@ -1394,6 +1422,7 @@ public:
   }
 };
 
+/// StoreRequestPacket
 struct StoreRequestPacket : public CleanCommunicationPacket
 {
 public:
@@ -1474,6 +1503,7 @@ public:
   }
 };
 
+/// EmailDeleteRequestPacket
 struct EmailDeleteRequestPacket : public CleanCommunicationPacket
 {
 public:
@@ -1506,6 +1536,8 @@ public:
 
     LogPrint (eLogDebug, "Packet: D: fromBuffer: type: ", type,
               ", version: ", unsigned (ver));
+    LogPrint (eLogDebug, "Packet: D: fromBuffer: from_net: ",
+              from_net ? "true" : "false");
 
     std::memcpy (&key, buf + offset, 32);
     offset += 32;
@@ -1562,6 +1594,7 @@ public:
   }
 };
 
+/// IndexDeleteRequestPacket
 struct IndexDeleteRequestPacket : public CleanCommunicationPacket
 {
 public:
@@ -1598,6 +1631,9 @@ public:
     std::memcpy (&cid, buf + offset, 32);
     offset += 32;
     /// End basic part
+
+    LogPrint (eLogDebug, "Packet: X: fromBuffer: from_net: ",
+              from_net ? "true" : "false");
 
     std::memcpy (&dht_key, buf + offset, 32);
     offset += 32;
@@ -1722,6 +1758,7 @@ public:
   }
 };
 
+/// FindClosePeersRequestPacket
 struct FindClosePeersRequestPacket : public CleanCommunicationPacket
 {
 public:
@@ -1745,6 +1782,7 @@ public:
   }
 };
 
+/// Generate HEX encoded string
 inline std::string
 ToHex (const std::string &s, bool upper_case)
 {
@@ -1757,6 +1795,7 @@ ToHex (const std::string &s, bool upper_case)
   return ret.str ();
 }
 
+/// Parse received data
 inline sp_comm_pkt
 parseCommPacket (const sp_queue_pkt &packet)
 {
