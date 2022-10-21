@@ -222,7 +222,7 @@ set(LIBS
 # we need to link filesystem manually
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     if (NOT (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9.0))
-        list(APPEND LIBS libstdc++fs)
+        list(APPEND LIBS stdc++fs)
     endif ()
 endif ()
 
