@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <openssl/opensslv.h>
 #include <string>
 
 #include "ConfigParser.h"
@@ -41,7 +42,7 @@ Init ()
   options_description general("General options");
   general.add_options()
     ("help", "Show this message")
-    ("version", "Show pboted version")
+    ("version", "Show version")
     ("conf",value<std::string>()->default_value(""),"Path to main pboted config file (default: try ~/.pboted/pboted.conf or /var/lib/pboted/pboted.conf)")
     ("pidfile",value<std::string>()->default_value(""),"Path to pidfile (default: ~/pboted/pboted.pid or /var/lib/pboted/pbote.pid)")
     ("log", value<std::string>()->default_value("file"), "Logs destination: stdout, file, syslog (file if not set)")
@@ -56,6 +57,15 @@ Init ()
     ("storage", value<std::string>()->default_value("50 MiB"), "Limit for local storage usage (default: 50 MiB)")
     ("cleaninterval", value<uint16_t>()->default_value(7), "Duration in days of node/peer unavailability after which it will be deleted (default: 7)")
     ;
+  options_description control("Control");
+  control.add_options()
+    ("control.enabled", bool_switch()->default_value(true), "Allow connect to control (default: true)")
+#if !defined(_WIN32) || !defined(DISABLE_SOCKET)
+    ("control.socket", value<std::string>()->default_value(""), "Path to control socket (default: ~/pboted/pboted.sock or /var/lib/pboted/pbote.sock)")
+#endif
+    ("control.address", value<std::string>()->default_value("127.0.0.1"), "Control listen address (default: 127.0.0.1)")
+    ("control.port", value<uint16_t>()->default_value(5055), "Control listen TCP port (default: 5055)")
+    ;
   options_description sam("SAM options");
   sam.add_options()
     ("sam.name", value<std::string>()->default_value("pboted"), "What name we send to I2P router (default: pboted)")
@@ -63,6 +73,7 @@ Init ()
     ("sam.tcp", value<uint16_t>()->default_value(7656), "I2P SAM port (default: 7656)")
     ("sam.udp", value<uint16_t>()->default_value(7655), "I2P SAM port (default: 7655)")
     ("sam.key", value<std::string>()->default_value(""), "Path to I2P destination key (default: for service - /var/lib/pboted/destination.key, for user - ~/.pboted/destination.key)")
+    // ToDo: SAMv3.2 stuff
     //("sam.auth", bool_switch()->default_value(false),"If SAM authentication requered (default: false)")
     //("sam.login", value<std::string>()->default_value(""),"SAM login")
     //("sam.password", value<std::string>()->default_value(""),"SAM password")
@@ -70,6 +81,7 @@ Init ()
   options_description bootstrap("Bootstrap options");
   bootstrap.add_options()
     ("bootstrap.address", value<std::vector<std::string>>(), "I2P destination key in Base64 format");
+  // ToDo:
   //options_description mail("Mail options");
   //mail.add_options()
     //("mail.autocheck", bool_switch()->default_value(true),       "Allow auto mail check (default: enabled)")
@@ -77,6 +89,7 @@ Init ()
     //("mail.deliverycheck", bool_switch()->default_value(true),   "Allow to check mail delivery (default: enabled)")
     //("mail.hidelocale", bool_switch()->default_value(true),      "Allow to hide system locale (default: enabled)")
     //;
+  // ToDo:
   //options_description delivery("Delivery options");
   //delivery.add_options()
     //("delivery.hops", value<uint8_t>()->default_value(3),      "Count of hops for mail sending (default: 3)")
@@ -96,6 +109,7 @@ Init ()
     ("pop3.address", value<std::string>()->default_value("127.0.0.1"), "POP3 listen address (default: 127.0.0.1)")
     ("pop3.port", value<uint16_t>()->default_value(9110), "POP3 listen port (default: 9110)")
     ;
+  // ToDo:
   //options_description imap("IMAP options");
   //imap.add_options()
     //("imap.enabled", bool_switch()->default_value(false), "Allow connect via IMAP (default: disabled)")
@@ -103,6 +117,7 @@ Init ()
     //;
   m_OptionsDesc
     .add(general)
+    .add(control)
     .add(sam)
     .add(bootstrap)
     //.add(mail)
@@ -116,36 +131,56 @@ Init ()
 void
 ParseCmdline (int argc, char *argv[], bool ignoreUnknown)
 {
-  try {
-    auto style = command_line_style::unix_style | command_line_style::allow_long_disguise;
-    style &= ~command_line_style::allow_guessing;
-    if (ignoreUnknown)
-      store(command_line_parser(argc, argv).options(m_OptionsDesc).style(style).allow_unregistered().run(), m_Options);
-    else
-      store(parse_command_line(argc, argv, m_OptionsDesc, style), m_Options);
-  } catch (boost::program_options::error &e) {
-    std::cerr << "args: " << e.what() << std::endl;
-    exit(EXIT_FAILURE);
-  }
+  try
+    {
+      auto style = command_line_style::unix_style | command_line_style::allow_long_disguise;
+      style &= ~command_line_style::allow_guessing;
 
-  if (!ignoreUnknown && (m_Options.count("help") || m_Options.count("h"))) {
-    std::cout << "pboted version " << PBOTE_VERSION << " (" << PBOTE_VERSION << ")" << std::endl;
-    std::cout << m_OptionsDesc;
-    exit(EXIT_SUCCESS);
-  } else if (m_Options.count("version")) {
-    std::cout << "pboted version " << PBOTE_VERSION << " (" << PBOTE_VERSION << ")" << std::endl;
-    std::cout << "Boost version " << BOOST_VERSION / 100000 << "." // maj.version
-              << BOOST_VERSION / 100 % 1000 << "." // min.version
-              << BOOST_VERSION % 100            // patch version
-              << std::endl;
+      if (ignoreUnknown)
+        store(command_line_parser(argc, argv).options(m_OptionsDesc).style(style).allow_unregistered().run(), m_Options);
+      else
+        store(parse_command_line(argc, argv, m_OptionsDesc, style), m_Options);
+    }
+  catch (boost::program_options::error &e)
+    {
+      std::cerr << "args: " << e.what() << std::endl;
+      exit(EXIT_FAILURE);
+    }
+
+  if (!ignoreUnknown && (m_Options.count("help") || m_Options.count("h")))
+    {
+      PrintHelp ();
+    }
+  else if (m_Options.count("version"))
+    {
+      PrintVersion ();
+    }
+}
+
+void
+PrintVersion ()
+{
+  std::cout << "pboted v" << VERSION << std::endl;
+
 #if defined(OPENSSL_VERSION_TEXT)
-    std::cout << OPENSSL_VERSION_TEXT << std::endl;
+  std::cout << OPENSSL_VERSION_TEXT << std::endl;
 #endif
+
 #if defined(LIBRESSL_VERSION_TEXT)
-    std::cout << LIBRESSL_VERSION_TEXT << std::endl;
+  std::cout << LIBRESSL_VERSION_TEXT << std::endl;
 #endif
-    exit(EXIT_SUCCESS);
-  }
+
+  exit(EXIT_SUCCESS);
+}
+
+void
+PrintHelp ()
+{
+  std::cout << "pboted v" << VERSION << std::endl;
+
+  std::cout << m_OptionsDesc;
+
+  exit(EXIT_SUCCESS);
 }
 
 void
@@ -156,17 +191,21 @@ ParseConfig (const std::string &path)
 
   std::ifstream config(path, std::ios::in);
 
-  if (!config.is_open ()) {
-    std::cerr << "missing/unreadable config file: " << path << std::endl;
-    exit(EXIT_FAILURE);
-  }
+  if (!config.is_open ())
+    {
+      std::cerr << "missing/unreadable config file: " << path << std::endl;
+      exit(EXIT_FAILURE);
+    }
 
-  try {
-    store (boost::program_options::parse_config_file(config, m_OptionsDesc), m_Options);
-  } catch (boost::program_options::error &e) {
-    std::cerr << e.what () << std::endl;
-    exit(EXIT_FAILURE);
-  };
+  try
+    {
+      store (boost::program_options::parse_config_file(config, m_OptionsDesc), m_Options);
+    }
+  catch (boost::program_options::error &e)
+    {
+      std::cerr << e.what () << std::endl;
+      exit(EXIT_FAILURE);
+    };
 }
 
 void
@@ -189,6 +228,7 @@ GetOptionAsAny (const char *name, boost::any &value)
 {
   if (!m_Options.count(name))
     return false;
+
   value = m_Options[name];
   return true;
 }

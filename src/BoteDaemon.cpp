@@ -38,9 +38,10 @@ class Daemon_Singleton::Daemon_Singleton_Private
 };
 
 Daemon_Singleton::Daemon_Singleton()
-    : isDaemon(false), running(true), d(*new Daemon_Singleton_Private())
-{
-}
+  : isDaemon(false),
+    running(true),
+    d(*new Daemon_Singleton_Private())
+{}
 
 Daemon_Singleton::~Daemon_Singleton()
 {
@@ -128,9 +129,9 @@ Daemon_Singleton::init(int argc, char *argv[],
     }
 
 #ifdef NDEBUG
-  LogPrint(eLogInfo, CODENAME, " v", VERSION, "r starting");
+  LogPrint(eLogInfo, CODENAME, " v", VERSION, " R starting");
 #else
-  LogPrint(eLogInfo, CODENAME, " v", VERSION, "d starting");
+  LogPrint(eLogInfo, CODENAME, " v", VERSION, " D starting");
 #endif // NDEBUG
 
   LogPrint(eLogDebug, "FS: Data directory: ", datadir);
@@ -167,14 +168,16 @@ Daemon_Singleton::start()
   LogPrint(eLogInfo, "Daemon: Starting Email");
   pbote::kademlia::email_worker.start();
 
-  if (isDaemon)
+  bool control = false;
+  pbote::config::GetOption("control.enabled", control);
+  if (control)
     {
       LogPrint(eLogInfo, "Daemon: Starting control socket");
-      d.control_server = std::make_unique<bote::BoteControl>("/run/pboted/pboted.sock");
+      d.control_server = std::make_unique<bote::BoteControl>();
       d.control_server->start();
     }
 
-  bool smtp;
+  bool smtp = false;
   pbote::config::GetOption("smtp.enabled", smtp);
   if (smtp)
     {
@@ -199,7 +202,7 @@ Daemon_Singleton::start()
         }
     }
 
-  bool pop3;
+  bool pop3 = false;
   pbote::config::GetOption("pop3.enabled", pop3);
   if (pop3)
     {
@@ -234,6 +237,7 @@ Daemon_Singleton::stop()
 {
   LogPrint(eLogInfo, "Daemon: Start shutting down");
 
+  /* First we need to stop easy stopable stuff */
   if (d.SMTPserver)
     {
       LogPrint(eLogInfo, "Daemon: Stopping SMTP server");
@@ -250,30 +254,31 @@ Daemon_Singleton::stop()
       LogPrint(eLogInfo, "Daemon: POP3 server stopped");
     }
 
-  if (isDaemon)
+  if (d.control_server)
     {
       LogPrint(eLogInfo, "Daemon: Stopping control socket");
       d.control_server->stop();
+      d.control_server = nullptr;
       LogPrint(eLogInfo, "Daemon: Control socket stopped");
     }
+
+  /* Next we need to stop main network stuff */
+  LogPrint(eLogInfo, "Daemon: Stopping packet handler");
+  pbote::packet::packet_handler.stop();
+  LogPrint(eLogInfo, "Daemon: Packet handler stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopping network worker");
   pbote::network::network_worker.stop();
   LogPrint(eLogInfo, "Daemon: Network worker stopped");
 
-  LogPrint(eLogInfo, "Daemon: Stopping packet handler");
-  pbote::packet::packet_handler.stop();
-  LogPrint(eLogInfo, "Daemon: Packet handler stopped");
-
-  ///
+  /* And last we stop bote stuff */
+  LogPrint(eLogInfo, "Daemon: Stopping DHT worker");
+  pbote::kademlia::DHT_worker.stop();
+  LogPrint(eLogInfo, "Daemon: DHT worker stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopping relay worker");
   pbote::relay::relay_worker.stop();
   LogPrint(eLogInfo, "Daemon: Relay worker stopped");
-
-  LogPrint(eLogInfo, "Daemon: Stopping DHT worker");
-  pbote::kademlia::DHT_worker.stop();
-  LogPrint(eLogInfo, "Daemon: DHT worker stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopping Email worker");
   pbote::kademlia::email_worker.stop();

@@ -1,47 +1,83 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTED_SRC_BOTECONTROL_H_
-#define PBOTED_SRC_BOTECONTROL_H_
+#ifndef PBOTED_SRC_BOTECONTROL_H
+#define PBOTED_SRC_BOTECONTROL_H
+
+#define DISABLE_SOCKET
 
 #include <map>
+#include <netinet/in.h>
+#include <poll.h>
 #include <string>
 #include <sys/socket.h>
-#include <sys/un.h>
+#include <sys/types.h>
 #include <thread>
 
-#include "i2psam.h"
+#if !defined(_WIN32) || !defined(DISABLE_SOCKET)
+#include <sys/un.h>
+#else
+// NOOP
+#endif
+
+#include "i2psam.hpp"
 
 namespace bote
 {
 
-#define BUFF_SIZE 8192
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET -1
+#endif
 
+#define BUFF_SIZE 8192
+// Timeout in milliseconds
+#define CONTROL_WAIT_TIMEOUT 10000
+#define CONTROL_MAX_CLIENTS 5
+
+/// Default socket filename
+const std::string DEFAULT_SOCKET_NAME = "pboted.sock";
+
+
+enum control_state
+{
+  STATE_INIT = 0,
+  STATE_AUTH = 1,
+};
+
+struct control_session
+{
+  control_state state;
+  char buf[BUFF_SIZE];
+};
+
+
+/* Control interface for daemon */
 class BoteControl
 {
 public:
-  BoteControl (const std::string &file_path);
+  BoteControl ();
   ~BoteControl ();
 
   void start ();
   void stop ();
+
+  bool running () { return m_is_running; };
 
   typedef void (BoteControl::*Handler) (const std::string &cmd_id,
                                         std::ostringstream &results);
 
 private:
   void run ();
-  void handle_request ();
+  void handle ();
 
-  void write_data (const std::string &msg);
-  std::string read_data ();
-  int release ();
-  void close ();
+  void handle_request (int sid);
+
+  void reply (int sid, const std::string &msg);
 
   void insert_param (std::ostringstream &ss, const std::string &name,
                      int value) const;
@@ -50,26 +86,45 @@ private:
   void insert_param (std::ostringstream &ss, const std::string &name,
                      const std::string &value) const;
 
-  // handlers
+  /// Handlers
   void all (const std::string &cmd_id, std::ostringstream &results);
   void daemon (const std::string &cmd_id, std::ostringstream &results);
   void identity (const std::string &cmd_id, std::ostringstream &results);
   void storage (const std::string &cmd_id, std::ostringstream &results);
   void peer (const std::string &cmd_id, std::ostringstream &results);
   void node (const std::string &cmd_id, std::ostringstream &results);
-  // for unknown
+  /// For unknown
   void unknown_cmd (const std::string &cmd, std::ostringstream &results);
 
-  bool m_is_running;
-  std::thread *m_thread;
+  bool m_is_running = false;
+  std::thread *m_control_acceptor_thread;
+  std::thread *m_control_handler_thread;
 
-  const std::string socket_path;
-  int conn_sockfd, data_sockfd;
-  struct sockaddr_un conn_addr; //, data_addr;
+#if !defined(_WIN32) || !defined(DISABLE_SOCKET)
+  /* Socket stuff */
+  bool m_socket_enabled = false;
+
+  int conn_sockfd = INVALID_SOCKET;
+  std::string socket_path;
+  struct sockaddr_un file_addr;
+#endif
+
+  /* TCP stuff */
+  int tcp_fd = INVALID_SOCKET;
+  std::string m_address;
+  uint16_t m_port = 0;
+  socklen_t sin_size; /* for client addr */
+  struct sockaddr_in tcp_addr, client_addr;
+
+  /* For both */
+  int nfds = 1;
+  int client_sockfd = INVALID_SOCKET;
+  struct pollfd fds[CONTROL_MAX_CLIENTS];
+  control_session sessions[CONTROL_MAX_CLIENTS];
 
   std::map<std::string, Handler> handlers;
 };
 
 } // bote
 
-#endif // PBOTED_SRC_BOTECONTROL_H_
+#endif // PBOTED_SRC_BOTECONTROL_H

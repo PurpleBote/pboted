@@ -28,7 +28,7 @@ void handle_signal(int sig)
     {
       case SIGHUP:
         LogPrint(eLogInfo, "Daemon: Got SIGHUP, reload configuration...");
-        // pbote::context.ReloadConfig();
+        // ToDo: pbote::context.ReloadConfig();
         break;
       case SIGUSR1:
         LogPrint(eLogInfo, "Daemon: Got SIGUSR1, reopening logs...");
@@ -37,13 +37,13 @@ void handle_signal(int sig)
       case SIGINT:
       case SIGABRT:
       case SIGTERM:
-        Daemon.running = false; // Exit loop
+        Daemon.stop ();
         break;
       case SIGPIPE:
-        LogPrint(eLogInfo, "Daemon: Got SIGPIPE received");
+        LogPrint(eLogInfo, "Daemon: Got SIGPIPE");
         break;
       default:
-        LogPrint(eLogWarning, "Daemon: Unknown signal received: ", sig);
+        LogPrint(eLogWarning, "Daemon: Got unknown signal: ", sig);
         break;
     }
 }
@@ -53,7 +53,7 @@ namespace pbote
 namespace util
 {
 
-int DaemonLinux::start()
+int DaemonLinux::start ()
 {
   if (isDaemon)
   {
@@ -72,23 +72,35 @@ int DaemonLinux::start()
       }
   }
 
-  // set proc limits
+  /* Set proc limits */
   struct rlimit limit = {};
   uint16_t nfiles = 0;
   pbote::config::GetOption("limits.openfiles", nfiles);
   getrlimit(RLIMIT_NOFILE, &limit);
   if (nfiles == 0)
-    LogPrint(eLogInfo, "Daemon: Using system limit in ", limit.rlim_cur," max open files");
+    {
+      LogPrint(eLogInfo, "Daemon: Using system limit in ", limit.rlim_cur,
+               " max open files");
+    }
   else if (nfiles <= limit.rlim_max)
     {
       limit.rlim_cur = nfiles;
       if (setrlimit(RLIMIT_NOFILE, &limit) == 0)
-        LogPrint(eLogInfo, "Daemon: Set max number of open files to ", nfiles, " (system limit is ", limit.rlim_max, ")");
+        {
+          LogPrint(eLogInfo, "Daemon: Set max number of open files to ",
+                   nfiles, " (system limit is ", limit.rlim_max, ")");
+        }
       else
-        LogPrint(eLogError,"Daemon: Can't set max number of open files: ", strerror(errno));
+        {
+          LogPrint(eLogError,"Daemon: Can't set max number of open files: ",
+                   strerror(errno));
+        }
     }
   else
-    LogPrint(eLogError,"Daemon: limits.openfiles exceeds system limit: ", limit.rlim_max);
+    {
+      LogPrint(eLogError,"Daemon: limits.openfiles exceeds system limit: ",
+               limit.rlim_max);
+    }
 
   uint32_t cfsize = 0;
   pbote::config::GetOption("limits.coresize", cfsize);
@@ -100,22 +112,30 @@ int DaemonLinux::start()
       {
         limit.rlim_cur = cfsize;
         if (setrlimit(RLIMIT_CORE, &limit) != 0)
-          LogPrint(eLogError,"Daemon: Can't set max size of coredump: ", strerror(errno));
+          {
+            LogPrint(eLogError,"Daemon: Can't set max size of coredump: ",
+              strerror(errno));
+          }
         else if (cfsize == 0)
           LogPrint(eLogInfo, "Daemon: Coredumps disabled");
         else
-          LogPrint(eLogInfo, "Daemon: Set max size of core files to ", cfsize / 1024, "KiB");
+          {
+            LogPrint(eLogInfo, "Daemon: Set max size of core files to ",
+                     cfsize / 1024, "KiB");
+          }
       }
     else
-      LogPrint(eLogError, "Daemon: limits.coresize exceeds system limit: ", limit.rlim_max);
+      {
+        LogPrint(eLogError, "Daemon: limits.coresize exceeds system limit: ",
+                 limit.rlim_max);
+      }
   }
 
-  // Pidfile
-  // this code is c-styled and a bit ugly, but we need fd for locking pidfile
+  /* Pidfile */
   pbote::config::GetOption("pidfile", pidfile);
   if (pidfile.empty())
     {
-      pidfile = pbote::fs::DataDirPath("pbote.pid");
+      pidfile = pbote::fs::DataDirPath("pboted.pid");
     }
   if (!pidfile.empty())
     {
@@ -133,50 +153,64 @@ int DaemonLinux::start()
 
       if (trcd < 0)
         {
-          LogPrint(eLogError, "Daemon: Can't truncate pidfile: ", strerror(errno));
+          LogPrint(eLogError, "Daemon: Can't truncate pidfile: ",
+                   strerror(errno));
           return EXIT_FAILURE;
         }
 
       if (write(pidFH, pid, strlen(pid)) < 0)
         {
-          LogPrint(eLogError, "Daemon: Can't write pidfile: ", strerror(errno));
+          LogPrint(eLogError, "Daemon: Can't write pidfile: ",
+                   strerror(errno));
           return EXIT_FAILURE;
         }
     }
 
-  gracefulShutdownInterval = 0; // not specified
-
-  // Signal handler
+  /* Signal handler */
   struct sigaction sa;
   sa.sa_handler = handle_signal;
-  sigemptyset(&sa.sa_mask);
+  sigemptyset (&sa.sa_mask);
   sa.sa_flags = SA_RESTART;
-  sigaction(SIGHUP, &sa, 0);
-  sigaction(SIGUSR1, &sa, 0);
-  sigaction(SIGABRT, &sa, 0);
-  sigaction(SIGTERM, &sa, 0);
-  sigaction(SIGINT, &sa, 0);
-  sigaction(SIGPIPE, &sa, 0);
+  sigaction (SIGHUP, &sa, 0);
+  sigaction (SIGUSR1, &sa, 0);
+  sigaction (SIGABRT, &sa, 0);
+  sigaction (SIGTERM, &sa, 0);
+  sigaction (SIGINT, &sa, 0);
+  sigaction (SIGPIPE, &sa, 0);
 
-  return Daemon_Singleton::start();
+  return Daemon_Singleton::start ();
 }
 
-bool DaemonLinux::stop()
+bool DaemonLinux::stop ()
 {
-  if (running)
-    running = false;
+  if (!running)
+    return true;
 
-  pbote::fs::Remove(pidfile);
+  running = false;
 
-  return Daemon_Singleton::stop();
+  m_check_cv.notify_one ();
+
+  pbote::fs::Remove (pidfile);
+
+  return Daemon_Singleton::stop ();
 }
 
-void DaemonLinux::run()
+void DaemonLinux::run ()
 {
+  auto check_timeout = std::chrono::seconds (10);
+
   while (running)
     {
-      // ToDo: check status of network, DHT, relay, etc. and try restart on error
-      std::this_thread::sleep_for(std::chrono::seconds(10));
+      {
+        std::unique_lock<std::mutex> lk (m_cv_mutex);
+        auto rc = m_check_cv.wait_for (lk, check_timeout);
+        if (rc == std::cv_status::no_timeout)
+          LogPrint (eLogDebug, "Daemon: Got notification");
+        lk.unlock ();
+      }
+
+      /* ToDo: check status of network, DHT, relay, etc. */
+      /* and try restart on error */
 
       if (pbote::network::network_worker.is_sick ())
         {

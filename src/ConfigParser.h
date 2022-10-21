@@ -1,13 +1,15 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef CONFIG_PARSER_H__
-#define CONFIG_PARSER_H__
+#ifndef BOTE_CONFIG_PARSER_H
+#define BOTE_CONFIG_PARSER_H
+
+#define DISABLE_SOCKET
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -24,8 +26,11 @@
  *   GetOption()    -- may be called after Finalize()
  */
 
-namespace pbote {
-namespace config {
+namespace pbote
+{
+namespace config
+{
+
 extern boost::program_options::variables_map m_Options;
 extern std::vector<std::string> bootstrap_addresses;
 
@@ -51,6 +56,22 @@ void Init();
  * Other exceptions will be passed to higher level.
  */
 void ParseCmdline(int argc, char *argv[], bool ignoreUnknown = false);
+
+/**
+ * @brief  Show version
+ *
+ * If --version is given in parameters, shows it
+ * and terminates the program with exitcode 0.
+ */
+void PrintVersion ();
+
+/**
+ * @brief  Show help
+ *
+ * If --help is given in parameters, shows its list with description
+ * and terminates the program with exitcode 0.
+ */
+void PrintHelp();
 
 /**
  * @brief  Load and parse given config file
@@ -80,15 +101,20 @@ void Finalize();
  * Example: uint16_t port; GetOption("sam.port", port);
  */
 template<typename T>
-bool GetOption(const char *name, T &value) {
+bool
+GetOption(const char *name, T &value)
+{
   if (!m_Options.count(name))
     return false;
+
   value = m_Options[name].as<T>();
   return true;
 }
 
 template<typename T>
-bool GetOption(const std::string &name, T &value) {
+bool
+GetOption(const std::string &name, T &value)
+{
   return GetOption(name.c_str(), value);
 }
 
@@ -104,9 +130,12 @@ bool GetOptionAsAny(const std::string &name, boost::any &value);
  * Example: uint16_t port = 2827; SetOption("bob.port", port);
  */
 template<typename T>
-bool SetOption(const char *name, const T &value) {
+bool
+SetOption(const char *name, const T &value)
+{
   if (!m_Options.count(name))
     return false;
+
   m_Options.at(name).value() = value;
   notify(m_Options);
   return true;
@@ -122,4 +151,4 @@ bool IsDefault(const char *name);
 } // namespace config
 } // namespace pbote
 
-#endif // CONFIG_PARSER_H__
+#endif // BOTE_CONFIG_PARSER_H
