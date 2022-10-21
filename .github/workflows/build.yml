@@ -11,7 +11,14 @@ jobs:
     - name: Install required packages
       run: |
         sudo apt-get update
-        sudo apt-get install build-essential cmake libboost-filesystem-dev libboost-system-dev libboost-program-options-dev libboost-date-time-dev libboost-thread-dev libmimetic-dev libssl-dev zlib1g-dev
+        sudo apt-get install \
+          build-essential \
+          cmake \
+          libboost-system-dev \
+          libboost-program-options-dev \
+          libmimetic-dev \
+          libssl-dev \
+          zlib1g-dev
     - name: Build application
       run: |
         cd build

@@ -1,14 +1,15 @@
 /**
  * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#include <boost/filesystem.hpp>
 #include <cassert>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 
