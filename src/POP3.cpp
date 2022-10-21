@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -7,8 +7,9 @@
  */
 
 #include <arpa/inet.h>
-#include <cstring>
-#include <fcntl.h>
+#include <string.h>
+#include <errno.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -27,40 +28,31 @@ namespace pop3
 
 POP3::POP3 (const std::string &address, int port)
   : started (false),
-    processing (false),
-    pop3_thread (nullptr),
-    server_sockfd (-1),
-    client_sockfd (-1),
-    sin_size (0),
-    server_addr (),
-    client_addr (),
-    session_state (STATE_QUIT)
-    
-{
-  std::memset (&server_addr, 0, sizeof (server_addr));
-
-  server_addr.sin_family = AF_INET;
-  server_addr.sin_port = htons (port);
-  server_addr.sin_addr.s_addr = inet_addr (address.c_str ());
-  bzero (&(server_addr.sin_zero), 8);
-
-  if ((server_sockfd = socket (AF_INET, SOCK_STREAM, 0)) == -1)
-    {
-      // ToDo: add error handling
-      LogPrint (eLogError, "POP3: Socket create error: ", strerror (errno));
-    }
-
-  memset (buf, 0, sizeof (buf));
-}
+    pop3_accepting_thread (nullptr),
+    pop3_processing_thread (nullptr),
+    m_address (address),
+    m_port (port)  
+{}
 
 POP3::~POP3 ()
 {
   stop ();
 
-  pop3_thread->join ();
+  if (pop3_processing_thread)
+    {
+      pop3_processing_thread->join ();
+
+      delete pop3_processing_thread;
+      pop3_processing_thread = nullptr;
+    }
+
+  if (pop3_accepting_thread)
+    {
+      pop3_accepting_thread->join ();
   
-  delete pop3_thread;
-  pop3_thread = nullptr;
+      delete pop3_accepting_thread;
+      pop3_accepting_thread = nullptr;
+    }
 }
 
 void
@@ -69,30 +61,93 @@ POP3::start ()
   if (started)
     return;
 
-  if (bind (server_sockfd, (struct sockaddr *)&server_addr,
-            sizeof (struct sockaddr)) == -1)
+  struct addrinfo hints;
+  memset(&hints, 0, sizeof(struct addrinfo));
+
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV | AI_NUMERICHOST;
+  hints.ai_protocol = IPPROTO_TCP;
+  hints.ai_canonname = NULL;
+  hints.ai_addr = NULL;
+  hints.ai_next = NULL;
+
+  struct addrinfo *res;
+
+  char c_port[16];
+  sprintf(c_port, "%d", m_port);
+
+  int rc = getaddrinfo (m_address.c_str (), c_port, &hints, &res);
+  if (rc != 0 || res == nullptr)
     {
-      // ToDo: add error handling
-      LogPrint (eLogError, "POP3: Bind error: ", strerror (errno));
+      LogPrint (eLogError, "POP3 Invalid address or port: ",
+                m_address, ":", m_port, ": ", gai_strerror(rc));
+      return;
     }
 
-  fcntl (server_sockfd, F_SETFL, fcntl (server_sockfd, F_GETFL, 0) | O_NONBLOCK);
+  server_sockfd = socket (res->ai_family, res->ai_socktype, res->ai_protocol);
 
-  if (listen (server_sockfd, MAX_CLIENTS) == -1)
+  if (server_sockfd == -1)
+    {
+      // ToDo: add error handling
+      freeaddrinfo (res);
+      LogPrint (eLogError, "POP3: Socket create error: ", strerror (errno));
+    }
+
+  rc = bind (server_sockfd, res->ai_addr, res->ai_addrlen);
+  if (rc == -1)
+    {
+      // ToDo: add error handling
+      freeaddrinfo (res);
+      LogPrint (eLogError, "POP3: Bind error: ", strerror (errno));
+      return;
+    }
+
+  freeaddrinfo (res);
+
+  rc = listen (server_sockfd, POP3_MAX_CLIENTS);
+  if (rc == -1)
     {
       // ToDo: add error handling
       LogPrint (eLogError, "POP3: Listen error: ", strerror (errno));
+      return;
     }
 
+  memset(fds, 0, sizeof(fds));
+  memset(sessions, 0, sizeof(sessions));
+
+  fds[0].fd = server_sockfd;
+  fds[0].events = POLLIN;
+
   started = true;
-  pop3_thread = new std::thread ([this] { run (); });
+
+  pop3_accepting_thread = new std::thread ([this] { run (); });
+  pop3_processing_thread = new std::thread ([this] { process (); });
 }
 
 void
 POP3::stop ()
 {
+  if (!started)
+    return;
+
+  LogPrint (eLogInfo, "POP3: Stopping");
+
   started = false;
-  close (server_sockfd);
+
+  /* Clean up all of the sockets that are open */
+  for (int i = 0; i < nfds; i++)
+    {
+      if(fds[i].fd >= 0)
+        {
+          close(fds[i].fd);
+          fds[i].revents = POLLHUP;
+        }
+    }
+  LogPrint (eLogInfo, "POP3: Sockets closed");
+
+  /*close(fds[0].fd);*/
+  //close (server_sockfd);
 
   LogPrint (eLogInfo, "POP3: Stopped");
 }
@@ -101,155 +156,234 @@ void
 POP3::run ()
 {
   LogPrint (eLogInfo, "POP3: Started");
-  sin_size = sizeof (client_addr);
+
+  int rc = 0, current_size = 0;
 
   while (started)
     {
-      client_sockfd =
-        accept (server_sockfd, (struct sockaddr *)&client_addr, &sin_size);
+      rc = poll(fds, nfds, POP3_WAIT_TIMEOUT);
 
-      if (client_sockfd == -1)
+      if (!started)
+        return;
+
+      /* Check to see if the poll call failed */
+      if (rc < 0)
         {
-          if (errno != EWOULDBLOCK && errno != EAGAIN)
+          LogPrint(eLogError, "POP3: Poll error: ", strerror (errno));
+          continue;
+        }
+
+      if (rc == 0)
+        {
+          LogPrint(eLogDebug, "POP3: Poll timed out");
+          continue;
+        }
+
+      current_size = nfds;
+      for (int i = 0; i < current_size; i++)
+        {
+          if(fds[i].revents == 0)
+            continue;
+
+          if(fds[i].revents != POLLIN)
             {
-              // ToDo: add error handling
-              LogPrint (eLogError, "POP3: Accept error: ", strerror (errno));
+              LogPrint(eLogError, "POP3: Revents: ", fds[i].revents);
+              continue;
             }
 
-          std::this_thread::sleep_for (std::chrono::milliseconds (POP3_WAIT_TIMEOUT));
-        }
-      else
-        {
-          LogPrint (eLogInfo, "POP3: Received connection from ",
-                    inet_ntoa (client_addr.sin_addr));
+          if (fds[i].fd != server_sockfd)
+            continue;
 
-          handle ();
+          LogPrint (eLogDebug, "POP3: Server socket readable");
+          do
+            {
+              LogPrint (eLogDebug, "POP3: New accept");
+
+              struct sockaddr_in client_addr;
+              memset(&client_addr, 0, sizeof(struct sockaddr_in));
+              socklen_t sin_size = sizeof (client_addr);
+
+              client_sockfd = accept(fds[i].fd,
+                                     (struct sockaddr *)&client_addr,
+                                     &sin_size);
+
+              if (client_sockfd < 0)
+              {
+                if (started && errno != EWOULDBLOCK && errno != EAGAIN)
+                {
+                  LogPrint (eLogError, "POP3: Accept error: ",
+                            strerror (errno));
+                }
+                break;
+              }
+
+              LogPrint (eLogInfo, "POP3: Received connection from ",
+                        inet_ntoa (client_addr.sin_addr));
+
+              fds[nfds].fd = client_sockfd;
+              fds[nfds].events = POLLIN;
+              sessions[nfds].state = STATE_QUIT;
+
+              nfds++;
+            } while (client_sockfd != -1);
         }
     }
-}
-
-void
-POP3::handle ()
-{
-  LogPrint (eLogDebug, "POP3session: New session");
-
-  processing = true;
-  process ();
-}
-
-void
-POP3::finish ()
-{
-  LogPrint (eLogDebug, "POP3session: Finish session");
-
-  processing = false;
-  close (client_sockfd);
-
-  LogPrint (eLogInfo, "POP3session: Socket closed");
 }
 
 void
 POP3::process ()
 {
-  reply (reply_ok[OK_HELO]);
-  session_state = STATE_USER;
-
-  while (processing)
+  bool compress_array = false;
+  do
     {
-      memset (buf, 0, sizeof (buf));
-      ssize_t len = recv (client_sockfd, buf, sizeof (buf), 0);
-      if (len > 0)
+      int current_sc = nfds;
+      for (int sid = 0; sid < current_sc; sid++)
         {
-          std::string str_buf (buf);
-          str_buf = str_buf.substr (0, str_buf.size () - 2);
+          if (fds[sid].fd == server_sockfd)
+            continue;
 
-          LogPrint (eLogDebug, "POP3session: Request stream: ", str_buf);
-          respond (buf);
+          if (sessions[sid].state == STATE_QUIT)
+          {
+            reply (sid, reply_ok[OK_HELO]);
+            sessions[sid].state = STATE_USER;
+          }
+
+          LogPrint (eLogDebug, "POP3session: New data");
+          bool close_conn = false;
+          /* Receive all incoming data on this socket */
+          /* until the recv fails with EWOULDBLOCK */
+          do
+          {
+            memset (sessions[sid].buf, 0, sizeof (sessions[sid].buf));
+            ssize_t rc = recv (fds[sid].fd, sessions[sid].buf,
+                               sizeof (sessions[sid].buf), 0);
+            if (rc < 0)
+            {
+              LogPrint (eLogError, "POP3session: Can't receive data, close");
+              close_conn = true;
+              break;
+            }
+
+            if (rc == 0)
+            {
+              LogPrint (eLogDebug, "POP3session: Connection closed");
+              close_conn = true;
+              break;
+            }
+
+            /* Data was received  */
+            std::string str_buf (sessions[sid].buf);
+            str_buf = str_buf.substr (0, str_buf.size () - 2);
+
+            LogPrint (eLogDebug, "POP3session: Request stream: ", str_buf);
+            respond (sid);
+          } while (started);
+
+          if (close_conn)
+            {
+              close(fds[sid].fd);
+              fds[sid].fd = -1;
+              compress_array = true;
+            }
         }
-      else if (len == 0)
+
+      /* we need to squeeze together the array and */
+      /* decrement the number of file descriptors and sessions*/
+      if (!compress_array)
         continue;
-      else
-        {
-          /// The server exit permanently
-          // ToDo: add error handling
-          LogPrint (eLogError, "POP3session: Can't recieve data, exit");
-          processing = false;
-        }
-    }
 
-  finish ();
+      compress_array = false;
+      for (int sid = 0; sid < nfds; sid++)
+        {
+          if (fds[sid].fd != INVALID_SOCKET)
+            continue;
+
+          for(int j = sid; j < nfds; j++)
+            {
+              fds[j].fd = fds[j + 1].fd;
+              sessions[j] = sessions[j + 1];
+            }
+          sid--;
+          nfds--;
+        }
+    } while (started);
 }
 
 void
-POP3::respond (char *request)
+POP3::respond (int sid)
 {
   /// POP3 basic
-  if (strncmp (request, "USER", 4) == 0)
+  if (strncmp (sessions[sid].buf, "USER", 4) == 0)
     {
-      USER (request);
+      USER (sid);
     }
-  else if (strncmp (request, "PASS", 4) == 0)
+  else if (strncmp (sessions[sid].buf, "PASS", 4) == 0)
     {
-      PASS (request);
+      PASS (sid);
     }
-  else if (strncmp (request, "STAT", 4) == 0)
+  else if (strncmp (sessions[sid].buf, "STAT", 4) == 0)
     {
-      STAT ();
+      STAT (sid);
     }
-  else if (strncmp (request, "LIST", 4) == 0)
+  else if (strncmp (sessions[sid].buf, "LIST", 4) == 0)
     {
-      LIST (request);
+      LIST (sid);
     }
-  else if (strncmp (request, "RETR", 4) == 0)
+  else if (strncmp (sessions[sid].buf, "RETR", 4) == 0)
     {
-      RETR (request);
+      RETR (sid);
     }
-  else if (strncmp (request, "DELE", 4) == 0)
+  else if (strncmp (sessions[sid].buf, "DELE", 4) == 0)
     {
-      DELE (request);
+      DELE (sid);
     }
-  else if (strncmp (request, "NOOP", 4) == 0)
+  else if (strncmp (sessions[sid].buf, "NOOP", 4) == 0)
     {
-      NOOP ();
+      NOOP (sid);
     }
-  else if (strncmp (request, "RSET", 4) == 0)
+  else if (strncmp (sessions[sid].buf, "RSET", 4) == 0)
     {
-      RSET ();
+      RSET (sid);
     }
-  else if (strncmp (request, "QUIT", 4) == 0)
+  else if (strncmp (sessions[sid].buf, "QUIT", 4) == 0)
     {
-      QUIT ();
+      QUIT (sid);
     }
   /// Extensions RFC 2449
-  else if (strncmp (request, "CAPA", 4) == 0)
+  else if (strncmp (sessions[sid].buf, "CAPA", 4) == 0)
     {
-      CAPA ();
+      CAPA (sid);
     }
-  else if (strncmp (request, "APOP", 4) == 0)
+  else if (strncmp (sessions[sid].buf, "APOP", 4) == 0)
     {
-      APOP (request);
+      APOP (sid);
     }
-  else if (strncmp (request, "TOP", 3) == 0)
+  else if (strncmp (sessions[sid].buf, "TOP", 3) == 0)
     {
-      TOP (request);
+      TOP (sid);
     }
-  else if (strncmp (request, "UIDL", 4) == 0)
+  else if (strncmp (sessions[sid].buf, "UIDL", 4) == 0)
     {
-      UIDL (request);
+      UIDL (sid);
     }
   else
     {
-      reply (reply_err[ERR_NO_COMMAND]);
+      reply (sid, reply_err[ERR_NO_COMMAND]);
     }
 }
 
 void
-POP3::reply (const char *data)
+POP3::reply (int sid, const char *data)
 {
   if (!data)
     return;
 
-  send (client_sockfd, data, strlen (data), 0);
+  ssize_t rc = send (fds[sid].fd, data, strlen (data), 0);
+  if (rc < 0)
+    {
+      LogPrint (eLogError, "POP3session: reply: Send error");
+      return;
+    }
 
   std::string str_data (data);
   str_data = str_data.substr (0, str_data.size () - 2);
@@ -258,90 +392,91 @@ POP3::reply (const char *data)
 }
 
 void
-POP3::USER (char *request)
+POP3::USER (int sid)
 {
-  if (session_state != STATE_USER)
+  if (sessions[sid].state != STATE_USER)
     {
-      reply (reply_err[ERR_DENIED]);
+      reply (sid, reply_err[ERR_DENIED]);
       return;
     }
   /// User is identity public name
-  std::string str_req (request);
+  std::string str_req (sessions[sid].buf);
 
-  LogPrint (eLogDebug, "POP3session: USER: Request: ", request,
+  LogPrint (eLogDebug, "POP3session: USER: Request: ", sessions[sid].buf,
             ", size: ", str_req.size ());
 
   str_req.erase (0, 5);
 
-  LogPrint (eLogDebug, "POP3session: USER: Request: ", request,
+  LogPrint (eLogDebug, "POP3session: USER: Request: ", sessions[sid].buf,
             ", size: ", str_req.size ());
 
   std::string user = str_req.substr (0, str_req.size () - 2);
 
   if (check_user (user))
     {
-      session_state = STATE_PASS;
+      sessions[sid].state = STATE_PASS;
       auto res = format_response (reply_ok[OK_USER], user.c_str ());
-      reply (res.c_str ());
+      reply (sid, res.c_str ());
     }
   else
     {
       auto res = format_response (reply_err[ERR_USER], user.c_str ());
-      reply (res.c_str ());
+      reply (sid, res.c_str ());
     }
 }
 
 void
-POP3::PASS (char *request)
+POP3::PASS (int sid)
 {
-  if (session_state != STATE_PASS)
+  if (sessions[sid].state != STATE_PASS)
     {
-      reply (reply_err[ERR_DENIED]);
+      reply (sid, reply_err[ERR_DENIED]);
       return;
     }
 
   // ToDo: looks like we can keep pass hash in identity file
   //   for now ignored
-  std::string str_req (request);
+  std::string str_req (sessions[sid].buf);
 
   if (check_pass (str_req.substr (5, str_req.size () - 5)))
     {
       // ToDo: lock mail directory
-      session_state = STATE_TRANSACTION;
-      emails = pbote::kademlia::email_worker.check_inbox ();
-      reply (reply_ok[OK_LOCK]);
+      sessions[sid].state = STATE_TRANSACTION;
+      /* ToDo: pass username */
+      sessions[sid].emails = pbote::kademlia::email_worker.check_inbox ();
+      reply (sid, reply_ok[OK_LOCK]);
     }
   else
     {
-      session_state = STATE_USER;
-      reply (reply_err[ERR_PASS]);
+      sessions[sid].state = STATE_USER;
+      reply (sid, reply_err[ERR_PASS]);
     }
 }
 
 void
-POP3::STAT ()
+POP3::STAT (int sid)
 {
-  if (session_state != STATE_TRANSACTION)
+  if (sessions[sid].state != STATE_TRANSACTION)
     {
-      reply (reply_err[ERR_DENIED]);
+      reply (sid, reply_err[ERR_DENIED]);
       return;
     }
 
   size_t emails_size = 0;
-  for (const auto &email : emails)
+  for (const auto &email : sessions[sid].emails)
     emails_size += email->bytes ().size ();
 
   auto res
-      = format_response (reply_ok[OK_STAT], emails.size (), emails_size);
-  reply (res.c_str ());
+      = format_response (reply_ok[OK_STAT], sessions[sid].emails.size (), emails_size);
+  reply (sid, res.c_str ());
 }
 
 void
-POP3::LIST (char *request)
+POP3::LIST (int sid)
 {
-  if (session_state != STATE_TRANSACTION)
+  if (sessions[sid].state != STATE_TRANSACTION)
     {
-      reply (reply_err[ERR_DENIED]);
+      reply (sid, reply_err[ERR_DENIED]);
       return;
     }
 
@@ -349,7 +484,7 @@ POP3::LIST (char *request)
   std::string mail_list;
   size_t email_counter = 1;
 
-  for (const auto &email : emails)
+  for (const auto &email : sessions[sid].emails)
     {
       if (email->deleted ())
         continue;
@@ -363,22 +498,22 @@ POP3::LIST (char *request)
     }
 
   auto res
-      = format_response (reply_ok[OK_LIST], emails.size (), emails_size)
+      = format_response (reply_ok[OK_LIST], sessions[sid].emails.size (), emails_size)
         + mail_list + ".\r\n";
 
-  reply (res.c_str ());
+  reply (sid, res.c_str ());
 }
 
 void
-POP3::RETR (char *request)
+POP3::RETR (int sid)
 {
-  if (session_state != STATE_TRANSACTION)
+  if (sessions[sid].state != STATE_TRANSACTION)
     {
-      reply (reply_err[ERR_DENIED]);
+      reply (sid, reply_err[ERR_DENIED]);
       return;
     }
 
-  std::string req_str (request);
+  std::string req_str (sessions[sid].buf);
   LogPrint (eLogDebug, "POP3session: RETR: Request string: ", req_str);
 
   req_str.erase (0, 5);
@@ -386,7 +521,7 @@ POP3::RETR (char *request)
   if (req_str.size () - 1 < 1)
     {
       LogPrint (eLogError, "POP3session: RETR: Request is too short");
-      reply (reply_err[ERR_SIMP]);
+      reply (sid, reply_err[ERR_SIMP]);
       return;
     }
 
@@ -397,161 +532,160 @@ POP3::RETR (char *request)
   LogPrint (eLogDebug, "POP3session: RETR: Message number: ", message_number);
 
   size_t message_num_int = size_t (std::stoi (message_number));
-  if (message_num_int > emails.size ())
+  if (message_num_int > sessions[sid].emails.size ())
     {
       LogPrint (eLogError, "POP3session: RETR: Message number is to high");
-      reply (reply_err[ERR_NOT_FOUND]);
+      reply (sid, reply_err[ERR_NOT_FOUND]);
       return;
     }
 
-  auto bytes = emails[message_num_int - 1]->bytes ();
+  auto bytes = sessions[sid].emails[message_num_int - 1]->bytes ();
   std::string res = format_response (reply_ok[OK_RETR], bytes.size ());
   res.append (bytes.begin (), bytes.end ());
   res.append ("\n.\r\n");
-  reply (res.c_str ());
+  reply (sid, res.c_str ());
 }
 
 void
-POP3::DELE (char *request)
+POP3::DELE (int sid)
 {
-  if (session_state != STATE_TRANSACTION)
+  if (sessions[sid].state != STATE_TRANSACTION)
     {
-      reply (reply_err[ERR_DENIED]);
+      reply (sid, reply_err[ERR_DENIED]);
       return;
     }
 
-  std::string req_str (request);
+  std::string req_str (sessions[sid].buf);
   LogPrint (eLogDebug, "POP3session: DELE: Request string: ", req_str);
 
   req_str.erase (0, 5);
 
   // ToDo: validation
   int message_number = std::stoi (req_str) - 1;
-  if (message_number < 0 && (size_t)message_number >= emails.size ())
+  if (message_number < 0 &&
+      (size_t)message_number >= sessions[sid].emails.size ())
     {
       auto response = format_response (reply_err[ERR_NOT_FOUND]);
-      reply (response.c_str ());
+      reply (sid, response.c_str ());
       return;
     }
 
   /// On DELE step we can only mark message as deleted
   /// file deletion occurs only in phase UPDATE at step QUIT
   /// https://datatracker.ietf.org/doc/html/rfc1939#page-8
-  if (emails[message_number]->deleted ())
+  if (sessions[sid].emails[message_number]->deleted ())
     {
       auto response = format_response (reply_err[ERR_REMOVED], message_number + 1);
-      reply (response.c_str ());
+      reply (sid, response.c_str ());
       return;
     }
 
-  emails[message_number]->deleted (true);
+  sessions[sid].emails[message_number]->deleted (true);
   auto response = format_response (reply_ok[OK_DEL], message_number + 1);
-  reply (response.c_str ());
+  reply (sid, response.c_str ());
 }
 
 void
-POP3::NOOP ()
+POP3::NOOP (int sid)
 {
-  if (session_state != STATE_TRANSACTION)
+  if (sessions[sid].state != STATE_TRANSACTION)
   {
-    reply (reply_err[ERR_DENIED]);
+    reply (sid, reply_err[ERR_DENIED]);
     return;
   }
     
-  reply (reply_ok[OK_SIMP]);
+  reply (sid, reply_ok[OK_SIMP]);
 }
 
 void
-POP3::RSET ()
+POP3::RSET (int sid)
 {
-  if (session_state != STATE_TRANSACTION)
+  if (sessions[sid].state != STATE_TRANSACTION)
     {
-      reply (reply_err[ERR_DENIED]);
+      reply (sid, reply_err[ERR_DENIED]);
       return;
     }
 
   // ToDo
   auto response = format_response (reply_ok[OK_MAILDROP], 0, 0);
-  reply (response.c_str ());
+  reply (sid, response.c_str ());
 }
 
 void
-POP3::QUIT ()
+POP3::QUIT (int sid)
 {
-  if (session_state == STATE_TRANSACTION)
+  if (sessions[sid].state == STATE_TRANSACTION)
     {
       /// Now we can remove marked emails
       /// https://datatracker.ietf.org/doc/html/rfc1939#section-6
-      for (const auto &email : emails)
+      for (const auto &email : sessions[sid].emails)
         {
           if (email->deleted ())
             pbote::fs::Remove (email->filename ());
         }
     }
 
-  session_state = STATE_QUIT;
-  reply (reply_ok[OK_QUIT]);
-
-  finish ();
+  sessions[sid].state = STATE_QUIT;
+  reply (sid, reply_ok[OK_QUIT]);
 }
 
-/// Extension
+/* Extension */
 void
-POP3::CAPA ()
+POP3::CAPA (int sid)
 {
   std::string reply_str;
 
   for (auto line : capa_list)
     reply_str.append (line);
 
-  reply (reply_str.c_str ());
+  reply (sid, reply_str.c_str ());
 }
 
 void
-POP3::APOP (char *request)
+POP3::APOP (int sid)
 {
   // ToDo: looks like we can keep pass hash in identity file
   //   for now ignored
-  if (strncmp (request, "APOP", 4) != 0)
+  if (strncmp (sessions[sid].buf, "APOP", 4) != 0)
     {
-      reply (reply_err[ERR_DENIED]);
+      reply (sid, reply_err[ERR_DENIED]);
       return;
     }
 
   // ToDo
   LogPrint (eLogDebug, "POP3session: APOP: Login successfully");
 
-  session_state = STATE_TRANSACTION;
+  sessions[sid].state = STATE_TRANSACTION;
 
-  reply (reply_ok[OK_LOCK]);
+  reply (sid, reply_ok[OK_LOCK]);
 }
 
 void
-POP3::TOP (char *request)
+POP3::TOP (int sid)
 {
-  if (session_state != STATE_TRANSACTION)
+  if (sessions[sid].state != STATE_TRANSACTION)
     {
-      reply (reply_err[ERR_DENIED]);
+      reply (sid, reply_err[ERR_DENIED]);
       return;
     }
 
-  reply (reply_ok[OK_TOP]);
+  reply (sid, reply_ok[OK_TOP]);
   // ToDo
 }
 
 void
-POP3::UIDL (char *request)
+POP3::UIDL (int sid)
 {
-  if (session_state != STATE_TRANSACTION)
+  if (sessions[sid].state != STATE_TRANSACTION)
     {
-      reply (reply_err[ERR_DENIED]);
+      reply (sid, reply_err[ERR_DENIED]);
       return;
     }
 
   std::string uidl_list;
   size_t email_counter = 1;
 
-  for (const auto &email : emails)
+  for (const auto &email : sessions[sid].emails)
     {
       std::string email_uid = email->field ("Message-ID");
       uidl_list += format_response (templates[TEMPLATE_UIDL_ITEM],
@@ -560,10 +694,10 @@ POP3::UIDL (char *request)
       email_counter++;
     }
 
-  auto res = format_response (reply_ok[OK_UIDL], emails.size ())
+  auto res = format_response (reply_ok[OK_UIDL], sessions[sid].emails.size ())
              + uidl_list + ".\r\n";
 
-  reply (res.c_str ());
+  reply (sid, res.c_str ());
 }
 
 bool

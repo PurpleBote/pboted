@@ -1,13 +1,13 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef BOTE_SRC_POP3_H_
-#define BOTE_SRC_POP3_H_
+#ifndef BOTE_SRC_POP3_H
+#define BOTE_SRC_POP3_H
 
 #include <netinet/in.h>
 #include <poll.h>
@@ -22,11 +22,15 @@ namespace bote
 namespace pop3
 {
 
-#define MAX_CLIENTS 5
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET -1
+#endif
+
+#define POP3_MAX_CLIENTS 5
 #define MAX_RCPT_USR 1
 #define BUF_SIZE 10485760 // 10MB
 // Timeout in milliseconds
-#define POP3_WAIT_TIMEOUT 200
+#define POP3_WAIT_TIMEOUT 10000
 
 const char capa_list[][100] =
 {
@@ -45,18 +49,21 @@ const char capa_list[][100] =
   { ".\r\n" }
 };
 
-#define OK_SIMP 0
-#define OK_HELO 1
-#define OK_USER 2
-#define OK_LOCK 3
-#define OK_QUIT 4
-#define OK_MAILDROP 5
-#define OK_STAT 6
-#define OK_DEL 7
-#define OK_LIST 8
-#define OK_RETR 9
-#define OK_TOP 10
-#define OK_UIDL 11
+enum ok_res
+{
+  OK_SIMP     = 0,
+  OK_HELO     = 1,
+  OK_USER     = 2,
+  OK_LOCK     = 3,
+  OK_QUIT     = 4,
+  OK_MAILDROP = 5,
+  OK_STAT     = 6,
+  OK_DEL      = 7,
+  OK_LIST     = 8,
+  OK_RETR     = 9,
+  OK_TOP      = 10,
+  OK_UIDL     = 11,
+};
 
 const char reply_ok[][100] = {
   { "+OK\r\n" },                                       // 0
@@ -73,15 +80,18 @@ const char reply_ok[][100] = {
   { "+OK unique-id listing for %d emails follows\n" }  // 11
 };
 
-#define ERR_SIMP 0
-#define ERR_NO_COMMAND 1
-#define ERR_USER 2
-#define ERR_PASS 3
-#define ERR_LOCK 4
-#define ERR_DENIED 5
-#define ERR_NOT_FOUND 6
-#define ERR_REMOVED 7
-#define ERR_NOT_REMOVED 8
+enum err_res
+{
+  ERR_SIMP        = 0,
+  ERR_NO_COMMAND  = 1,
+  ERR_USER        = 2,
+  ERR_PASS        = 3,
+  ERR_LOCK        = 4,
+  ERR_DENIED      = 5,
+  ERR_NOT_FOUND   = 6,
+  ERR_REMOVED     = 7,
+  ERR_NOT_REMOVED = 8
+};
 
 const char reply_err[][100] = {
   { "-ERR\r\n" },                                  // 0
@@ -103,12 +113,22 @@ const char templates[][100] = {
   { "%d %s" }  // 1
 };
 
-/// POP3 session states
-#define STATE_QUIT 0        // Only after quit
-#define STATE_USER 1        // After TCP connection
-#define STATE_PASS 2        // After successful USER
-#define STATE_TRANSACTION 3 // After successful PASS
-#define STATE_UPDATE 4      // After disconnect from TRANSACTION
+/* POP3 session states */
+enum pop3_state
+{
+  STATE_QUIT = 0,        // Only after quit
+  STATE_USER = 1,        // After TCP connection
+  STATE_PASS = 2,        // After successful USER
+  STATE_TRANSACTION = 3, // After successful PASS
+  STATE_UPDATE = 4      // After disconnect from TRANSACTION
+};
+
+struct pop3_session
+{
+  pop3_state state;
+  char buf[BUF_SIZE];
+  std::vector<std::shared_ptr<pbote::Email> > emails;
+};
 
 class POP3
 {
@@ -121,45 +141,42 @@ public:
 
 private:
   void run ();
-
-  void handle ();
   void process ();
-  void finish ();
 
-  void respond (char *request);
-  void reply (const char *data);
+  void respond (int sid);
+  void reply (int sid, const char *data);
 
-  void USER (char *request);
-  void PASS (char *request);
+  void USER (int sid);
+  void PASS (int sid);
 
-  void STAT ();
-  void LIST (char *request);
-  void RETR (char *request);
-  void DELE (char *request);
-  void NOOP ();
-  void RSET ();
-  void QUIT ();
+  void STAT (int sid);
+  void LIST (int sid);
+  void RETR (int sid);
+  void DELE (int sid);
+  void NOOP (int sid);
+  void RSET (int sid);
+  void QUIT (int sid);
 
   /// Extensions RFC 2449
-  void CAPA ();
-  void APOP (char *request);
-  void TOP (char *request);
-  void UIDL (char *request);
+  void CAPA (int sid);
+  void APOP (int sid);
+  void TOP (int sid);
+  void UIDL (int sid);
 
   static bool check_user (const std::string &user);
   static bool check_pass (const std::string &pass);
 
-  bool started, processing;
-  std::thread *pop3_thread;
-  int server_sockfd, client_sockfd;
-  socklen_t sin_size;
-  struct sockaddr_in server_addr, client_addr;
+  bool started;
+  std::thread *pop3_accepting_thread;
+  std::thread *pop3_processing_thread;
 
-  /// Session
-  int session_state;
-  char buf[BUF_SIZE];
+  int server_sockfd = INVALID_SOCKET, client_sockfd = INVALID_SOCKET;
+  std::string m_address;
+  uint16_t m_port = 0;
+  int nfds = 1; /* descriptors count */
 
-  std::vector<std::shared_ptr<pbote::Email> > emails;
+  struct pollfd fds[POP3_MAX_CLIENTS];
+  pop3_session sessions[POP3_MAX_CLIENTS];
 };
 
 template <typename... t_args>
@@ -197,4 +214,4 @@ format_response (const char *format, t_args &&... args)
 } // namespace pop3
 } // namespace bote
 
-#endif // BOTE_SRC_POP3_H_
+#endif // BOTE_SRC_POP3_H

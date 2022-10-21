@@ -1,13 +1,13 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef BOTE_SRC_SMTP_H_
-#define BOTE_SRC_SMTP_H_
+#ifndef BOTE_SRC_SMTP_H
+#define BOTE_SRC_SMTP_H
 
 #include <netinet/in.h>
 #include <poll.h>
@@ -22,11 +22,15 @@ namespace bote
 namespace smtp
 {
 
-#define MAX_CLIENTS 5
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET -1
+#endif
+
+#define SMTP_MAX_CLIENTS 5
 #define MAX_RCPT_USR 1
 #define BUF_SIZE 10485760 // 10MB
 // Timeout in milliseconds
-#define SMTP_WAIT_TIMEOUT 200
+#define SMTP_WAIT_TIMEOUT 10000
 #define SMTP_COMMAND_LEN 4
 
 const char reply_info[][100]
@@ -43,39 +47,49 @@ const char reply_info[][100]
         { "250-HELP\n" }, // RFC 821
         { "250 HELO\r\n" } };
 
-const char reply_help[][100] = { { "" } };
+const char reply_help[][100]
+    = { { "help" } };
 
-#define CODE_211 0
-#define CODE_214 1
-#define CODE_220 2
-#define CODE_221 3
-#define CODE_235 4
-#define CODE_250 5
-#define CODE_251 6
-#define CODE_252 7
+enum code_2xx
+{
+  CODE_211 = 0,
+  CODE_214 = 1,
+  CODE_220 = 2,
+  CODE_221 = 3,
+  CODE_235 = 4,
+  CODE_250 = 5,
+  CODE_251 = 6,
+  CODE_252 = 7,
+};
 
 const char reply_2XX[][100] = {
-  { "211 System status, or system help reply.\r\n" },        // 0
-  { "214 Help message.\r\n" },                               // 1
-  { "220 pboted SMTP Service ready\r\n" },                   // 2
-  { "221 pboted Service closing transmission channel\r\n" }, // 3
-  { "235 2.7.0 Authentication Succeeded\r\n" },              // 4
-  { "250 OK\r\n" },                                          // 5
-  { "251 User not local\r\n" },                              // 6
+  { "211 System status, or system help reply.\r\n" },                 // 0
+  { "214 Help message.\r\n" },                                        // 1
+  { "220 pboted SMTP Service ready\r\n" },                            // 2
+  { "221 pboted Service closing transmission channel\r\n" },          // 3
+  { "235 2.7.0 Authentication Succeeded\r\n" },                       // 4
+  { "250 OK\r\n" },                                                   // 5
+  { "251 User not local\r\n" },                                       // 6
   { "252 Cannot VRFY user, accept message and attempt delivery\r\n" } // 7
 };
 
-#define CODE_354 0
+enum code_3xx
+{
+  CODE_354 = 0,
+};
 
 const char reply_3XX[][100] = {
   { "354 Start mail input\r\n" } // 0
 };
 
-#define CODE_421 0
-#define CODE_450 1
-#define CODE_451 2
-#define CODE_452 3
-#define CODE_455 4
+enum code_4xx
+{
+  CODE_421 = 0,
+  CODE_450 = 1,
+  CODE_451 = 2,
+  CODE_452 = 3,
+  CODE_455 = 4,
+};
 
 const char reply_4XX[][100] = {
   { "421 service not available, closing transmission channel\r\n" },     // 0
@@ -85,46 +99,61 @@ const char reply_4XX[][100] = {
   { "455 Server unable to accommodate parameters\r\n" },                 // 4
 };
 
-#define CODE_500 0
-#define CODE_501 1
-#define CODE_502 2
-#define CODE_503 3
-#define CODE_503_2 4
-#define CODE_504 5
-#define CODE_550 6
-#define CODE_551 7
-#define CODE_552 8
-#define CODE_553 9
-#define CODE_554 10
-#define CODE_555 11
+enum code_5xx
+{
+  CODE_500    = 0,
+  CODE_501    = 1,
+  CODE_502    = 2,
+  CODE_503    = 3, /* for any other state */
+  CODE_503_2  = 4, /* for HELO state */
+  CODE_504    = 5,
+  CODE_550    = 6,
+  CODE_551    = 7,
+  CODE_552    = 8,
+  CODE_553    = 9,
+  CODE_554    = 10,
+  CODE_555    = 11,
+};
 
 const char reply_5XX[][100] = {
-  { "500 Syntax error, command unrecognised\r\n" },              // 0
-  { "501 Syntax error in parameters or arguments\r\n" },         // 1
-  { "502 Command not implemented\r\n" },                         // 2
-  { "503 Bad sequence of commands\r\n" },                        // 3
-  { "503 Send HELO/EHLO first\r\n" },                            // 4
-  { "504 Command parameter not implemented\r\n" },               // 5
-  { "550 Requested action not taken: mailbox unavailable\r\n" }, // 6
-  { "551 User not local\r\n" },                                  // 7
+  { "500 Syntax error, command unrecognised\r\n" },                         // 0
+  { "501 Syntax error in parameters or arguments\r\n" },                    // 1
+  { "502 Command not implemented\r\n" },                                    // 2
+  { "503 Bad sequence of commands\r\n" },                                   // 3
+  { "503 Send HELO/EHLO first\r\n" },                                       // 4
+  { "504 Command parameter not implemented\r\n" },                          // 5
+  { "550 Requested action not taken: mailbox unavailable\r\n" },            // 6
+  { "551 User not local\r\n" },                                             // 7
   { "552 Requested mail action aborted: exceeded storage allocation\r\n" }, // 8
-  { "553 Requested action not taken: mailbox name not allowed\r\n" }, // 9
-  { "554 Transaction failed\r\n" },                                   // 10
+  { "553 Requested action not taken: mailbox name not allowed\r\n" },       // 9
+  { "554 Transaction failed\r\n" },                                        // 10
   { "555 MAIL FROM/RCPT TO parameters not recognized or not "
     "implemented\r\n" } // 11
 };
 
-/// SMTP
-#define STATE_QUIT 0 // Only after quit
-#define STATE_INIT 1 // After TCP connection
-#define STATE_HELO 2 // After HELO command
-#define STATE_MAIL 3 // After MAIL command
-#define STATE_RCPT 4 // After RCPT command
-#define STATE_DATA 5 // After DATA command
-/// Extensions
-#define STATE_EHLO 10 // After HELO command
-#define STATE_STLS 11 // After STARTTLS command
-#define STATE_AUTH 12 // After AUTH command
+/* SMTP session state */
+enum smtp_state
+{
+  STATE_QUIT = 0,  // Only after quit
+  STATE_INIT = 1,  // After TCP connection
+  STATE_HELO = 2,  // After HELO command
+  STATE_MAIL = 3,  // After MAIL command
+  STATE_RCPT = 4,  // After RCPT command
+  STATE_DATA = 5,  // After DATA command
+/* For extensions */
+  STATE_EHLO = 10, // After HELO command
+  STATE_STLS = 11, // After STARTTLS command
+  STATE_AUTH = 12, // After AUTH command
+};
+
+struct smtp_session
+{
+  smtp_state state;
+  char buf[BUF_SIZE];
+  int nrcpt; /* number of filed RCPT users */
+  char from[512];
+  char rcpt[MAX_RCPT_USR][512];
+};
 
 class SMTP
 {
@@ -137,53 +166,55 @@ public:
 
 private:
   void run ();
-
-  void handle ();
   void process ();
-  void finish ();
 
-  void respond (char *request);
-  void reply (const char *data);
+  void respond (int sid);
+  void reply (int sid, const char *data);
 
-  /// SMTP https://datatracker.ietf.org/doc/html/rfc5321#section-4.5.1
-  void HELO ();
-  void EHLO ();
-  void MAIL (char *request);
-  void RCPT (char *request);
-  void DATA ();
-  void RSET ();
-  void VRFY ();
-  void NOOP ();
-  void QUIT ();
+  /* SMTP*/
+  /* https://datatracker.ietf.org/doc/html/rfc5321#section-4.5.1 */
+  void HELO (int sid);
+  void EHLO (int sid);
+  void MAIL (int sid);
+  void RCPT (int sid);
+  void DATA (int sid);
+  void RSET (int sid);
+  void VRFY (int sid);
+  void NOOP (int sid);
+  void QUIT (int sid);
 
-  /// Extensions
-  void AUTH (char *request);
-  void EXPN ();
-  void HELP ();
+  /* Extensions */
+  void AUTH (int sid);
+  void EXPN (int sid);
+  void HELP (int sid);
 
   static bool check_identity (const std::string &name);
   static bool check_recipient (const std::string &name);
-  void cmd_to_upper(char *request, int len = SMTP_COMMAND_LEN);
 
-  bool started, processing;
-  std::thread *smtp_thread;
+  void cmd_to_upper(char *data, int len = SMTP_COMMAND_LEN);
 
-  int server_sockfd, client_sockfd;
-  socklen_t sin_size;
-  struct sockaddr_in server_addr, client_addr;
+  bool started;
+  std::thread *smtp_accepting_thread;
+  std::thread *smtp_processing_thread;
+
+  int server_sockfd = INVALID_SOCKET, client_sockfd = INVALID_SOCKET;
+  std::string m_address;
+  uint16_t m_port = 0;
+  int nfds = 1; /* descriptors count */
+
+  struct pollfd fds[SMTP_MAX_CLIENTS];
+  smtp_session sessions[SMTP_MAX_CLIENTS];
 
   /// Session
-  int session_state;
-  char buf[BUF_SIZE];
+  //int session_state;
+  //char buf[BUF_SIZE];
 
-  int rcpt_user_num;
-  char from_user[512];
-  char rcpt_user[MAX_RCPT_USR][512];
-
-  pbote::Email mail;
+  //int rcpt_user_num;
+  //char from_user[512];
+  //char rcpt_user[MAX_RCPT_USR][512];
 };
 
 } // namespace smtp
 } // namespace bote
 
-#endif // BOTE_SRC_SMTP_H_
+#endif /* BOTE_SRC_SMTP_H*/
