@@ -29,12 +29,11 @@ namespace relay
 #define MAX_PEERS_TO_SEND 20
 
 /// Percentage of requests sent to a peer / responses received back
-#define PEER_MIN_REACHABILITY 18 // 4/5 of ~1 day
+#define PEER_MIN_REACHABILITY 20 // 4/5 of ~1 day
 #define PEER_MAX_REACHABILITY 24 // ~1 day
 
 /// Time in seconds while we wait for responses
-//#define RELAY_CHECK_TIMEOUT (2 * 60)
-#define RELAY_CHECK_TIMEOUT 30
+#define RELAY_CHECK_TIMEOUT 15
   
 /// Time in minutes between updating peers if no high-reachability
 /// peers are known
