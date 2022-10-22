@@ -10,7 +10,7 @@
 #ifndef PBOTED_SRC_BOTECONTROL_H
 #define PBOTED_SRC_BOTECONTROL_H
 
-#define DISABLE_SOCKET
+//#define DISABLE_SOCKET
 
 #include <map>
 #include <netinet/in.h>
@@ -74,7 +74,6 @@ public:
 
 private:
   void run ();
-  void handle ();
 
   void handle_request (int sid);
 
@@ -99,7 +98,7 @@ private:
 
   bool m_is_running = false;
   std::thread *m_control_acceptor_thread;
-  std::thread *m_control_handler_thread;
+  //std::thread *m_control_handler_thread;
 
 #if !defined(_WIN32) || !defined(DISABLE_SOCKET)
   /* Socket stuff */
@@ -121,7 +120,7 @@ private:
   int nfds = 1;
   int client_sockfd = INVALID_SOCKET;
   struct pollfd fds[CONTROL_MAX_CLIENTS];
-  control_session sessions[CONTROL_MAX_CLIENTS];
+  struct control_session sessions[CONTROL_MAX_CLIENTS];
 
   std::map<std::string, Handler> handlers;
 };

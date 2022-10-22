@@ -521,9 +521,15 @@ NetworkWorker::stop ()
 bool
 NetworkWorker::running ()
 {
-  bool recv_run = m_receiver->running ();
-  bool send_run = m_sender->running ();
-  bool sam_sick = m_sam_session->isSick ();
+  bool recv_run = false, send_run = false, sam_sick = true;
+  if (m_receiver)
+    recv_run = m_receiver->running ();
+
+  if (m_sender)
+    send_run = m_sender->running ();
+
+  if (m_sam_session)
+    sam_sick = m_sam_session->isSick ();
 
   /*
   LogPrint (recv_run ? eLogDebug : eLogError, "Network: UDPReceiver: running: ",

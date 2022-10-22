@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -30,7 +31,7 @@ namespace pop3
 POP3::POP3 (const std::string &address, int port)
   : started (false),
     pop3_accepting_thread (nullptr),
-    pop3_processing_thread (nullptr),
+    //pop3_processing_thread (nullptr),
     m_address (address),
     m_port (port)  
 {}
@@ -39,18 +40,16 @@ POP3::~POP3 ()
 {
   stop ();
 
-  if (pop3_processing_thread)
-    {
-      pop3_processing_thread->join ();
-
-      delete pop3_processing_thread;
-      pop3_processing_thread = nullptr;
-    }
+  //if (pop3_processing_thread)
+  //  {
+  //    pop3_processing_thread->join ();
+  //    delete pop3_processing_thread;
+  //    pop3_processing_thread = nullptr;
+  //  }
 
   if (pop3_accepting_thread)
     {
       pop3_accepting_thread->join ();
-  
       delete pop3_accepting_thread;
       pop3_accepting_thread = nullptr;
     }
@@ -95,6 +94,26 @@ POP3::start ()
       LogPrint (eLogError, "POP3: Socket create error: ", strerror (errno));
     }
 
+  int on = 1; 
+  rc = setsockopt(server_sockfd, SOL_SOCKET,  SO_REUSEADDR,
+                  (char *)&on, sizeof(on));
+  if (rc < 0)
+  {
+    LogPrint (eLogError, "POP3: setsockopt() failed: ", strerror (errno));
+    close(server_sockfd);
+    freeaddrinfo (res);
+    return;
+  }
+
+  rc = ioctl(server_sockfd, FIONBIO, (char *)&on);
+  if (rc < 0)
+  {
+    LogPrint (eLogError, "POP3: ioctl() failed: ", strerror (errno));
+    close(server_sockfd);
+    freeaddrinfo (res);
+    return;
+  }
+
   rc = bind (server_sockfd, res->ai_addr, res->ai_addrlen);
   if (rc == -1)
     {
@@ -123,7 +142,7 @@ POP3::start ()
   started = true;
 
   pop3_accepting_thread = new std::thread ([this] { run (); });
-  pop3_processing_thread = new std::thread ([this] { process (); });
+  //pop3_processing_thread = new std::thread ([this] { process (); });
 }
 
 void
@@ -158,20 +177,24 @@ POP3::run ()
 {
   LogPrint (eLogInfo, "POP3: Started");
 
-  int rc = 0, current_size = 0;
+  int rc = 0, current_sc = 0;
+  bool compress_array = false;
 
   while (started)
     {
+      LogPrint(eLogDebug, "POP3: run: Waiting on poll");
       rc = poll(fds, nfds, POP3_WAIT_TIMEOUT);
 
       if (!started)
         return;
 
       /* Check to see if the poll call failed */
-      if (rc < 0)
+      if (rc == -1)
         {
+          if (errno == EINTR) continue;
+
           LogPrint(eLogError, "POP3: Poll error: ", strerror (errno));
-          continue;
+          break;
         }
 
       if (rc == 0)
@@ -179,136 +202,155 @@ POP3::run ()
           LogPrint(eLogDebug, "POP3: Poll timed out");
           continue;
         }
-
-      current_size = nfds;
-      for (int i = 0; i < current_size; i++)
-        {
-          if(fds[i].revents == 0)
-            continue;
-
-          if(fds[i].revents != POLLIN)
-            {
-              LogPrint(eLogError, "POP3: Revents: ", fds[i].revents);
-              continue;
-            }
-
-          if (fds[i].fd != server_sockfd)
-            continue;
-
-          LogPrint (eLogDebug, "POP3: Server socket readable");
-          do
-            {
-              LogPrint (eLogDebug, "POP3: New accept");
-
-              struct sockaddr_in client_addr;
-              memset(&client_addr, 0, sizeof(struct sockaddr_in));
-              socklen_t sin_size = sizeof (client_addr);
-
-              client_sockfd = accept(fds[i].fd,
-                                     (struct sockaddr *)&client_addr,
-                                     &sin_size);
-
-              if (client_sockfd < 0)
-              {
-                if (started && errno != EWOULDBLOCK && errno != EAGAIN)
-                {
-                  LogPrint (eLogError, "POP3: Accept error: ",
-                            strerror (errno));
-                }
-                break;
-              }
-
-              LogPrint (eLogInfo, "POP3: Received connection from ",
-                        inet_ntoa (client_addr.sin_addr));
-
-              fds[nfds].fd = client_sockfd;
-              fds[nfds].events = POLLIN;
-              sessions[nfds].state = STATE_QUIT;
-
-              nfds++;
-            } while (client_sockfd != -1);
-        }
-    }
-}
-
-void
-POP3::process ()
-{
-  bool compress_array = false;
-  do
-    {
-      int current_sc = nfds;
+      current_sc = nfds;
       for (int sid = 0; sid < current_sc; sid++)
         {
-          if (fds[sid].fd == server_sockfd)
+          LogPrint(eLogDebug, "POP3: Revents ", sid, ": ", fds[sid].revents);
+          if (fds[sid].revents == 0)
             continue;
 
-          if (sessions[sid].state == STATE_QUIT)
-          {
-            reply (sid, reply_ok[OK_HELO]);
-            sessions[sid].state = STATE_USER;
-          }
-
-          LogPrint (eLogDebug, "POP3session: New data");
-          bool close_conn = false;
-          /* Receive all incoming data on this socket */
-          /* until the recv fails with EWOULDBLOCK */
-          do
-          {
-            memset (sessions[sid].buf, 0, sizeof (sessions[sid].buf));
-            ssize_t rc = recv (fds[sid].fd, sessions[sid].buf,
-                               sizeof (sessions[sid].buf), 0);
-            if (rc < 0)
+          if (fds[sid].revents != POLLIN)
             {
-              LogPrint (eLogError, "POP3session: Can't receive data, close");
-              close_conn = true;
-              break;
+              LogPrint(eLogError, "POP3: Revents ", sid, ": ", fds[sid].revents);
+              continue;
             }
-
-            if (rc == 0)
+      
+          if (fds[sid].fd == server_sockfd && fds[sid].revents & POLLIN)
             {
-              LogPrint (eLogDebug, "POP3session: Connection closed");
-              close_conn = true;
-              break;
-            }
+              LogPrint(eLogDebug, "POP3: run: Checking server socket");
+              do
+                {
+                  struct sockaddr_in client_addr;
+                  memset(&client_addr, 0, sizeof(struct sockaddr_in));
+                  socklen_t sin_size = sizeof (client_addr);
 
-            /* Data was received  */
-            std::string str_buf (sessions[sid].buf);
-            str_buf = str_buf.substr (0, str_buf.size () - 2);
+                  client_sockfd = accept(fds[sid].fd, (struct sockaddr *)&client_addr,
+                                         &sin_size);
 
-            LogPrint (eLogDebug, "POP3session: Request stream: ", str_buf);
-            respond (sid);
-          } while (started);
+                  if (client_sockfd < 0)
+                  {
+                    if (started && errno != EWOULDBLOCK && errno != EAGAIN)
+                    {
+                      LogPrint (eLogError, "POP3: Accept error: ",
+                                strerror (errno));
+                    }
+                    break;
+                  }
 
-          if (close_conn)
-            {
-              close(fds[sid].fd);
-              fds[sid].fd = -1;
-              compress_array = true;
+                  LogPrint (eLogInfo, "POP3: Received connection ", nfds, " from ",
+                            inet_ntoa (client_addr.sin_addr));
+
+                  fds[nfds].fd = client_sockfd;
+                  fds[nfds].events = POLLIN;
+                  sessions[nfds].state = STATE_QUIT;
+
+                  nfds++;
+                } while (client_sockfd != INVALID_SOCKET);
+              LogPrint (eLogDebug, "POP3: End of accept");
             }
         }
 
-      /* we need to squeeze together the array and */
-      /* decrement the number of file descriptors and sessions*/
+      LogPrint(eLogDebug, "POP3: run: Checking clients sockets");
+      current_sc = nfds;
+      for (int sid = 0; sid < current_sc; sid++)
+        {
+          LogPrint(eLogDebug, "POP3: Revents ", sid, ": ", fds[sid].revents);
+          //if (fds[sid].revents == 0)
+          //  continue;
+
+          //if (fds[sid].revents != POLLIN)
+          //  {
+          //    LogPrint(eLogError, "POP3: Revents ", sid, ": ", fds[sid].revents);
+          //    continue;
+          //  }
+          
+          if (fds[sid].fd != server_sockfd)
+            {
+              if (sessions[sid].state == STATE_QUIT)
+                {
+                  reply (sid, reply_ok[OK_HELO]);
+                  sessions[sid].state = STATE_USER;
+                }
+
+              LogPrint (eLogDebug, "POP3session: New data ", sid, ": ");
+              bool close_conn = false;
+              /* Receive all incoming data on this socket */
+              /* until the recv fails with EWOULDBLOCK */
+              do
+                {
+                  memset (sessions[sid].buf, 0, sizeof (sessions[sid].buf));
+                  ssize_t rc = recv (fds[sid].fd, sessions[sid].buf,
+                                     sizeof (sessions[sid].buf), 0);
+                  if (rc == -1)
+                  {
+                    if (errno != EWOULDBLOCK)
+                      {
+                        LogPrint (eLogError, "POP3session: Can't receive data ", sid,
+                           ", close");
+                        close_conn = true;
+                      }
+                    break;
+                  }
+
+                  if (rc == 0)
+                    {
+                      LogPrint (eLogDebug, "POP3session: Connection ", sid, " closed");
+                      close_conn = true;
+                      break;
+                    }
+
+                  /* Data was received  */
+                  std::string str_buf (sessions[sid].buf);
+                  str_buf = str_buf.substr (0, str_buf.size () - 2);
+
+                  LogPrint (eLogDebug, "POP3session: Request stream ", sid, ": ", str_buf);
+                  respond (sid);
+                } while (started);
+
+              if (close_conn)
+                {
+                  close(fds[sid].fd);
+                  fds[sid].fd = -1;
+                  compress_array = true;
+                  LogPrint (eLogDebug, "POP3session: Closed ", sid);
+                }
+            }
+        }
+
       if (!compress_array)
         continue;
 
+      /* we need to squeeze together the array and */
+      /* decrement the number of file descriptors and sessions*/
       compress_array = false;
       for (int sid = 0; sid < nfds; sid++)
         {
+          LogPrint (eLogDebug, "POP3session: sid: ", sid, ", nfds: ", nfds);
           if (fds[sid].fd != INVALID_SOCKET)
             continue;
 
           for(int j = sid; j < nfds; j++)
             {
+              LogPrint (eLogDebug, "POP3session: Session ", j, " to ", j + 1);
               fds[j].fd = fds[j + 1].fd;
               sessions[j] = sessions[j + 1];
             }
           sid--;
           nfds--;
+          LogPrint (eLogDebug, "POP3session: sid: ", sid, ", nfds: ", nfds);
         }
-    } while (started);
+    }
 }
+
+//void
+//POP3::handle (int sid)
+//{
+//}
+
+//void
+//POP3::process (int sid)
+//{
+//}
 
 void
 POP3::respond (int sid)

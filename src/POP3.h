@@ -142,7 +142,7 @@ public:
 
 private:
   void run ();
-  void process ();
+  //void process ();
 
   void respond (int sid);
   void reply (int sid, const char *data);
@@ -169,7 +169,7 @@ private:
 
   bool started;
   std::thread *pop3_accepting_thread;
-  std::thread *pop3_processing_thread;
+  //std::thread *pop3_processing_thread;
 
   int server_sockfd = INVALID_SOCKET, client_sockfd = INVALID_SOCKET;
   std::string m_address;
@@ -177,7 +177,7 @@ private:
   int nfds = 1; /* descriptors count */
 
   struct pollfd fds[POP3_MAX_CLIENTS];
-  pop3_session sessions[POP3_MAX_CLIENTS];
+  struct pop3_session sessions[POP3_MAX_CLIENTS];
 };
 
 template <typename... t_args>

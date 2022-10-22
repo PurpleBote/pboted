@@ -167,7 +167,7 @@ public:
 
 private:
   void run ();
-  void process ();
+  //void process ();
 
   void respond (int sid);
   void reply (int sid, const char *data);
@@ -196,7 +196,7 @@ private:
 
   bool started;
   std::thread *smtp_accepting_thread;
-  std::thread *smtp_processing_thread;
+  //std::thread *smtp_processing_thread;
 
   int server_sockfd = INVALID_SOCKET, client_sockfd = INVALID_SOCKET;
   std::string m_address;
@@ -204,7 +204,7 @@ private:
   int nfds = 1; /* descriptors count */
 
   struct pollfd fds[SMTP_MAX_CLIENTS];
-  smtp_session sessions[SMTP_MAX_CLIENTS];
+  struct smtp_session sessions[SMTP_MAX_CLIENTS];
 
   /// Session
   //int session_state;
