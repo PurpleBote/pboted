@@ -61,7 +61,7 @@ ECDHP256Encryptor::Encrypt (const byte *data, int len)
   std::vector<byte> result (shared_key, shared_key + ECDHP256_PUB_KEY_SIZE);
 
   /// Create the shared secret from shared point
-  int secret_len;
+  int secret_len = 0;
   byte *secret = agree_EC_secret (ec_shared_key, ec_public_point, &secret_len);
 
   if (secret_len <= 0)
@@ -150,7 +150,7 @@ ECDHP256Decryptor::Decrypt (const byte *encrypted, int elen)
     }
 
   /// Re-construct the shared secret
-  int secret_len;
+  int secret_len = 0;
   byte *secret = agree_EC_secret (ec_private_key, ecp_shared_public_point, &secret_len);
   if (secret_len <= 0)
     return {};
@@ -257,7 +257,7 @@ ECDHP521Encryptor::Encrypt (const byte *data, int len)
   std::vector<byte> result (shared_key, shared_key + ECDHP521_PUB_KEY_SIZE);
 
   /// Create the shared secret from shared point
-  int secret_len;
+  int secret_len = 0;
   byte *secret = agree_EC_secret (ec_shared_key, ec_public_point, &secret_len);
 
   LogPrint (eLogDebug, "Crypto: Encrypt: Secret len: ", secret_len);
@@ -349,7 +349,7 @@ ECDHP521Decryptor::Decrypt (const byte *encrypted, int elen)
     }
 
   /// Re-construct the shared secret
-  int secret_len;
+  int secret_len = 0;
   byte *secret = agree_EC_secret (ec_private_key, ecp_shared_public_point, &secret_len);
   if (secret_len <= 0)
     return {};
@@ -446,7 +446,7 @@ X25519Encryptor::Encrypt (const byte *data, int len)
       return {};
     }
 
-  size_t secret_len;
+  size_t secret_len = 0;
   byte *secret;
 
   if (EVP_PKEY_derive(ctx, nullptr, &secret_len) <= 0)
@@ -559,7 +559,7 @@ X25519Decryptor::Decrypt (const byte *encrypted, int elen)
       return {};
     }
 
-  size_t secret_len;
+  size_t secret_len = 0;
   byte *secret;
 
   if (EVP_PKEY_derive(ctx, nullptr, &secret_len) <= 0)
