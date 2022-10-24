@@ -1,13 +1,14 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTE_SRC_CRYPTOGRAPHY_H_
-#define PBOTE_SRC_CRYPTOGRAPHY_H_
+#ifndef PBOTE_SRC_CRYPTOGRAPHY_H
+#define PBOTE_SRC_CRYPTOGRAPHY_H
 
 #include <chrono>
 #include <iostream>
@@ -31,6 +32,7 @@ namespace pbote
 /// AES
 #define AES_BLOCK_SIZE 16
 #define AES_KEY_SIZE 32
+
 /// ECDHP256
 #define ECDHP256_PRIV_KEY_SIZE 33
 #define ECDHP256_PUB_KEY_SIZE 33
@@ -149,7 +151,7 @@ class X25519Decryptor : public CryptoKeyDecryptor
 inline byte *
 agree_EC_secret (EC_KEY *private_key, const EC_POINT *public_key, int *secret_len)
 {
-  int field_size;
+  int field_size = 0;
   unsigned char *secret = nullptr;
 
   field_size = EC_GROUP_get_degree (EC_KEY_get0_group (private_key));
@@ -229,4 +231,4 @@ void aes_decrypt (const byte key[AES_KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
 
 } // namespace pbote
 
-#endif //PBOTE_SRC_CRYPTOGRAPHY_H_
+#endif //PBOTE_SRC_CRYPTOGRAPHY_H
