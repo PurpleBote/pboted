@@ -16,8 +16,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include "compat.h"
 #include "Email.h"
-#include "NetworkWorker.h"
 
 namespace bote
 {
@@ -25,7 +25,6 @@ namespace pop3
 {
 
 #define POP3_MAX_CLIENTS 2
-#define MAX_RCPT_USR 1
 #define POP3_BUF_SIZE 10485760 // 10MB
 // In milliseconds
 #define POP3_POLL_TIMEOUT 10000

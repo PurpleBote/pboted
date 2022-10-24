@@ -24,15 +24,15 @@
 // NOOP
 #endif
 
-#include "NetworkWorker.h"
+#include "compat.h"
 
 namespace bote
 {
 
+#define CONTROL_MAX_CLIENTS 3
 #define CONTROL_BUFF_SIZE 8192
 // In milliseconds
 #define CONTROL_POLL_TIMEOUT 10000
-#define CONTROL_MAX_CLIENTS 3
 
 /// Default socket filename
 const std::string DEFAULT_SOCKET_NAME = "pboted.sock";

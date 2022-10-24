@@ -22,58 +22,16 @@
 #include <utility>
 
 #include "BoteContext.h"
+#include "compat.h"
 #include "Logging.h"
 #include "Queue.h"
 
 #include "i2psam.hpp"
 
-#ifdef _WIN32
-#include <winsock2.h>
-#define SOCKET_INVALID INVALID_SOCKET
-#else
-#define SOCKET_INVALID -1
-#endif
-
-#define SOCKET_ERROR -1
-
-/* For comparation without just rc == -1 */
-enum common_rc
-{
-  RC_ERROR = -1,
-  RC_SUCCESS = 0,
-};
-
-enum select_rc
-{
-  SELECT_ERROR = -1,
-  SELECT_TIMEOUT = 0,
-};
-
-enum poll_rc
-{
-  POLL_ERROR = -1,
-  POLL_TIMEOUT = 0,
-};
-
-enum recv_rc
-{
-  RECV_ERROR = -1,
-  RECV_CLOSED = 0,
-};
-
-enum send_rc
-{
-  SEND_ERROR = -1,
-};
-
 namespace pbote
 {
 namespace network
 {
-
-#ifndef INVALID_SOCKET
-#define INVALID_SOCKET -1
-#endif
 
 /// Timeout in msec
 #define UDP_SEND_TIMEOUT 500

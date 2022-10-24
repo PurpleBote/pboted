@@ -16,8 +16,8 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include "compat.h"
 #include "Email.h"
-#include "NetworkWorker.h"
 
 namespace bote
 {
@@ -25,13 +25,13 @@ namespace smtp
 {
 
 #define SMTP_MAX_CLIENTS 2
-#define SMTP_MAX_RCPT_USR 1
 #define SMTP_BUF_SIZE 10485760 // 10MB
 // In milliseconds
 #define SMTP_POLL_TIMEOUT 10000
 // In seconds
 #define SMTP_SOCK_TIMEOUT 10
 #define SMTP_COMMAND_LEN 4
+#define SMTP_MAX_RCPT_USR 1
 
 const char reply_info[][100]
     = { { "250-pboted.i2p is pleased to meet you\n" },

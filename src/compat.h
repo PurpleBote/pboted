@@ -9,37 +9,89 @@
 #ifndef BOTE_SRC_COMPATH_H
 #define BOTE_SRC_COMPATH_H
 
+/* Network stuff */
+#ifdef _WIN32
+#include <winsock2.h>
+#define SOCKET_INVALID INVALID_SOCKET
+#else
+#define SOCKET_INVALID -1
+#endif
+
+#define SOCKET_ERROR -1
+
+//#ifndef INVALID_SOCKET
+//#define INVALID_SOCKET -1
+//#endif
+
+/* For comparation without just rc == -1 */
+enum common_rc
+{
+  RC_ERROR = -1,
+  RC_SUCCESS = 0,
+};
+
+enum select_rc
+{
+  SELECT_ERROR = -1,
+  SELECT_TIMEOUT = 0,
+};
+
+enum poll_rc
+{
+  POLL_ERROR = -1,
+  POLL_TIMEOUT = 0,
+};
+
+enum recv_rc
+{
+  RECV_ERROR = -1,
+  RECV_CLOSED = 0,
+};
+
+enum send_rc
+{
+  SEND_ERROR = -1,
+};
+
+/* End of Network stuff */
+
+
 /* make_unique for C++11 */
 #if __cplusplus == 201103L
 #ifndef COMPAT_STD_MAKE_UNIQUE
 #define COMPAT_STD_MAKE_UNIQUE
+#include <memory>
 namespace std
 {
-
 template<typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args&&... args) {
+std::unique_ptr<T>
+make_unique(Args&&... args)
+{
   return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
-
 } /* namespace std */
 #endif /* COMPAT_STD_MAKE_UNIQUE */
 #endif /* __cplusplus == 201103L */
 
-/* filesystem for C++11 and C++17 */
+
+/* Filesystem for C++11 and C++17 */
 #if defined(__has_include)
 # if __cplusplus >= 201703L && __has_include(<filesystem>)
-    #pragma message ( "Used C++17 <filesystem>" )
-    #include <filesystem>
-    namespace nsfs = std::filesystem;
+  /* For debug */
+  /* #pragma message ( "Used C++17 <filesystem>" ) */
+  #include <filesystem>
+  namespace nsfs = std::filesystem;
 # elif __cplusplus >= 201103L && __has_include(<boost/filesystem.hpp>)
-    #pragma message ( "Used <boost/filesystem.hpp>" )
-    #include <boost/filesystem.hpp>
-    namespace nsfs = boost::filesystem;
+  /* For debug */
+  /* #pragma message ( "Used <boost/filesystem.hpp>" ) */
+  #include <boost/filesystem.hpp>
+  namespace nsfs = boost::filesystem;
 # else
 #    error Missing the <filesystem> header!
 # endif
 #else
 #  error Missing the "__has_include" module!
 #endif
+
 
 #endif /* BOTE_SRC_COMPATH_H*/
