@@ -17,21 +17,20 @@
 #include <sys/types.h>
 
 #include "Email.h"
+#include "NetworkWorker.h"
 
 namespace bote
 {
 namespace smtp
 {
 
-#ifndef INVALID_SOCKET
-#define INVALID_SOCKET -1
-#endif
-
-#define SMTP_MAX_CLIENTS 5
-#define MAX_RCPT_USR 1
-#define BUF_SIZE 10485760 // 10MB
-// Timeout in milliseconds
-#define SMTP_WAIT_TIMEOUT 10000
+#define SMTP_MAX_CLIENTS 2
+#define SMTP_MAX_RCPT_USR 1
+#define SMTP_BUF_SIZE 10485760 // 10MB
+// In milliseconds
+#define SMTP_POLL_TIMEOUT 10000
+// In seconds
+#define SMTP_SOCK_TIMEOUT 10
 #define SMTP_COMMAND_LEN 4
 
 const char reply_info[][100]
@@ -149,11 +148,12 @@ enum smtp_state
 
 struct smtp_session
 {
-  smtp_state state;
-  char buf[BUF_SIZE];
-  int nrcpt; /* number of filed RCPT users */
+  smtp_state state = STATE_QUIT;
+  bool need_clean = false;
+  char *buf;
+  int nrcpt = 0; /* number of filed RCPT users */
   char from[512];
-  char rcpt[MAX_RCPT_USR][512];
+  char rcpt[SMTP_MAX_RCPT_USR][512];
 };
 
 class SMTP
@@ -167,7 +167,6 @@ public:
 
 private:
   void run ();
-  //void process ();
 
   void respond (int sid);
   void reply (int sid, const char *data);
@@ -195,24 +194,15 @@ private:
   void cmd_to_upper(char *data, int len = SMTP_COMMAND_LEN);
 
   bool started;
-  std::thread *smtp_accepting_thread;
-  //std::thread *smtp_processing_thread;
+  std::thread *smtp_thread;
 
-  int server_sockfd = INVALID_SOCKET, client_sockfd = INVALID_SOCKET;
+  int server_sockfd = SOCKET_INVALID, client_sockfd = SOCKET_INVALID;
   std::string m_address;
   uint16_t m_port = 0;
   int nfds = 1; /* descriptors count */
 
   struct pollfd fds[SMTP_MAX_CLIENTS];
-  struct smtp_session sessions[SMTP_MAX_CLIENTS];
-
-  /// Session
-  //int session_state;
-  //char buf[BUF_SIZE];
-
-  //int rcpt_user_num;
-  //char from_user[512];
-  //char rcpt_user[MAX_RCPT_USR][512];
+  struct smtp_session session;
 };
 
 } // namespace smtp

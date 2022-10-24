@@ -27,19 +27,44 @@
 
 #include "i2psam.hpp"
 
-#if __cplusplus == 201103L && !defined(STD_MAKE_UNIQUE)
-#define STD_MAKE_UNIQUE
-
-namespace std
-{
-
-template<typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args&&... args) {
-  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
-
-} // namespace std
+#ifdef _WIN32
+#include <winsock2.h>
+#define SOCKET_INVALID INVALID_SOCKET
+#else
+#define SOCKET_INVALID -1
 #endif
+
+#define SOCKET_ERROR -1
+
+/* For comparation without just rc == -1 */
+enum common_rc
+{
+  RC_ERROR = -1,
+  RC_SUCCESS = 0,
+};
+
+enum select_rc
+{
+  SELECT_ERROR = -1,
+  SELECT_TIMEOUT = 0,
+};
+
+enum poll_rc
+{
+  POLL_ERROR = -1,
+  POLL_TIMEOUT = 0,
+};
+
+enum recv_rc
+{
+  RECV_ERROR = -1,
+  RECV_CLOSED = 0,
+};
+
+enum send_rc
+{
+  SEND_ERROR = -1,
+};
 
 namespace pbote
 {
@@ -117,7 +142,7 @@ private:
   std::string m_address;
   fd_set rset;
 
-  uint8_t UDP_recv_buffer[MAX_DATAGRAM_SIZE + 1] = {0};
+  uint8_t *buf;
   queue_type m_recv_queue;
 };
 
@@ -182,7 +207,7 @@ private:
   void run ();
   void handle_send ();
 
-  void check_session();
+  void check_sam_session();
 
   bool m_running;
   std::thread *m_send_thread;

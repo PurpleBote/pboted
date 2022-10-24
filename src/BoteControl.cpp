@@ -10,8 +10,11 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <netdb.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 #include "BoteControl.h"
 #include "BoteContext.h"
@@ -25,8 +28,7 @@ namespace bote
 
 BoteControl::BoteControl ()
   : m_is_running (false),
-    m_control_acceptor_thread (nullptr)
-    //m_control_handler_thread (nullptr)
+    m_control_thread (nullptr)
 {
 #if !defined(_WIN32) || !defined(DISABLE_SOCKET)
   pbote::config::GetOption("control.socket", socket_path);
@@ -68,35 +70,31 @@ BoteControl::~BoteControl ()
 {
   stop ();
 
-  //if (m_control_handler_thread)
-  //  {
-  //    m_control_handler_thread->join ();
-  //    delete m_control_handler_thread;
-  //    m_control_handler_thread = nullptr;
-  //  }
-
-  if (m_control_acceptor_thread)
+  if (m_control_thread)
     {
-      m_control_acceptor_thread->join ();
-      delete m_control_acceptor_thread;
-      m_control_acceptor_thread = nullptr;
+      m_control_thread->join ();
+      delete m_control_thread;
+      m_control_thread = nullptr;
     }
 }
 
 void
 BoteControl::start ()
 {
+  /* ToDo: add error handling */
+
   if (m_is_running)
     return;
 
   LogPrint (eLogInfo, "Control: Starting");
 
-  int cur_sn = 0, rc = 0;
+  int cur_sn = 0, rc = 0, enabled = 1;
+
 #if !defined(_WIN32) || !defined(DISABLE_SOCKET)
   if (m_socket_enabled)
     {
       conn_sockfd = socket (AF_UNIX, SOCK_STREAM, 0);
-      if (conn_sockfd == (int)INVALID_SOCKET)
+      if (conn_sockfd == SOCKET_ERROR)
         {
           LogPrint (eLogError, "Control: File socket: ", strerror (errno));
           return;
@@ -111,18 +109,18 @@ BoteControl::start ()
                sizeof file_addr.sun_path - 1)[sizeof file_addr.sun_path - 1]
           = 0;
 
-      int on = 1; 
+       
       rc = setsockopt(conn_sockfd, SOL_SOCKET,  SO_REUSEADDR,
-                      (char *)&on, sizeof(on));
-      if (rc < 0)
+                      (char *)&enabled, sizeof(enabled));
+      if (rc == SOCKET_ERROR)
       {
         LogPrint (eLogError, "Control: setsockopt() failed: ", strerror (errno));
         close(conn_sockfd);
         return;
       }
 
-      rc = ioctl(conn_sockfd, FIONBIO, (char *)&on);
-      if (rc < 0)
+      rc = ioctl(conn_sockfd, FIONBIO, (char *)&enabled);
+      if (rc == SOCKET_ERROR)
       {
         LogPrint (eLogError, "Control: ioctl() failed: ", strerror (errno));
         close(conn_sockfd);
@@ -131,17 +129,15 @@ BoteControl::start ()
 
       rc = bind (conn_sockfd, (const struct sockaddr *)&file_addr,
                  sizeof (file_addr));
-      if (rc == -1)
+      if (rc == SOCKET_ERROR)
         {
-          // ToDo: add error handling
           LogPrint (eLogError, "Control: File bind error: ", strerror (errno));
         }
       else
         {
           rc = listen (conn_sockfd, CONTROL_MAX_CLIENTS);
-          if (rc == -1)
+          if (rc == SOCKET_ERROR)
             {
-              // ToDo: add error handling
               LogPrint (eLogError, "Control: File listen error: ",
                         strerror (errno));
             }
@@ -173,7 +169,7 @@ BoteControl::start ()
   sprintf(c_port, "%d", m_port);
 
   rc = getaddrinfo (m_address.c_str (), c_port, &hints, &res);
-  if (rc != 0 || res == nullptr)
+  if (rc != RC_SUCCESS || res == nullptr)
     {
       LogPrint (eLogError, "Control: Invalid address or port: ",
                 m_address, ":", m_port, ": ", gai_strerror(rc));
@@ -181,7 +177,7 @@ BoteControl::start ()
     }
 
   tcp_fd = socket (res->ai_family, res->ai_socktype, res->ai_protocol);
-  if (tcp_fd == (int)INVALID_SOCKET)
+  if (tcp_fd == SOCKET_INVALID)
     {
       freeaddrinfo (res);
       LogPrint (eLogError, "Control: TCP socket: ", m_address, ":", m_port,
@@ -189,21 +185,20 @@ BoteControl::start ()
       return;
     }
 
-  int on = 1; 
+  enabled = 1; 
 
-  rc = ioctl(tcp_fd, FIONBIO, (char *)&on);
-  if (rc < 0)
+  rc = ioctl(tcp_fd, FIONBIO, (char *)&enabled);
+  if (rc == RC_ERROR)
   {
-    LogPrint (eLogError, "Control: ioctl() failed: ", strerror (errno));
+    LogPrint (eLogError, "Control: ioctl(FIONBIO) failed: ", strerror (errno));
     close(tcp_fd);
     freeaddrinfo (res);
     return;
   }
 
   rc = bind (tcp_fd, res->ai_addr, res->ai_addrlen);
-  if (rc == -1)
+  if (rc == RC_ERROR)
     {
-      // ToDo: add error handling
       freeaddrinfo (res);
       close (tcp_fd);
       LogPrint (eLogError, "Control: TCP bind error: ", strerror (errno));
@@ -213,26 +208,26 @@ BoteControl::start ()
   freeaddrinfo (res);
 
   rc = listen (tcp_fd, CONTROL_MAX_CLIENTS);
-  if (rc == -1)
+  if (rc == RC_ERROR)
     {
-      // ToDo: add error handling
       LogPrint (eLogError, "Control: TCP listen error: ", strerror (errno));
       return;
     }
 
+  /*
+   * If UNIX socket code disabled we need to init file descriptors set
+   * If enabled - just increase used socket count to 2
+   */
   if (cur_sn == 0)
     memset(fds, 0, sizeof(fds));
   else
     nfds = 2;
 
-  memset(sessions, 0, sizeof(sessions));
-
   fds[cur_sn].fd = tcp_fd;
   fds[cur_sn].events = POLLIN;
 
   m_is_running = true;
-  m_control_acceptor_thread = new std::thread ([this] { run (); });
-  //m_control_handler_thread = new std::thread ([this] { handle (); });
+  m_control_thread = new std::thread ([this] { run (); });
 
   LogPrint (eLogInfo, "Control: Started");
 }
@@ -247,13 +242,20 @@ BoteControl::stop ()
 
   m_is_running = false;
 
-  /* Clean up all of the sockets that are open */
   for (int sid = 0; sid < nfds; sid++)
     {
-      if(fds[sid].fd >= 0)
+      /* Clean up all of the sockets that are open */
+      if (fds[sid].fd != SOCKET_INVALID)
         {
           close(fds[sid].fd);
           fds[sid].revents = POLLHUP;
+        }
+
+      /* Free allocated session buffer */
+      if (session.need_clean)
+        {
+          free (session.buf);
+          session.need_clean = false;
         }
     }
   LogPrint (eLogInfo, "Control: Sockets closed");
@@ -264,7 +266,7 @@ BoteControl::stop ()
 void
 BoteControl::run ()
 {
-  LogPrint (eLogInfo, "Control: Acceptor started");
+  LogPrint (eLogInfo, "Control: run: Started");
   sin_size = sizeof (client_addr);
 
   int rc = 0, current_sc = 0;
@@ -273,47 +275,46 @@ BoteControl::run ()
   while (m_is_running)
     {
       LogPrint(eLogDebug, "Control: run: Waiting on poll");
-      rc = poll(fds, nfds, CONTROL_WAIT_TIMEOUT);
+      rc = poll(fds, nfds, CONTROL_POLL_TIMEOUT);
 
       if (!m_is_running)
         return;
 
       /* Check to see if the poll call failed */
-      if (rc == -1)
+      if (rc == POLL_ERROR)
         {
           if (errno == EINTR) continue;
 
-          LogPrint(eLogError, "Control: Poll error: ", strerror (errno));
+          LogPrint(eLogError, "Control: run: Poll error: ", strerror (errno));
           break;
         }
 
-      if (rc == 0)
+      if (rc == POLL_TIMEOUT)
         {
-          LogPrint(eLogDebug, "Control: Poll timed out");
+          LogPrint(eLogDebug, "Control: run: Poll timed out");
           continue;
         }
       current_sc = nfds;
       for (int sid = 0; sid < current_sc; sid++)
         {
-          LogPrint(eLogDebug, "Control: Revents ", sid, ": ", fds[sid].revents);
+          LogPrint(eLogDebug, "Control: run: FD #", sid, " revents ",
+                   fds[sid].revents);
           if (fds[sid].revents == 0)
             continue;
 
           if (fds[sid].revents != POLLIN)
             {
-              LogPrint(eLogError, "Control: Revents ", sid, ": ", fds[sid].revents);
+              LogPrint(eLogError, "Control: run: FD #", sid,
+                       " revents ", fds[sid].revents);
               continue;
             }
       
-          if (
 #if !defined(_WIN32) || !defined(DISABLE_SOCKET)
-              (
+          if ((fds[sid].fd == tcp_fd || fds[sid].fd == conn_sockfd) &&
+              fds[sid].revents & POLLIN)
+#else
+          if (fds[sid].fd == tcp_fd && fds[sid].revents & POLLIN)
 #endif
-              fds[sid].fd == tcp_fd
-#if !defined(_WIN32) || !defined(DISABLE_SOCKET)
-              || fds[sid].fd == conn_sockfd)
-#endif
-              && fds[sid].revents & POLLIN)
             {
               LogPrint(eLogDebug, "Control: run: Checking server socket");
               do
@@ -325,62 +326,96 @@ BoteControl::run ()
                   client_sockfd = accept(fds[sid].fd, (struct sockaddr *)&client_addr,
                                          &sin_size);
 
-                  if (client_sockfd < 0)
+                  if (client_sockfd == SOCKET_ERROR)
                   {
+                    /*
+                     * EWOULDBLOCK and EAGAIN - socket is marked nonblocking
+                     * and no connections are present to be accepted
+                     */
                     if (m_is_running && errno != EWOULDBLOCK && errno != EAGAIN)
                     {
-                      LogPrint (eLogError, "Control: Accept error: ",
+                      LogPrint (eLogError, "Control: run: Accept error: ",
                                 strerror (errno));
                     }
                     break;
                   }
 
-                  LogPrint (eLogInfo, "Control: Received connection ", nfds, " from ",
-                            inet_ntoa (client_addr.sin_addr));
+                  LogPrint (eLogInfo, "Control: run: Received connection #",
+                            nfds, " from ", inet_ntoa (client_addr.sin_addr));
+
+                  if (nfds >= CONTROL_MAX_CLIENTS)
+                    {
+                      LogPrint(eLogWarning, "Control: run: Session limit");
+                      close(client_sockfd);
+                      continue;
+                    }
 
                   fds[nfds].fd = client_sockfd;
                   fds[nfds].events = POLLIN;
-                  sessions[nfds].state = STATE_INIT;
+
+                  session.state = STATE_INIT;
 
                   nfds++;
-                } while (client_sockfd != INVALID_SOCKET);
-              LogPrint (eLogDebug, "Control: End of accept");
+                } while (client_sockfd != SOCKET_INVALID);
+              LogPrint (eLogDebug, "Control: run: End of accepting");
             }
         }
 
-      LogPrint(eLogDebug, "Control: run: Checking clients sockets");
+      LogPrint(eLogDebug, "Control: run: Checking clients");
       current_sc = nfds;
       for (int sid = 0; sid < current_sc; sid++)
         {
-          LogPrint(eLogDebug, "Control: Revents ", sid, ": ", fds[sid].revents);
+          LogPrint(eLogDebug, "Control: run: FD #", sid,
+                   " revents: ", fds[sid].revents);
           
-          if (fds[sid].fd != tcp_fd
 #if !defined(_WIN32) || !defined(DISABLE_SOCKET)
-              && fds[sid].fd != conn_sockfd
+          if (fds[sid].fd != tcp_fd && fds[sid].fd != conn_sockfd)
+#else
+          if (fds[sid].fd != tcp_fd)
 #endif
-              )
             {
-              if (sessions[sid].state == STATE_INIT)
+              if (session.state == STATE_INIT)
                 {
                   //reply (sid, reply_ok[OK_HELO]);
-                  sessions[sid].state = STATE_AUTH;
+                  session.state = STATE_AUTH;
                 }
 
-              LogPrint (eLogDebug, "ControlSession: New data ", sid, ": ");
+              LogPrint (eLogDebug, "ControlSession: run: FD #", sid,
+                        ": New data");
               bool close_conn = false;
               /* Receive all incoming data on this socket */
               /* until the recv fails with EWOULDBLOCK */
               do
                 {
-                  memset (sessions[sid].buf, 0, sizeof (sessions[sid].buf));
-                  ssize_t rc = read (fds[sid].fd, sessions[sid].buf,
-                                     sizeof (sessions[sid].buf));
-                  if (rc == -1)
+                  if (fds[sid].fd == SOCKET_INVALID)
+                    {
+                      LogPrint (eLogError, "ControlSession: run: FD #", sid,
+                           " closed");
+                        close_conn = true;
+                        break;
+                    }
+
+                  if (session.need_clean)
+                    {
+                      free (session.buf);
+                      session.need_clean = false;
+                    }
+
+                  session.buf = (char *)malloc (CONTROL_BUFF_SIZE);
+                  session.need_clean = true;
+                  memset (session.buf, 0, CONTROL_BUFF_SIZE);
+                  ssize_t rc = read (fds[sid].fd, session.buf,
+                                     CONTROL_BUFF_SIZE - 1);
+                  if (rc == SOCKET_ERROR)
                   {
-                    if (errno != EWOULDBLOCK)
+                    /*
+                     * EWOULDBLOCK and EAGAIN - socket is marked nonblocking
+                     * and no connections are present to be accepted
+                     */
+                    if (m_is_running && errno != EWOULDBLOCK && errno != EAGAIN)
                       {
-                        LogPrint (eLogError, "ControlSession: Can't receive data ", sid,
-                           ", close");
+                        LogPrint (eLogError, "ControlSession: run: FD #",
+                                  sid, ": Can't receive data, close");
                         close_conn = true;
                       }
                     break;
@@ -388,25 +423,34 @@ BoteControl::run ()
 
                   if (rc == 0)
                     {
-                      LogPrint (eLogDebug, "ControlSession: Connection ", sid, " closed");
+                      LogPrint (eLogDebug, "ControlSession: run: FD #",
+                                sid, " closed");
                       close_conn = true;
                       break;
                     }
 
                   /* Data was received  */
-                  std::string str_buf (sessions[sid].buf);
-                  str_buf = str_buf.substr (0, str_buf.size () - 2);
-
-                  LogPrint (eLogDebug, "ControlSession: Request stream ", sid, ": ", str_buf);
                   handle_request (sid);
                 } while (m_is_running);
 
               if (close_conn)
                 {
-                  close(fds[sid].fd);
-                  fds[sid].fd = -1;
+                  fds[sid].revents = POLLHUP;
+                  if (fds[sid].fd != SOCKET_INVALID)
+                    {
+                      close(fds[sid].fd);
+                      fds[sid].fd = SOCKET_INVALID;
+                    }
                   compress_array = true;
-                  LogPrint (eLogDebug, "ControlSession: Closed ", sid);
+
+                  if (session.need_clean)
+                    {
+                      free (session.buf);
+                      session.need_clean = false;
+                    }
+
+                  LogPrint (eLogDebug, "ControlSession: run: FD #", sid,
+                            " closed");
                 }
             }
         }
@@ -414,46 +458,33 @@ BoteControl::run ()
       if (!compress_array)
         continue;
 
-      /* we need to squeeze together the array and */
-      /* decrement the number of file descriptors and sessions*/
+      /* We need to squeeze together the array and */
+      /* decrement the number of file descriptors */
       compress_array = false;
       for (int sid = 0; sid < nfds; sid++)
         {
-          LogPrint (eLogDebug, "ControlSession: sid: ", sid, ", nfds: ", nfds);
-          if (fds[sid].fd != INVALID_SOCKET)
+          LogPrint (eLogDebug, "ControlSession: run: FD #", sid,
+                    ", total count: ", nfds);
+          /* Skip good FD */
+          if (fds[sid].fd != SOCKET_INVALID)
             continue;
+
+          LogPrint (eLogDebug, "ControlSession: run: FD #", sid,
+                    " with invalid socket");
 
           for(int j = sid; j < nfds; j++)
             {
-              LogPrint (eLogDebug, "ControlSession: Session ", j, " to ", j + 1);
+              LogPrint (eLogDebug, "ControlSession: run: FD #", j + 1,
+                        " moved to #", j);
               fds[j].fd = fds[j + 1].fd;
-              sessions[j] = sessions[j + 1];
             }
           sid--;
           nfds--;
-          LogPrint (eLogDebug, "ControlSession: sid: ", sid, ", nfds: ", nfds);
         }
     }
 
-  LogPrint (eLogInfo, "Control: Acceptor stopped");
+  LogPrint (eLogInfo, "Control: Stopped");
 }
-
-/*
-void
-BoteControl::handle (int sid)
-{
-  LogPrint (eLogInfo, "Control: Handler started");
-  LogPrint (eLogInfo, "Control: Handler stopped");
-}*/
-
-/*
-void
-BoteControl::process (int sid)
-{
-  LogPrint (eLogInfo, "Control: Processing started");
-  LogPrint (eLogInfo, "Control: Processing stopped");
-}
-*/
 
 void
 BoteControl::reply (int sid, const std::string &msg)
@@ -476,7 +507,7 @@ BoteControl::reply (int sid, const std::string &msg)
 void
 BoteControl::handle_request (int sid)
 {
-  std::string str_req (sessions[sid].buf);
+  std::string str_req (session.buf);
   LogPrint (eLogDebug, "Control: handle_request: Got request: ", str_req);
 
   // ToDo: parse request and combine response
