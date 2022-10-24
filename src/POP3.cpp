@@ -94,7 +94,7 @@ POP3::start ()
   {
     LogPrint (eLogError, "POP3: setsockopt(SO_REUSEADDR) failed: ",
               strerror (errno));
-    close(server_sockfd);
+    CLOSE_SOCKET (server_sockfd);
     freeaddrinfo (res);
     return;
   }
@@ -115,7 +115,7 @@ POP3::start ()
   {
     LogPrint (eLogError, "POP3: setsockopt(SO_RCVTIMEO) failed: ",
               strerror (errno));
-    close(server_sockfd);
+    CLOSE_SOCKET (server_sockfd);
     freeaddrinfo (res);
     return;
   }
@@ -125,7 +125,7 @@ POP3::start ()
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "POP3: ioctl(FIONBIO) failed: ", strerror (errno));
-    close(server_sockfd);
+    CLOSE_SOCKET (server_sockfd);
     freeaddrinfo (res);
     return;
   }
@@ -172,7 +172,7 @@ POP3::stop ()
     {
       if (fds[sid].fd >= 0)
         {
-          close(fds[sid].fd);
+          CLOSE_SOCKET (fds[sid].fd);
           fds[sid].revents = POLLHUP;
         }
 
@@ -262,8 +262,8 @@ POP3::run ()
 
                   if (nfds >= POP3_MAX_CLIENTS)
                     {
-                      LogPrint(eLogWarning, "POP3: run: Session limit");
-                      close(client_sockfd);
+                      LogPrint (eLogWarning, "POP3: run: Session limit");
+                      CLOSE_SOCKET (client_sockfd);
                       continue;
                     }
 
@@ -348,7 +348,7 @@ POP3::run ()
                   fds[sid].revents = POLLHUP;
                   if (fds[sid].fd != SOCKET_INVALID)
                     {
-                      close(fds[sid].fd);
+                      CLOSE_SOCKET (fds[sid].fd);
                       fds[sid].fd = SOCKET_INVALID;
                     }
                   compress_array = true;
@@ -709,7 +709,7 @@ POP3::QUIT (int sid)
   session.state = STATE_QUIT;
   reply (sid, reply_ok[OK_QUIT]);
 
-  close (fds[sid].fd);
+  CLOSE_SOCKET (fds[sid].fd);
   fds[sid].fd = SOCKET_INVALID;
 
   if (session.need_clean)

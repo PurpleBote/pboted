@@ -93,7 +93,7 @@ SMTP::start ()
   {
     LogPrint (eLogError, "SMTP: setsockopt(SO_REUSEADDR) failed: ",
               strerror (errno));
-    close(server_sockfd);
+    CLOSE_SOCKET (server_sockfd);
     freeaddrinfo (res);
     return;
   }
@@ -114,7 +114,7 @@ SMTP::start ()
   {
     LogPrint (eLogError, "SMTP: setsockopt(SO_RCVTIMEO) failed: ",
               strerror (errno));
-    close(server_sockfd);
+    CLOSE_SOCKET (server_sockfd);
     freeaddrinfo (res);
     return;
   }
@@ -124,7 +124,7 @@ SMTP::start ()
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "SMTP: ioctl() failed: ", strerror (errno));
-    close(server_sockfd);
+    CLOSE_SOCKET (server_sockfd);
     freeaddrinfo (res);
     return;
   }
@@ -172,7 +172,7 @@ SMTP::stop ()
       /* Clean up all of the sockets that are open */
       if (fds[sid].fd != SOCKET_INVALID)
         {
-          close(fds[sid].fd);
+          CLOSE_SOCKET (fds[sid].fd);
           fds[sid].revents = POLLHUP;
         }
 
@@ -262,8 +262,8 @@ SMTP::run ()
 
                   if (nfds >= SMTP_MAX_CLIENTS)
                     {
-                      LogPrint(eLogWarning, "SMTP: run: Session limit");
-                      close(client_sockfd);
+                      LogPrint (eLogWarning, "SMTP: run: Session limit");
+                      CLOSE_SOCKET (client_sockfd);
                       continue;
                     }
 
@@ -349,7 +349,7 @@ SMTP::run ()
                   fds[sid].revents = POLLHUP;
                   if (fds[sid].fd != SOCKET_INVALID)
                     {
-                      close(fds[sid].fd);
+                      CLOSE_SOCKET (fds[sid].fd);
                       fds[sid].fd = SOCKET_INVALID;
                     }
                   
@@ -691,7 +691,7 @@ SMTP::QUIT (int sid)
   reply (sid, reply_2XX[CODE_221]);
 
   fds[sid].revents = POLLHUP;
-  close (fds[sid].fd);
+  CLOSE_SOCKET (fds[sid].fd);
   fds[sid].fd = SOCKET_INVALID;
 
   if (session.need_clean)

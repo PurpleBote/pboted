@@ -13,8 +13,10 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #define SOCKET_INVALID INVALID_SOCKET
+#define CLOSE_SOCKET closesocket
 #else
 #define SOCKET_INVALID -1
+#define CLOSE_SOCKET close
 #endif
 
 #define SOCKET_ERROR -1

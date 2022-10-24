@@ -115,7 +115,7 @@ BoteControl::start ()
       if (rc == SOCKET_ERROR)
       {
         LogPrint (eLogError, "Control: setsockopt() failed: ", strerror (errno));
-        close(conn_sockfd);
+        CLOSE_SOCKET (conn_sockfd);
         return;
       }
 
@@ -123,7 +123,7 @@ BoteControl::start ()
       if (rc == SOCKET_ERROR)
       {
         LogPrint (eLogError, "Control: ioctl() failed: ", strerror (errno));
-        close(conn_sockfd);
+        CLOSE_SOCKET (conn_sockfd);
         return;
       }
 
@@ -191,7 +191,7 @@ BoteControl::start ()
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "Control: ioctl(FIONBIO) failed: ", strerror (errno));
-    close(tcp_fd);
+    CLOSE_SOCKET (tcp_fd);
     freeaddrinfo (res);
     return;
   }
@@ -200,7 +200,7 @@ BoteControl::start ()
   if (rc == RC_ERROR)
     {
       freeaddrinfo (res);
-      close (tcp_fd);
+      CLOSE_SOCKET (tcp_fd);
       LogPrint (eLogError, "Control: TCP bind error: ", strerror (errno));
       return;
     }
@@ -247,7 +247,7 @@ BoteControl::stop ()
       /* Clean up all of the sockets that are open */
       if (fds[sid].fd != SOCKET_INVALID)
         {
-          close(fds[sid].fd);
+          CLOSE_SOCKET (fds[sid].fd);
           fds[sid].revents = POLLHUP;
         }
 
@@ -346,7 +346,7 @@ BoteControl::run ()
                   if (nfds >= CONTROL_MAX_CLIENTS)
                     {
                       LogPrint(eLogWarning, "Control: run: Session limit");
-                      close(client_sockfd);
+                      CLOSE_SOCKET (client_sockfd);
                       continue;
                     }
 
@@ -438,7 +438,7 @@ BoteControl::run ()
                   fds[sid].revents = POLLHUP;
                   if (fds[sid].fd != SOCKET_INVALID)
                     {
-                      close(fds[sid].fd);
+                      CLOSE_SOCKET (fds[sid].fd);
                       fds[sid].fd = SOCKET_INVALID;
                     }
                   compress_array = true;

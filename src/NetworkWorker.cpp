@@ -101,7 +101,7 @@ UDPReceiver::start ()
   if (rc == RC_ERROR)
     {
       freeaddrinfo (res);
-      close (server_sockfd);
+      CLOSE_SOCKET (server_sockfd);
       LogPrint (eLogError, "Network: UDPReceiver: Could not bind UDP socket ",
                 m_address, ":", m_port, ": ", strerror (errno));
       return;
@@ -126,7 +126,7 @@ UDPReceiver::stop ()
   m_running = false;
 
   FD_CLR (server_sockfd, &rset);
-  close (server_sockfd);
+  CLOSE_SOCKET (server_sockfd);
 
   LogPrint (eLogInfo, "Network: UDPReceiver: Stopped");
 }
@@ -298,7 +298,7 @@ UDPSender::start ()
                      m_sam_addrinfo->ai_protocol);
   if (m_socket == SOCKET_INVALID)
     {
-      close (m_socket);
+      CLOSE_SOCKET (m_socket);
       LogPrint (eLogError, "Network: UDPSender: Can't create socket to ",
                 m_sam_addr, ":", m_sam_port);
       return;
@@ -321,7 +321,7 @@ UDPSender::stop ()
 
   freeaddrinfo (m_sam_addrinfo);
   FD_CLR (m_socket, &m_wset);
-  close (m_socket);
+  CLOSE_SOCKET (m_socket);
 
   LogPrint (eLogInfo, "Network: UDPSender: Stopped");
 }
