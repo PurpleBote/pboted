@@ -123,13 +123,15 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   # more tweaks
   if (LINUX)
-    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -stdlib=libstdc++") # required for <atomic>
-    list(APPEND CMAKE_REQUIRED_LIBRARIES "stdc++") # required to link with -stdlib=libstdc++
+    # Required for <atomic>
+    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -stdlib=libstdc++")
+    # Required to link with -stdlib=libstdc++
+    list(APPEND CMAKE_REQUIRED_LIBRARIES "stdc++")
   endif ()
   if (NOT (MSVC OR MSYS OR APPLE))
     set(CMAKE_CXX_FLAGS
-        "${CMAKE_CXX_FLAGS} -Wno-unused-const-variable -Wno-overloaded-virtual
-         -Wno-c99-extensions")
+        "${CMAKE_CXX_FLAGS} -Wno-unused-const-variable -Wno-overloaded-virtual \
+        -Wno-c99-extensions")
   endif ()
 endif ()
 
@@ -208,9 +210,9 @@ if (WITH_STATIC)
     #set(CMAKE_THREAD_LIBS_INIT
     #    "gcc_eh -Wl,--whole-archive -lpthread -Wl,--no-whole-archive")
     set(CMAKE_THREAD_LIBS_INIT
-      "gcc_eh -Wl,-u,pthread_create,-u,pthread_once,-u,pthread_mutex_lock,
-      -u,pthread_mutex_unlock,-u,pthread_join,-u,pthread_equal,
-      -u,pthread_detach,-u,pthread_cond_wait,-u,pthread_cond_signal,
+      "gcc_eh -Wl,-u,pthread_create,-u,pthread_once,-u,pthread_mutex_lock, \
+      -u,pthread_mutex_unlock,-u,pthread_join,-u,pthread_equal, \
+      -u,pthread_detach,-u,pthread_cond_wait,-u,pthread_cond_signal, \
       -u,pthread_cond_destroy,-u,pthread_cond_broadcast,-u,pthread_cancel")
   endif ()
 else ()
@@ -290,16 +292,14 @@ set(LINK_LIBS
   ${DL_LIB}
   ${CMAKE_REQUIRED_LIBRARIES})
 
-if (CMAKE_CXX_STANDARD LESS 17) 
+if (CMAKE_CXX_STANDARD LESS 17)
   list(APPEND LINK_LIBS Boost::system Boost::filesystem Boost::program_options)
 else ()
   list(APPEND LINK_LIBS Boost::program_options )
 endif ()
 
-# If GCC version is less than 9
-# we need to link filesystem manually
+# If GCC version is less than 9 we need to link filesystem manually
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  #if (NOT (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9.0))
   if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0 AND CMAKE_CXX_STANDARD EQUAL 17)
     list(APPEND LINK_LIBS stdc++fs)
   endif ()
