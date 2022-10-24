@@ -18,17 +18,20 @@ include(Version)
 set_version("${PBOTED_SRC_DIR}/version.h" PROJECT_VERSION)
 
 project(
-    pboted
-    LANGUAGES C CXX
-    VERSION ${PROJECT_VERSION})
+  pboted
+  LANGUAGES C CXX
+  VERSION ${PROJECT_VERSION})
 
 # Configuration options
-option(WITH_STATIC "Static build"         OFF)
+option(DISABLE_SOCKET "Disable UNIX socket in control module" OFF)
+option(WITH_STATIC    "Static build"                          OFF)
+option(WITH_CXX11     "Force C++11"                           OFF)
+option(WITH_CXX17     "Force C++17"                           OFF)
 # ToDo?
 #option(WITH_CLANG  "Force Clang compiler" OFF)
 #if (WITH_CLANG)
-#    set (CMAKE_C_COMPILER "/usr/bin/clang")
-#    set (CMAKE_CXX_COMPILER "/usr/bin/clang++")
+#  set (CMAKE_C_COMPILER "/usr/bin/clang")
+#  set (CMAKE_CXX_COMPILER "/usr/bin/clang++")
 #endif ()
 
 # Handle paths nicely
@@ -69,106 +72,173 @@ include_directories(${PBOTE_SRC_DIR})
 file(GLOB PBOTED_SRC ${PBOTED_SRC_DIR}/*.cpp)
 
 # Compiler flags customization (by vendor)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall -Wextra -Winvalid-pch -Wno-unused-parameter")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Winvalid-pch -Wno-unused-parameter")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -Wall -Wextra")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -pedantic")
 set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -flto -s -ffunction-sections -fdata-sections")
 set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-Wl,--gc-sections") # -flto is added from above
 
-# Check for C++17 support
+if (DISABLE_SOCKET)
+  add_definitions("-DDISABLE_SOCKET=1")
+endif ()
+
+# Check for C++11 or C++17 support
 include(CheckCXXCompilerFlag)
+
+CHECK_CXX_COMPILER_FLAG("-std=c++11" CXX11_SUPPORTED)
 CHECK_CXX_COMPILER_FLAG("-std=c++17" CXX17_SUPPORTED)
-if (CXX17_SUPPORTED)
+
+if (WITH_CXX11 AND WITH_CXX17)
+  message(SEND_ERROR "WITH_CXX11 and WITH_CXX17 mutually exclusive options")
+endif ()
+
+if (WITH_CXX11)
+  if (CXX11_SUPPORTED)
+    set (CMAKE_CXX_STANDARD 11)
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+  else ()
+    message(SEND_ERROR "C++11 standard not seems to be supported by compiler. Too old version?")
+  endif ()
+elseif (WITH_CXX17)
+  if (CXX17_SUPPORTED)
     set (CMAKE_CXX_STANDARD 17)
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
-else ()
+  else ()
     message(SEND_ERROR "C++17 standard not seems to be supported by compiler. Too old version?")
+  endif ()
+else ()
+  if(CXX17_SUPPORTED)
+    set (CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17")
+  elseif(CXX11_SUPPORTED)
+    set (CMAKE_CXX_STANDARD 11)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+  else()
+    message(SEND_ERROR "C++17 nor C++11 standard not seems to be supported by compiler. Too old version?")
+  endif()
 endif ()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pipe")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    # more tweaks
-    if (LINUX)
-        set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -stdlib=libstdc++") # required for <atomic>
-        list(APPEND CMAKE_REQUIRED_LIBRARIES "stdc++") # required to link with -stdlib=libstdc++
-    endif ()
-    if (NOT (MSVC OR MSYS OR APPLE))
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-const-variable -Wno-overloaded-virtual -Wno-c99-extensions")
-    endif ()
+  # more tweaks
+  if (LINUX)
+    set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -stdlib=libstdc++") # required for <atomic>
+    list(APPEND CMAKE_REQUIRED_LIBRARIES "stdc++") # required to link with -stdlib=libstdc++
+  endif ()
+  if (NOT (MSVC OR MSYS OR APPLE))
+    set(CMAKE_CXX_FLAGS
+        "${CMAKE_CXX_FLAGS} -Wno-unused-const-variable -Wno-overloaded-virtual
+         -Wno-c99-extensions")
+  endif ()
 endif ()
 
 # Compiler flags customization (by system)
 if (NOT (CMAKE_SYSTEM_NAME STREQUAL "OpenBSD" OR APPLE))
-    # "'sleep_for' is not a member of 'std::this_thread'" in gcc 4.7/4.8
-    add_definitions("-D_GLIBCXX_USE_NANOSLEEP=1")
+  # "'sleep_for' is not a member of 'std::this_thread'" in gcc 4.7/4.8
+  add_definitions("-D_GLIBCXX_USE_NANOSLEEP=1")
 endif ()
 
 # Libraries
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 if (THREADS_HAVE_PTHREAD_ARG) # compile time flag
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 endif ()
 
 if (WITH_STATIC)
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
-    set(Boost_USE_STATIC_LIBS ON)
-    set(Boost_USE_STATIC_RUNTIME ON)
+  set(Boost_USE_STATIC_LIBS    ON)
+  set(Boost_USE_RELEASE_LIBS   ON)
+  set(Boost_USE_STATIC_RUNTIME OFF)
 
-    set(ZLIB_USE_STATIC_LIBS ON)
-    set(ZLIB_NAMES zlibstatic zlibstat zlib z)
+  set(ZLIB_USE_STATIC_LIBS ON)
+  set(ZLIB_NAMES libz zlibstatic zlibstat zlib z)
+  #set(ZLIB_NAMES_DEBUG zlibstaticd zlibstatd)
 
-    set(MIMETIC_USE_STATIC_LIBS ON)
+  set(MIMETIC_USE_STATIC_LIBS ON)
 
-    set(BUILD_STATIC_LIBS ON)
-    set(BUILD_SHARED_LIBS OFF)
+  #set(BUILD_STATIC_LIBS ON)
+  #set(BUILD_SHARED_LIBS OFF)
 endif ()
 
-find_package(Boost COMPONENTS program_options REQUIRED)
-if (NOT Boost_FOUND)
-    message(SEND_ERROR "Boost is not found. Please download and install it first!")
+if (CMAKE_CXX_STANDARD LESS 17)
+  find_package(Boost COMPONENTS system filesystem program_options REQUIRED)
+  if (NOT Boost_FOUND)
+    message(SEND_ERROR
+            "Boost is not found. Please download and install it first!")
+  endif ()
+else ()
+  find_package(Boost COMPONENTS program_options REQUIRED)
+  if (NOT Boost_FOUND)
+    message(SEND_ERROR
+            "Boost is not found. Please download and install it first!")
+  endif ()
 endif ()
 
 find_package(OpenSSL REQUIRED)
 if (NOT OPENSSL_FOUND)
-    message(SEND_ERROR "Could not find OpenSSL. Please download and install it first!")
+  message(SEND_ERROR
+          "Could not find OpenSSL. Please download and install it first!")
 endif ()
 
 find_package(ZLIB REQUIRED)
 if (NOT ZLIB_FOUND)
-    message(SEND_ERROR "Could not find ZLIB. Please download and install it first!")
+  message(SEND_ERROR
+          "Could not find ZLIB. Please download and install it first!")
 endif ()
 
 find_package(Mimetic REQUIRED)
 if(NOT MIMETIC_FOUND)
-    message(SEND_ERROR "Could not find Mimetic. Please download and install it first!")
+  message(SEND_ERROR
+          "Could not find Mimetic. Please download and install it first!")
 endif()
 
 if (WITH_STATIC)
-    if (${CMAKE_CXX_COMPILER} MATCHES ".*-openwrt-.*")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
-        #set(CMAKE_THREAD_LIBS_INIT "gcc_eh -Wl,--whole-archive -lpthread -Wl,--no-whole-archive")
-        set(CMAKE_THREAD_LIBS_INIT
-            "gcc_eh -Wl,-u,pthread_create,-u,pthread_once,-u,pthread_mutex_lock,
-            -u,pthread_mutex_unlock,-u,pthread_join,-u,pthread_equal,
-            -u,pthread_detach,-u,pthread_cond_wait,-u,pthread_cond_signal,
-            -u,pthread_cond_destroy,-u,pthread_cond_broadcast,-u,pthread_cancel")
-    endif ()
+  if (CMAKE_CXX_STANDARD LESS 17)
+    add_definitions(-DBOOST_FILESYSTEM_STATIC_LINK)
+    add_definitions(-DBOOST_PROGRAM_OPTIONS_STATIC_LINK)
+    add_definitions(-DBOOST_SYSTEM_STATIC_LINK)
+  else ()
+    add_definitions(-DBOOST_PROGRAM_OPTIONS_STATIC_LINK)
+  endif ()
+  if (${CMAKE_CXX_COMPILER} MATCHES ".*-openwrt-.*")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+    #set(CMAKE_THREAD_LIBS_INIT
+    #    "gcc_eh -Wl,--whole-archive -lpthread -Wl,--no-whole-archive")
+    set(CMAKE_THREAD_LIBS_INIT
+      "gcc_eh -Wl,-u,pthread_create,-u,pthread_once,-u,pthread_mutex_lock,
+      -u,pthread_mutex_unlock,-u,pthread_join,-u,pthread_equal,
+      -u,pthread_detach,-u,pthread_cond_wait,-u,pthread_cond_signal,
+      -u,pthread_cond_destroy,-u,pthread_cond_broadcast,-u,pthread_cancel")
+  endif ()
 else ()
-    # No need in -fPIC overhead for binary if not interested in library
-    # HINT: revert c266cff CMakeLists.txt: compilation speed up
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+  # No need in -fPIC overhead for binary if not interested in library
+  # HINT: revert c266cff CMakeLists.txt: compilation speed up
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
+  if (CMAKE_CXX_STANDARD LESS 17)
+    add_definitions(-DBOOST_FILESYSTEM_DYN_LINK)
     add_definitions(-DBOOST_PROGRAM_OPTIONS_DYN_LINK)
+    add_definitions(-DBOOST_SYSTEM_DYN_LINK)
+  else ()
+    add_definitions(-DBOOST_PROGRAM_OPTIONS_DYN_LINK)
+  endif ()
 endif ()
 
 # Load includes
-include_directories(SYSTEM
-                    ${MIMETIC_INCLUDE_DIRS}
-                    ${Boost_INCLUDE_DIRS}
-                    ${OPENSSL_INCLUDE_DIR}
-                    ${ZLIB_INCLUDE_DIRS})
+set(INCLUDED_DIRS
+    ${MIMETIC_INCLUDE_DIRS}
+    ${OPENSSL_INCLUDE_DIR}
+    ${ZLIB_INCLUDE_DIRS}
+    ${Boost_INCLUDE_DIRS})
+
+# After migrating to CLI11
+#if (CMAKE_CXX_STANDARD LESS 17)
+#  list(APPEND INCLUDED_DIRS ${Boost_INCLUDE_DIRS})
+#endif ()
+
+include_directories(SYSTEM ${INCLUDED_DIRS})
 
 # Show summary
 message(STATUS "Project            : ${PROJECT_NAME}")
@@ -184,46 +254,55 @@ message(STATUS "Architecture       : ${ARCHITECTURE}")
 message(STATUS "Install prefix     : ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "Options:")
 message(STATUS "  STATIC BUILD     : ${WITH_STATIC}")
+message(STATUS "  OFF UNIX SOCKET  : ${DISABLE_SOCKET}")
+message(STATUS "  FORCE C++11      : ${WITH_CXX11}")
+message(STATUS "  FORCE C++17      : ${WITH_CXX17}")
 message(STATUS "----------------------------------------")
 
 add_executable("${PROJECT_NAME}" ${PBOTED_SRC})
 
 if (NOT MSVC)
-    if (WITH_STATIC)
-        set_target_properties("${PROJECT_NAME}" PROPERTIES LINK_FLAGS "-static")
-    endif ()
+  if (WITH_STATIC)
+    set_target_properties("${PROJECT_NAME}" PROPERTIES LINK_FLAGS "-static")
+  endif ()
 endif ()
 
 # FindBoost pulls pthread for thread which is broken
 # for static linking at least on Ubuntu 15.04
 list(GET Boost_LIBRARIES -1 LAST_Boost_LIBRARIES)
 if (${LAST_Boost_LIBRARIES} MATCHES ".*pthread.*")
-    list(REMOVE_AT Boost_LIBRARIES -1)
+  list(REMOVE_AT Boost_LIBRARIES -1)
 endif ()
 
 if (WITH_STATIC)
-    set(DL_LIB ${CMAKE_DL_LIBS})
+  set(DL_LIB ${CMAKE_DL_LIBS})
 endif ()
 
-set(LIBS
-    libi2pd
-    libi2psam
-    liblzma
-    Threads::Threads
-    ${ZLIB_LIBRARIES}
-    ${MIMETIC_LIBRARIES}
-    ${Boost_LIBRARIES}
-    ${OPENSSL_LIBRARIES}
-    ${MINGW_EXTRA}
-    ${DL_LIB}
-    ${CMAKE_REQUIRED_LIBRARIES})
+set(LINK_LIBS
+  libi2pd
+  libi2psam
+  liblzma
+  Threads::Threads
+  ZLIB::ZLIB
+  ${MIMETIC_LIBRARIES}
+  ${OPENSSL_LIBRARIES}
+  ${MINGW_EXTRA}
+  ${DL_LIB}
+  ${CMAKE_REQUIRED_LIBRARIES})
+
+if (CMAKE_CXX_STANDARD LESS 17) 
+  list(APPEND LINK_LIBS Boost::system Boost::filesystem Boost::program_options)
+else ()
+  list(APPEND LINK_LIBS Boost::program_options )
+endif ()
 
 # If GCC version is less than 9
 # we need to link filesystem manually
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    if (NOT (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9.0))
-        list(APPEND LIBS stdc++fs)
-    endif ()
+  #if (NOT (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 9.0))
+  if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0 AND CMAKE_CXX_STANDARD EQUAL 17)
+    list(APPEND LINK_LIBS stdc++fs)
+  endif ()
 endif ()
 
-target_link_libraries("${PROJECT_NAME}" ${LIBS})
+target_link_libraries("${PROJECT_NAME}" ${LINK_LIBS})

@@ -16,6 +16,7 @@
 #include <cstring>
 #include <memory>
 #include <thread>
+#include <unordered_map>
 
 #include "Email.h"
 

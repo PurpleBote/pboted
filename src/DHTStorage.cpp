@@ -9,14 +9,15 @@
 
 #include <chrono>
 #include <cstring>
-#include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <cstdio>
 
 #include "BoteContext.h"
+#include "compat.h"
 #include "ConfigParser.h"
 #include "DHTStorage.h"
+#include "Packet.h"
 
 namespace pbote
 {
@@ -86,10 +87,10 @@ DHTStorage::safe_deleted (pbote::type type, const i2p::data::Tag<32>& key, const
 
   switch (type)
     {
-      case (type::DataI):
+      case (DataI):
         success = safe_deleted_index (key, data);
         break;
-      case (type::DataE):
+      case (DataE):
         success = safe_deleted_email (key, data);
         break;
       default:
@@ -109,10 +110,10 @@ DHTStorage::Delete (pbote::type type, const i2p::data::Tag<32>& key, const char 
 
   switch (type)
     {
-      case (type::DataI):
+      case (DataI):
         packet_path = pbote::fs::DataDirPath("DHTindex", key.ToBase64() + ext);
         break;
-      case (type::DataE):
+      case (DataE):
         packet_path = pbote::fs::DataDirPath("DHTemail", key.ToBase64() + ext);
         break;
       default:
@@ -148,7 +149,7 @@ DHTStorage::remove_index (const i2p::data::Tag<32>& index_dht_key,
   deletion_pkt.data.push_back (deletion_item);
   deletion_pkt.count = 1;
 
-  (void)safe_deleted (type::DataI, index_dht_key, deletion_pkt.toByte ());
+  (void)safe_deleted (DataI, index_dht_key, deletion_pkt.toByte ());
 
   IndexPacket index_pkt;
 
@@ -181,7 +182,7 @@ DHTStorage::remove_index (const i2p::data::Tag<32>& index_dht_key,
   LogPrint (eLogDebug, "DHTStorage: remove_index: Index entry removed, key: ",
             index_dht_key.ToBase64 ());
 
-  Delete (type::DataI, index_dht_key);
+  Delete (DataI, index_dht_key);
 
   std::string pkt_path = pbote::fs::DataDirPath ("DHTindex",
       index_dht_key.ToBase64 () + DEFAULT_FILE_EXTENSION);
@@ -227,9 +228,9 @@ DHTStorage::remove_indices (const i2p::data::Tag<32>& index_dht_key,
 std::vector<uint8_t>
 DHTStorage::getIndex(i2p::data::Tag<32> key)
 {
-  if(exist(pbote::type::DataI, key))
+  if(exist(DataI, key))
     {
-      return getPacket(pbote::type::DataI, key);
+      return getPacket(DataI, key);
     }
 
   return {};
@@ -238,9 +239,9 @@ DHTStorage::getIndex(i2p::data::Tag<32> key)
 std::vector<uint8_t>
 DHTStorage::getEmail(i2p::data::Tag<32> key)
 {
-  if(exist(pbote::type::DataE, key))
+  if(exist(DataE, key))
     {
-      return getPacket(pbote::type::DataE, key);
+      return getPacket(DataE, key);
     }
 
   return {};
@@ -249,9 +250,9 @@ DHTStorage::getEmail(i2p::data::Tag<32> key)
 std::vector<uint8_t>
 DHTStorage::getContact(i2p::data::Tag<32> key)
 {
-  if(exist(pbote::type::DataC, key))
+  if(exist(DataC, key))
     {
-      return getPacket(pbote::type::DataC, key);
+      return getPacket(DataC, key);
     }
 
   return {};
@@ -274,15 +275,15 @@ DHTStorage::getPacket (pbote::type type, i2p::data::Tag<32> key,
   std::set<std::string> local_list;
 
   switch(type) {
-    case type::DataI:
+    case DataI:
       dir_path = "DHTindex";
       local_list = local_index_packets;
       break;
-    case type::DataE:
+    case DataE:
       dir_path = "DHTemail";
       local_list = local_email_packets;
       break;
-    case type::DataC:
+    case DataC:
       dir_path = "DHTdirectory";
       local_list = local_contact_packets;
       break;
@@ -323,13 +324,13 @@ DHTStorage::exist (pbote::type type, i2p::data::Tag<32> key)
 
   switch (type)
     {
-      case pbote::type::DataI:
+      case DataI:
         packet_path = pbote::fs::DataDirPath ("DHTindex", key.ToBase64 () + DEFAULT_FILE_EXTENSION);
         break;
-      case pbote::type::DataE:
+      case DataE:
         packet_path = pbote::fs::DataDirPath ("DHTemail", key.ToBase64 () + DEFAULT_FILE_EXTENSION);
         break;
-      case pbote::type::DataC:
+      case DataC:
         packet_path = pbote::fs::DataDirPath ("DHTdirectory", key.ToBase64 () + DEFAULT_FILE_EXTENSION);
         break;
       default:
@@ -390,7 +391,7 @@ DHTStorage::safe_deleted_index (i2p::data::Tag<32> key,
 
   if (pbote::fs::Exists(packetPath))
     {
-      int status = update_deletion_info(type::DataI, key, data);
+      int status = update_deletion_info(DataI, key, data);
       if (status == STORE_FILE_EXIST)
         {
           LogPrint(eLogDebug, "DHTStorage: update_deleted_index: packet already exist: ", packetPath);
@@ -550,7 +551,7 @@ DHTStorage::update_index (i2p::data::Tag<32> key,
             new_pkt.data.size (), ", duplicated: ", duplicated,
             ", added: ", added);
 
-  Delete (type::DataI, key);
+  Delete (DataI, key);
 
   std::string pkt_path = pbote::fs::DataDirPath ("DHTindex", key.ToBase64 () + DEFAULT_FILE_EXTENSION);
 
@@ -579,9 +580,9 @@ int
 DHTStorage::update_deletion_info (pbote::type type, i2p::data::Tag<32> key,
                                   const std::vector<uint8_t>& data)
 {
-  if (type == type::DataI)
+  if (type == DataI)
     std::unique_lock<std::recursive_mutex> l (index_mutex);
-  if (type == type::DataE)
+  if (type == DataE)
     std::unique_lock<std::recursive_mutex> l (email_mutex);
 
   DeletionInfoPacket new_pkt, old_pkt;
@@ -621,10 +622,10 @@ DHTStorage::update_deletion_info (pbote::type type, i2p::data::Tag<32> key,
   std::string dir_path;
 
   switch(type) {
-    case type::DataI:
+    case DataI:
       dir_path = "DHTindex";
       break;
-    case type::DataE:
+    case DataE:
       dir_path = "DHTemail";
       break;
     default:
@@ -688,7 +689,7 @@ DHTStorage::clean_index (i2p::data::Tag<32> key, int32_t ts_now)
       removed++;
     }
 
-  Delete(type::DataI, key);
+  Delete(DataI, key);
 
   index_packet.nump = index_packet.data.size();
 
@@ -708,9 +709,9 @@ int
 DHTStorage::clean_deletion_info (pbote::type type, i2p::data::Tag<32> key,
                                  int32_t ts_now)
 {
-  if (type == type::DataI)
+  if (type == DataI)
     std::unique_lock<std::recursive_mutex> l (index_mutex);
-  if (type == type::DataE)
+  if (type == DataE)
     std::unique_lock<std::recursive_mutex> l (email_mutex);
 
   DeletionInfoPacket deletion_info;
@@ -896,27 +897,27 @@ DHTStorage::update_storage_usage ()
   try
     {
       std::string dir_path = pbote::fs::DataDirPath("DHTindex");
-      for (std::filesystem::recursive_directory_iterator it(dir_path);
-           it != std::filesystem::recursive_directory_iterator(); ++it)
+      for (nsfs::recursive_directory_iterator it(dir_path);
+           it != nsfs::recursive_directory_iterator(); ++it)
         {
-          if (std::filesystem::is_regular_file(*it))
-            new_used += std::filesystem::file_size(*it);
+          if (nsfs::is_regular_file(*it))
+            new_used += nsfs::file_size(*it);
         }
 
       dir_path = pbote::fs::DataDirPath("DHTemail");
-      for (std::filesystem::recursive_directory_iterator it(dir_path);
-           it != std::filesystem::recursive_directory_iterator(); ++it)
+      for (nsfs::recursive_directory_iterator it(dir_path);
+           it != nsfs::recursive_directory_iterator(); ++it)
         {
-          if (std::filesystem::is_regular_file(*it))
-            new_used += std::filesystem::file_size(*it);
+          if (nsfs::is_regular_file(*it))
+            new_used += nsfs::file_size(*it);
         }
 
       dir_path = pbote::fs::DataDirPath("DHTdirectory");
-      for (std::filesystem::recursive_directory_iterator it(dir_path);
-           it != std::filesystem::recursive_directory_iterator(); ++it)
+      for (nsfs::recursive_directory_iterator it(dir_path);
+           it != nsfs::recursive_directory_iterator(); ++it)
         {
-          if (std::filesystem::is_regular_file(*it))
-            new_used += std::filesystem::file_size(*it);
+          if (nsfs::is_regular_file(*it))
+            new_used += nsfs::file_size(*it);
         }
 
       used = new_used;
@@ -938,7 +939,7 @@ DHTStorage::remove_old_packets ()
   size_t removed_count = 0;
   const int32_t ts = context.ts_now ();
 
-  if (std::filesystem::is_empty(pbote::fs::DataDirPath("DHTemail").c_str()))
+  if (nsfs::is_empty(pbote::fs::DataDirPath("DHTemail").c_str()))
     {
       LogPrint(eLogDebug, "DHTStorage: remove_old_packets: DHTemail directory is empty");
       return;
@@ -950,7 +951,7 @@ DHTStorage::remove_old_packets ()
       {
         i2p::data::Tag<32> key;
         key.FromBase64(pkt);
-        auto data = getPacket(type::DataE, key);
+        auto data = getPacket(DataE, key);
         EmailEncryptedPacket email_pkt;
         email_pkt.fromBuffer (data.data (), data.size (), true);
         int32_t store_ts = email_pkt.stored_time + store_duration;
@@ -966,7 +967,7 @@ DHTStorage::remove_old_packets ()
 
         LogPrint(eLogDebug, "DHTStorage: remove_old_packets: remove: ", pkt);
 
-        if (Delete(type::DataE, key))
+        if (Delete(DataE, key))
           removed_count++;
         else
           LogPrint(eLogError, "DHTStorage: remove_old_packets: can't remove file: ", pkt);
@@ -981,7 +982,7 @@ DHTStorage::remove_old_entries ()
 {
   size_t removed_entries = 0, removed_packets = 0;
 
-  if (std::filesystem::is_empty(pbote::fs::DataDirPath("DHTindex").c_str()))
+  if (nsfs::is_empty(pbote::fs::DataDirPath("DHTindex").c_str()))
     {
       LogPrint(eLogDebug, "DHTStorage: remove_old_entries: DHTindex directory is empty");
       return;

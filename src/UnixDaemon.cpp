@@ -38,6 +38,14 @@ void handle_signal(int sig)
       case SIGINT:
       case SIGABRT:
       case SIGTERM:
+        if (sig == SIGINT)
+          LogPrint(eLogInfo, "Daemon: Got SIGINT, stopping");
+        else if (sig == SIGABRT)
+          LogPrint(eLogInfo, "Daemon: Got SIGABRT, stopping");
+        else if (sig == SIGTERM)
+          LogPrint(eLogInfo, "Daemon: Got SIGTERM, stopping");
+        else
+          LogPrint(eLogError, "Daemon: Got unknown signal: ", sig);
         Daemon.stop ();
         break;
       case SIGPIPE:

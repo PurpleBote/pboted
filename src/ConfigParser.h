@@ -10,8 +10,6 @@
 #ifndef BOTE_CONFIG_PARSER_H
 #define BOTE_CONFIG_PARSER_H
 
-#define DISABLE_SOCKET
-
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
 #include <string>

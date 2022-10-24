@@ -9,7 +9,6 @@
  */
 
 #include <algorithm>
-#include <filesystem>
 #include <system_error>
 
 #ifdef _WIN32
@@ -17,6 +16,7 @@
 #include <windows.h>
 #endif
 
+#include "compat.h"
 #include "FileSystem.h"
 #include "Logging.h"
 
@@ -28,7 +28,9 @@ namespace fs
 std::string appName = "pboted";
 std::string dataDir = "";
 std::string dirSep = "/";
-const std::vector<std::string> dir_list = {"DHTindex", "DHTemail", "DHTdirectory", "inbox", "incomplete", "outbox", "sent"};
+const std::vector<std::string> dir_list
+  = {"DHTindex", "DHTemail", "DHTdirectory",
+     "inbox", "incomplete", "outbox", "sent"};
 
 const std::string &GetAppName () { return appName; }
 
@@ -63,14 +65,14 @@ DetectDataDir (const std::string &cmdline_param, bool isService)
 bool
 Init ()
 {
-  if (!std::filesystem::exists(dataDir))
-    std::filesystem::create_directory(dataDir);
+  if (!nsfs::exists(dataDir))
+    nsfs::create_directory(dataDir);
 
   for (const auto& dir_name : dir_list)
     {
       std::string dir_path = DataDirPath(dir_name);
-      if (!std::filesystem::exists(dir_path))
-        std::filesystem::create_directory(dir_path);
+      if (!nsfs::exists(dir_path))
+        nsfs::create_directory(dir_path);
     }
 
   return true;
@@ -79,14 +81,14 @@ Init ()
 bool
 ReadDir (const std::string &path, std::vector<std::string> &files)
 {
-  if (!std::filesystem::exists(path))
+  if (!nsfs::exists(path))
     return false;
-  std::filesystem::directory_iterator it(path);
-  std::filesystem::directory_iterator end;
+  nsfs::directory_iterator it(path);
+  nsfs::directory_iterator end;
 
   for (; it != end; it++)
     {
-      if (!std::filesystem::is_regular_file(it->status()))
+      if (!nsfs::is_regular_file(it->status()))
         continue;
       files.push_back(it->path().string());
     }
@@ -94,34 +96,39 @@ ReadDir (const std::string &path, std::vector<std::string> &files)
   return true;
 }
 
-bool Exists (const std::string &path) { return std::filesystem::exists(path); }
+bool Exists (const std::string &path) { return nsfs::exists(path); }
 
 uint32_t
 GetLastUpdateTime (const std::string &path)
 {
-  if (!std::filesystem::exists(path))
+  if (!nsfs::exists(path))
     return 0;
 
+#ifdef BOOST_FILESYSTEM_FILESYSTEM_HPP
+  boost::system::error_code ec;
+  (void)boost::filesystem::last_write_time (path, ec);
+#else
   std::error_code ec;
-  (void)std::filesystem::last_write_time(path, ec);
+  (void)nsfs::last_write_time(path, ec);
+#endif
   return ec.value () ? 0 : 1;
 }
 
 bool
 Remove (const std::string &path)
 {
-  if (!std::filesystem::exists(path))
+  if (!nsfs::exists(path))
     return false;
-  return std::filesystem::remove(path);
+  return nsfs::remove(path);
 }
 
 bool
 CreateDirectory (const std::string &path)
 {
-  if (std::filesystem::exists(path) &&
-      std::filesystem::is_directory(std::filesystem::status(path)))
+  if (nsfs::exists(path) &&
+      nsfs::is_directory(nsfs::status(path)))
     return true;
-  return std::filesystem::create_directory(path);
+  return nsfs::create_directory(path);
 }
 
 void
@@ -133,15 +140,15 @@ HashedStorage::SetPlace (const std::string &path)
 bool
 HashedStorage::Init (const char *chars, size_t count)
 {
-  if (!std::filesystem::exists(root))
-    std::filesystem::create_directories(root);
+  if (!nsfs::exists(root))
+    nsfs::create_directories(root);
 
   for (size_t i = 0; i < count; i++)
     {
       auto p = root + pbote::fs::dirSep + prefix1 + chars[i];
-      if (std::filesystem::exists(p))
+      if (nsfs::exists(p))
         continue;
-      if (std::filesystem::create_directory(p))
+      if (nsfs::create_directory(p))
         continue; /* ^ throws exception on failure */
       return false;
     }
@@ -168,9 +175,9 @@ void
 HashedStorage::Remove (const std::string &ident)
 {
   std::string path = Path(ident);
-  if (!std::filesystem::exists(path))
+  if (!nsfs::exists(path))
     return;
-  std::filesystem::remove(path);
+  nsfs::remove(path);
 }
 
 void
@@ -182,15 +189,15 @@ HashedStorage::Traverse(std::vector<std::string> &files)
 void
 HashedStorage::Iterate(FilenameVisitor v)
 {
-  std::filesystem::path p(root);
-  std::filesystem::recursive_directory_iterator it(p);
-  std::filesystem::recursive_directory_iterator end;
+  nsfs::path p(root);
+  nsfs::recursive_directory_iterator it(p);
+  nsfs::recursive_directory_iterator end;
 
   for (; it != end; it++)
     {
-      if (!std::filesystem::exists(it->path()))
+      if (!nsfs::exists(it->path()))
         continue;
-      if (!std::filesystem::is_regular_file(it->status()))
+      if (!nsfs::is_regular_file(it->status()))
         continue;
       const std::string &t = it->path().string();
       v(t);
