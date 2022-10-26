@@ -22,6 +22,7 @@
 #include <utility>
 
 #include "BoteContext.h"
+#include "compat.h"
 #include "Logging.h"
 #include "Queue.h"
 
@@ -31,10 +32,6 @@ namespace pbote
 {
 namespace network
 {
-
-#ifndef INVALID_SOCKET
-#define INVALID_SOCKET -1
-#endif
 
 /// Timeout in msec
 #define UDP_SEND_TIMEOUT 500
@@ -103,7 +100,7 @@ private:
   std::string m_address;
   fd_set rset;
 
-  uint8_t UDP_recv_buffer[MAX_DATAGRAM_SIZE + 1] = {0};
+  uint8_t *buf;
   queue_type m_recv_queue;
 };
 
@@ -168,7 +165,7 @@ private:
   void run ();
   void handle_send ();
 
-  void check_session();
+  void check_sam_session();
 
   bool m_running;
   std::thread *m_send_thread;

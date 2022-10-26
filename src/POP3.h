@@ -16,6 +16,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include "compat.h"
 #include "Email.h"
 
 namespace bote
@@ -23,15 +24,12 @@ namespace bote
 namespace pop3
 {
 
-#ifndef INVALID_SOCKET
-#define INVALID_SOCKET -1
-#endif
-
-#define POP3_MAX_CLIENTS 5
-#define MAX_RCPT_USR 1
-#define BUF_SIZE 10485760 // 10MB
-// Timeout in milliseconds
-#define POP3_WAIT_TIMEOUT 10000
+#define POP3_MAX_CLIENTS 2
+#define POP3_BUF_SIZE 10485760 // 10MB
+// In milliseconds
+#define POP3_POLL_TIMEOUT 10000
+// In seconds
+#define POP3_SOCK_TIMEOUT 10
 
 const char capa_list[][100] =
 {
@@ -126,8 +124,9 @@ enum pop3_state
 
 struct pop3_session
 {
-  pop3_state state;
-  char buf[BUF_SIZE];
+  pop3_state state = STATE_QUIT;
+  bool need_clean = false;
+  char *buf;
   std::vector<std::shared_ptr<pbote::Email> > emails;
 };
 
@@ -142,7 +141,6 @@ public:
 
 private:
   void run ();
-  void process ();
 
   void respond (int sid);
   void reply (int sid, const char *data);
@@ -168,16 +166,15 @@ private:
   static bool check_pass (const std::string &pass);
 
   bool started;
-  std::thread *pop3_accepting_thread;
-  std::thread *pop3_processing_thread;
+  std::thread *pop3_thread;
 
-  int server_sockfd = INVALID_SOCKET, client_sockfd = INVALID_SOCKET;
+  int server_sockfd = SOCKET_INVALID, client_sockfd = SOCKET_INVALID;
   std::string m_address;
   uint16_t m_port = 0;
   int nfds = 1; /* descriptors count */
 
   struct pollfd fds[POP3_MAX_CLIENTS];
-  pop3_session sessions[POP3_MAX_CLIENTS];
+  struct pop3_session session;
 };
 
 template <typename... t_args>

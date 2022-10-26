@@ -321,7 +321,7 @@ public:
     std::memcpy (&ver, buf + offset, 1);
     offset += 1;
 
-    if (type != type::DataE)
+    if (type != DataE)
       {
         LogPrint (eLogWarning, "Packet: E: fromBuffer: Wrong type: ", type);
         return false;
@@ -623,7 +623,7 @@ public:
     LogPrint (eLogDebug, "Packet: I: fromBuffer: nump: ", nump,
               ", type: ", type, ", version: ", unsigned (ver));
 
-    if (type != type::DataI)
+    if (type != DataI)
       {
         LogPrint (eLogWarning, "Packet: I: fromBuffer: Wrong type: ", type);
         return false;

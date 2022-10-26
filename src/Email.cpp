@@ -9,11 +9,11 @@
 
 #include <cassert>
 #include <cstdio>
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 
 #include "BoteContext.h"
+#include "compat.h"
 #include "Email.h"
 
 // libi2pd
@@ -910,7 +910,7 @@ Email::save (const std::string &dir)
 
   LogPrint (eLogDebug, "Email: save: Saved to ", emailPacketPath);
 
-  std::filesystem::path p = emailPacketPath;
+  nsfs::path p = emailPacketPath;
   std::string p_dir = p.parent_path ().string ();
   std::string subdir = p_dir.substr (pbote::fs::GetDataDir ().size () + 1);
   LogPrint (eLogDebug, "Email: save: Subdir: ", subdir);

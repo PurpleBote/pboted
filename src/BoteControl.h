@@ -10,8 +10,6 @@
 #ifndef PBOTED_SRC_BOTECONTROL_H
 #define PBOTED_SRC_BOTECONTROL_H
 
-#define DISABLE_SOCKET
-
 #include <map>
 #include <netinet/in.h>
 #include <poll.h>
@@ -26,34 +24,31 @@
 // NOOP
 #endif
 
-#include "i2psam.hpp"
+#include "compat.h"
 
 namespace bote
 {
 
-#ifndef INVALID_SOCKET
-#define INVALID_SOCKET -1
-#endif
-
-#define BUFF_SIZE 8192
-// Timeout in milliseconds
-#define CONTROL_WAIT_TIMEOUT 10000
-#define CONTROL_MAX_CLIENTS 5
+#define CONTROL_MAX_CLIENTS 3
+#define CONTROL_BUFF_SIZE 8192
+// In milliseconds
+#define CONTROL_POLL_TIMEOUT 10000
 
 /// Default socket filename
 const std::string DEFAULT_SOCKET_NAME = "pboted.sock";
 
-
 enum control_state
 {
-  STATE_INIT = 0,
-  STATE_AUTH = 1,
+  STATE_QUIT = 0,  // Only after quit
+  STATE_INIT = 1,  // After TCP connection
+  STATE_AUTH = 2,  // ToDo
 };
 
 struct control_session
 {
-  control_state state;
-  char buf[BUFF_SIZE];
+  control_state state = STATE_QUIT;
+  bool need_clean = false;
+  char *buf;
 };
 
 
@@ -74,7 +69,6 @@ public:
 
 private:
   void run ();
-  void handle ();
 
   void handle_request (int sid);
 
@@ -98,20 +92,19 @@ private:
   void unknown_cmd (const std::string &cmd, std::ostringstream &results);
 
   bool m_is_running = false;
-  std::thread *m_control_acceptor_thread;
-  std::thread *m_control_handler_thread;
+  std::thread *m_control_thread;
 
 #if !defined(_WIN32) || !defined(DISABLE_SOCKET)
   /* Socket stuff */
   bool m_socket_enabled = false;
 
-  int conn_sockfd = INVALID_SOCKET;
+  int conn_sockfd = SOCKET_INVALID;
   std::string socket_path;
   struct sockaddr_un file_addr;
 #endif
 
   /* TCP stuff */
-  int tcp_fd = INVALID_SOCKET;
+  int tcp_fd = SOCKET_INVALID;
   std::string m_address;
   uint16_t m_port = 0;
   socklen_t sin_size; /* for client addr */
@@ -119,9 +112,11 @@ private:
 
   /* For both */
   int nfds = 1;
-  int client_sockfd = INVALID_SOCKET;
+  int client_sockfd = SOCKET_INVALID;
   struct pollfd fds[CONTROL_MAX_CLIENTS];
-  control_session sessions[CONTROL_MAX_CLIENTS];
+
+  /* Sessions stuff */
+  struct control_session session;
 
   std::map<std::string, Handler> handlers;
 };

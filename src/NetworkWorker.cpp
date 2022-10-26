@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <utility>
 
+#include "compat.h"
 #include "NetworkWorker.h"
 
 namespace pbote
@@ -28,7 +29,8 @@ UDPReceiver::UDPReceiver (const std::string &address, int port)
     m_port (port),
     m_address (address),
     m_recv_queue (nullptr)
-{}
+{
+}
 
 UDPReceiver::~UDPReceiver ()
 {
@@ -49,6 +51,8 @@ UDPReceiver::~UDPReceiver ()
 void
 UDPReceiver::start ()
 {
+  /* ToDo: add error handling and restart on error */
+
   if (m_running)
     return;
 
@@ -59,8 +63,6 @@ UDPReceiver::start ()
       delete m_recv_thread;
       m_recv_thread = nullptr;
     }
-
-  // ToDo: restart on error
 
   struct addrinfo hints;
   memset(&hints, 0, sizeof(struct addrinfo));
@@ -79,7 +81,7 @@ UDPReceiver::start ()
   sprintf(c_port, "%d", m_port);
 
   int rc = getaddrinfo (m_address.c_str (), c_port, &hints, &res);
-  if (rc != 0 || res == nullptr)
+  if (rc != RC_SUCCESS || res == nullptr)
     {
       LogPrint (eLogError, "Network: UDPReceiver: Invalid address or port: ",
                 m_address, ":", m_port, ": ", gai_strerror(rc));
@@ -87,7 +89,7 @@ UDPReceiver::start ()
     }
 
   server_sockfd = socket (res->ai_family, res->ai_socktype, res->ai_protocol);
-  if (server_sockfd == (int)INVALID_SOCKET)
+  if (server_sockfd == SOCKET_INVALID)
     {
       freeaddrinfo (res);
       LogPrint (eLogError, "Network: UDPReceiver: Could not create UDP socket ",
@@ -96,10 +98,10 @@ UDPReceiver::start ()
     }
 
   rc = bind (server_sockfd, res->ai_addr, res->ai_addrlen);
-  if (rc != 0)
+  if (rc == RC_ERROR)
     {
       freeaddrinfo (res);
-      close (server_sockfd);
+      CLOSE_SOCKET (server_sockfd);
       LogPrint (eLogError, "Network: UDPReceiver: Could not bind UDP socket ",
                 m_address, ":", m_port, ": ", strerror (errno));
       return;
@@ -124,8 +126,7 @@ UDPReceiver::stop ()
   m_running = false;
 
   FD_CLR (server_sockfd, &rset);
-  close (server_sockfd);
-  //freeaddrinfo (server_addr);
+  CLOSE_SOCKET (server_sockfd);
 
   LogPrint (eLogInfo, "Network: UDPReceiver: Stopped");
 }
@@ -144,21 +145,21 @@ UDPReceiver::run ()
 
       int rc = select(server_sockfd + 1, &rset, NULL, NULL, &tv);
 
-      if (rc == -1)
+      if (!m_running)
+        return;
+
+      if (rc == SELECT_ERROR)
         {
           LogPrint (eLogError, "Network: UDPReceiver: Select error: ",
                     strerror (errno));
           continue;
         }
 
-      if (rc == 0)
+      if (rc == SELECT_TIMEOUT)
         {
           LogPrint (eLogDebug, "Network: UDPReceiver: Select timed out");
           continue;
         }
-
-      //if (!m_running)
-      //  break;
 
       LogPrint (eLogDebug, "Network: UDPReceiver: New data available");
 
@@ -175,21 +176,24 @@ void
 UDPReceiver::handle_receive ()
 {
   /* ToDo: recvfrom? */
-  ssize_t rc = recv (server_sockfd, UDP_recv_buffer, MAX_DATAGRAM_SIZE, 0);
+  buf = (uint8_t *)malloc (MAX_DATAGRAM_SIZE);
+  ssize_t rc = recv (server_sockfd, buf, MAX_DATAGRAM_SIZE - 1, 0);
 
   if (!m_running)
     return;
 
-  if (rc < 0)
+  if (rc == RECV_ERROR)
     {
       LogPrint (eLogError, "Network: UDPReceiver: Receive error: ",
                 strerror(errno));
+      free (buf);
       return;
     }
 
-  if (rc == 0)
+  if (rc == RECV_CLOSED)
     {
       LogPrint (eLogWarning, "Network: UDPReceiver: Zero-length datagram");
+      free (buf);
       return;
     }
 
@@ -197,28 +201,33 @@ UDPReceiver::handle_receive ()
   /* Count total receive bytes */
   context.add_recv_byte_count (len);
   /* Terminating array */
-  UDP_recv_buffer[len] = 0;
+  buf[len] = 0;
   /* Get newline char position */
-  char *eol = strchr ((char *)UDP_recv_buffer, '\n');
+  char *eol = strchr ((char *)buf, '\n');
 
   if (!eol)
     {
       LogPrint (eLogWarning, "Network: UDPReceiver: Malformed datagram");
+      free (buf);
       return;
     }
 
+  /* Replace newline with zero and go to next pointer (start of payload) */
   *eol = 0;
   eol++;
-  size_t payload_len = len - ((uint8_t *)eol - UDP_recv_buffer);
+  /* Desination len ( len - count of items from buf start to payload start) */
+  size_t payload_len = len - ((uint8_t *)eol - buf);
   size_t dest_len = len - payload_len - 1;
 
-  std::string dest (&UDP_recv_buffer[0], &UDP_recv_buffer[dest_len]);
+  std::string dest (&buf[0], &buf[dest_len]);
 
   LogPrint (eLogDebug, "Network: UDPReceiver: Datagram received, dest: ",
             dest, ", size: ", payload_len);
 
   auto packet = std::make_shared<PacketForQueue> (dest, (uint8_t *)eol,
                                                   payload_len);
+  free (buf);
+
   m_recv_queue->Put (packet);
 }
 
@@ -227,11 +236,12 @@ UDPReceiver::handle_receive ()
 UDPSender::UDPSender (const std::string &addr, int port)
   : m_running (false),
     m_send_thread (nullptr),
-    m_socket (INVALID_SOCKET),
+    m_socket (SOCKET_INVALID),
     m_sam_port (port),
     m_sam_addr (addr),
     m_send_queue (nullptr)
-{}
+{
+}
 
 UDPSender::~UDPSender ()
 {
@@ -252,6 +262,8 @@ UDPSender::~UDPSender ()
 void
 UDPSender::start ()
 {
+  /* ToDo: add error handling and restart on error */
+
   if (m_running)
     return;
 
@@ -263,7 +275,6 @@ UDPSender::start ()
       m_send_thread = nullptr;
     }
 
-  // ToDo: restart on error
   char c_port[16];
   sprintf(c_port, "%d", m_sam_port);
 
@@ -276,7 +287,7 @@ UDPSender::start ()
   hints.ai_protocol = 0;
   
   int rc = getaddrinfo (m_sam_addr.c_str (), c_port, &hints, &m_sam_addrinfo);
-  if (rc != 0 || m_sam_addrinfo == nullptr)
+  if (rc != RC_SUCCESS || m_sam_addrinfo == nullptr)
     {
       LogPrint (eLogError, "Network: UDPSender: Invalid address or port: ",
                 m_sam_addr, ":", m_sam_port, ": ", gai_strerror(rc));
@@ -285,10 +296,10 @@ UDPSender::start ()
 
   m_socket = socket (m_sam_addrinfo->ai_family, m_sam_addrinfo->ai_socktype,
                      m_sam_addrinfo->ai_protocol);
-  if (m_socket < 0)
+  if (m_socket == SOCKET_INVALID)
     {
-      close (m_socket);
-      LogPrint (eLogError, "Network: UDPSender: Can't create socket for: ",
+      CLOSE_SOCKET (m_socket);
+      LogPrint (eLogError, "Network: UDPSender: Can't create socket to ",
                 m_sam_addr, ":", m_sam_port);
       return;
     }
@@ -310,7 +321,7 @@ UDPSender::stop ()
 
   freeaddrinfo (m_sam_addrinfo);
   FD_CLR (m_socket, &m_wset);
-  close (m_socket);
+  CLOSE_SOCKET (m_socket);
 
   LogPrint (eLogInfo, "Network: UDPSender: Stopped");
 }
@@ -332,14 +343,14 @@ UDPSender::run ()
       if (!m_running)
         break;
 
-      if (rc == -1)
+      if (rc == SELECT_ERROR)
         {
           LogPrint (eLogError, "Network: UDPSender: Select error: ",
                     strerror (errno));
           continue;
         }
 
-      if (rc == 0)
+      if (rc == SELECT_TIMEOUT)
         {
           LogPrint (eLogDebug, "Network: UDPSender: Select timed out");
           continue;
@@ -363,7 +374,7 @@ UDPSender::handle_send ()
   if (!packet)
     return;
 
-  check_session();
+  check_sam_session();
 
   std::string payload (packet->payload.begin (), packet->payload.end ());
   std::string message
@@ -374,15 +385,15 @@ UDPSender::handle_send ()
       = sendto (m_socket, message.c_str (), message.size (), 0,
                 m_sam_addrinfo->ai_addr, m_sam_addrinfo->ai_addrlen);
 
-  if (bytes_transferred == 0)
+  if (bytes_transferred == SEND_ERROR)
     {
-      LogPrint (eLogWarning, "Network: UDPSender: Zero-length datagram");
+      LogPrint (eLogError, "Network: UDPSender: Send error: ", strerror(errno));
       return;
     }
 
-  if (bytes_transferred < 0)
+  if (bytes_transferred == 0)
     {
-      LogPrint (eLogError, "Network: UDPSender: Send error: ", strerror(errno));
+      LogPrint (eLogWarning, "Network: UDPSender: Zero-length datagram");
       return;
     }
 
@@ -390,7 +401,7 @@ UDPSender::handle_send ()
 }
 
 void
-UDPSender::check_session()
+UDPSender::check_sam_session()
 {
   /* To prevent log spamming on session issue */
   while (sam_session->isSick ())
@@ -411,7 +422,8 @@ NetworkWorker::NetworkWorker ()
     m_sender (nullptr),
     m_recv_queue (nullptr),
     m_send_queue (nullptr)
-{}
+{
+}
 
 NetworkWorker::~NetworkWorker ()
 {
@@ -444,6 +456,8 @@ NetworkWorker::init ()
 void
 NetworkWorker::start ()
 {
+  /* ToDo: add error handling and restart on error */
+
   LogPrint (eLogInfo, "Network: SAM TCP endpoint: ", m_router_address, ":",
             m_router_port_tcp);
   LogPrint (eLogInfo, "Network: SAM UDP endpoint: ", m_router_address, ":",
@@ -521,9 +535,15 @@ NetworkWorker::stop ()
 bool
 NetworkWorker::running ()
 {
-  bool recv_run = m_receiver->running ();
-  bool send_run = m_sender->running ();
-  bool sam_sick = m_sam_session->isSick ();
+  bool recv_run = false, send_run = false, sam_sick = true;
+  if (m_receiver)
+    recv_run = m_receiver->running ();
+
+  if (m_sender)
+    send_run = m_sender->running ();
+
+  if (m_sam_session)
+    sam_sick = m_sam_session->isSick ();
 
   /*
   LogPrint (recv_run ? eLogDebug : eLogError, "Network: UDPReceiver: running: ",

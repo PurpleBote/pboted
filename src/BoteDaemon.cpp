@@ -8,10 +8,12 @@
  */
 
 #include <memory>
+#include <unordered_map>
 
 #include "BoteContext.h"
 #include "BoteControl.h"
 #include "BoteDaemon.h"
+#include "compat.h"
 #include "ConfigParser.h"
 #include "DHTworker.h"
 #include "EmailWorker.h"
@@ -103,7 +105,7 @@ Daemon_Singleton::init(int argc, char *argv[],
   if (logclftime)
     pbote::log::Logger().SetTimeFormat("[%d/%b/%Y:%H:%M:%S %z]");
 
-  if (isDaemon &&(logs.empty() || logs == "stdout"))
+  if (isDaemon && (logs.empty() || logs == "stdout"))
     logs = "file";
 
   pbote::log::Logger().SetLogLevel(loglevel);
