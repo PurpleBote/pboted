@@ -62,6 +62,9 @@ bool DaemonWin32::init(int argc, char* argv[])
 {
   bool ret = Daemon_Singleton::init(argc, argv);
 
+  WSADATA wsaData;
+  WSAStartup(MAKEWORD(2, 2), &wsaData);
+
   if (ret && isDaemon)
     {
       Service pboted("pboted service", false);
