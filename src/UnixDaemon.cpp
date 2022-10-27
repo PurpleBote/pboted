@@ -7,6 +7,8 @@
  * See full license text in LICENSE file at top of project tree
  */
 
+#ifndef _WIN32
+
 #include <fcntl.h>
 #include <csignal>
 #include <cstdlib>
@@ -232,3 +234,5 @@ void DaemonLinux::run ()
 
 } // namespace util
 } // namespace pbote
+
+#endif // _WIN32
