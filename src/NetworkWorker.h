@@ -13,11 +13,8 @@
 #include <algorithm>
 #include <ctime>
 #include <iostream>
-#include <netinet/in.h>
 #include <sstream>
 #include <string>
-#include <sys/select.h>
-#include <sys/socket.h>
 #include <sys/types.h>
 #include <utility>
 
@@ -95,7 +92,12 @@ private:
   std::thread *m_recv_thread;
   std::string m_nickname;
 
+#ifndef _WIN32
   int server_sockfd;
+#else
+  SOCKET server_sockfd;
+#endif
+
   int m_port;
   std::string m_address;
   fd_set rset;
@@ -174,7 +176,12 @@ private:
 
   sp_sam_dg_ses sam_session;
 
+#ifndef _WIN32
   int m_socket;
+#else
+  SOCKET m_socket;
+#endif
+
   int m_sam_port;
   std::string m_sam_addr;
   struct addrinfo *m_sam_addrinfo;

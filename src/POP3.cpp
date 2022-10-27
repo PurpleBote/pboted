@@ -7,13 +7,8 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#include <arpa/inet.h>
 #include <string.h>
 #include <errno.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -32,7 +27,7 @@ POP3::POP3 (const std::string &address, int port)
   : started (false),
     pop3_thread (nullptr),
     m_address (address),
-    m_port (port)  
+    m_port (port)
 {}
 
 POP3::~POP3 ()
@@ -81,20 +76,25 @@ POP3::start ()
 
   server_sockfd = socket (res->ai_family, res->ai_socktype, res->ai_protocol);
 
-  if (server_sockfd == SOCKET_INVALID)
+  if (server_sockfd == PB_SOCKET_INVALID)
     {
       freeaddrinfo (res);
       LogPrint (eLogError, "POP3: Socket create error: ", strerror (errno));
     }
 
-  int on = 1; 
+#ifndef _WIN32
+  int on = 1;
+#else
+  DWORD on = 1;
+#endif
+
   rc = setsockopt(server_sockfd, SOL_SOCKET,  SO_REUSEADDR,
                   (char *)&on, sizeof(on));
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "POP3: setsockopt(SO_REUSEADDR) failed: ",
               strerror (errno));
-    CLOSE_SOCKET (server_sockfd);
+    PB_SOCKET_CLOSE (server_sockfd);
     freeaddrinfo (res);
     return;
   }
@@ -115,17 +115,20 @@ POP3::start ()
   {
     LogPrint (eLogError, "POP3: setsockopt(SO_RCVTIMEO) failed: ",
               strerror (errno));
-    CLOSE_SOCKET (server_sockfd);
+    PB_SOCKET_CLOSE (server_sockfd);
     freeaddrinfo (res);
     return;
   }
 */
-
+#ifndef _WIN32
   rc = ioctl(server_sockfd, FIONBIO, (char *)&on);
+#else
+  rc = ioctlsocket(server_sockfd, FIONBIO, &on);
+#endif
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "POP3: ioctl(FIONBIO) failed: ", strerror (errno));
-    CLOSE_SOCKET (server_sockfd);
+    PB_SOCKET_CLOSE (server_sockfd);
     freeaddrinfo (res);
     return;
   }
@@ -170,9 +173,9 @@ POP3::stop ()
   /* Clean up all of the sockets that are open */
   for (int sid = 0; sid < nfds; sid++)
     {
-      if (fds[sid].fd >= 0)
+      if (fds[sid].fd != PB_SOCKET_INVALID)
         {
-          CLOSE_SOCKET (fds[sid].fd);
+          PB_SOCKET_CLOSE (fds[sid].fd);
           fds[sid].revents = POLLHUP;
         }
 
@@ -199,7 +202,7 @@ POP3::run ()
   while (started)
     {
       LogPrint(eLogDebug, "POP3: run: Waiting on poll");
-      rc = poll(fds, nfds, POP3_POLL_TIMEOUT);
+      rc = PB_SOCKET_POLL(fds, nfds, POP3_POLL_TIMEOUT);
 
       if (!started)
         return;
@@ -230,7 +233,7 @@ POP3::run ()
               LogPrint(eLogError, "POP3: Revents ", sid, ": ", fds[sid].revents);
               continue;
             }
-      
+
           if (fds[sid].fd == server_sockfd && fds[sid].revents & POLLIN)
             {
               LogPrint(eLogDebug, "POP3: run: Checking server socket");
@@ -243,7 +246,11 @@ POP3::run ()
                   client_sockfd = accept(fds[sid].fd, (struct sockaddr *)&client_addr,
                                          &sin_size);
 
+#ifndef _WIN32
                   if (client_sockfd == RC_ERROR)
+#else
+                  if (client_sockfd == PB_SOCKET_INVALID)
+#endif
                   {
                     /*
                      * EWOULDBLOCK and EAGAIN - socket is marked nonblocking
@@ -263,7 +270,7 @@ POP3::run ()
                   if (nfds >= POP3_MAX_CLIENTS)
                     {
                       LogPrint (eLogWarning, "POP3: run: Session limit");
-                      CLOSE_SOCKET (client_sockfd);
+                      PB_SOCKET_CLOSE (client_sockfd);
                       continue;
                     }
 
@@ -273,7 +280,7 @@ POP3::run ()
                   session.state = STATE_QUIT;
 
                   nfds++;
-                } while (client_sockfd != SOCKET_INVALID);
+                } while (client_sockfd != PB_SOCKET_INVALID);
               LogPrint (eLogDebug, "POP3: End of accept");
             }
         }
@@ -283,7 +290,7 @@ POP3::run ()
       for (int sid = 0; sid < current_sc; sid++)
         {
           LogPrint(eLogDebug, "POP3: Revents ", sid, ": ", fds[sid].revents);
-          
+
           if (fds[sid].fd != server_sockfd)
             {
               if (session.state == STATE_QUIT)
@@ -298,7 +305,7 @@ POP3::run ()
               /* until the recv fails with EWOULDBLOCK */
               do
                 {
-                  if (fds[sid].fd == SOCKET_INVALID)
+                  if (fds[sid].fd == PB_SOCKET_INVALID)
                     {
                       LogPrint (eLogWarning, "POP3session: Session #", sid,
                            " closed");
@@ -346,10 +353,10 @@ POP3::run ()
               if (need_close)
                 {
                   fds[sid].revents = POLLHUP;
-                  if (fds[sid].fd != SOCKET_INVALID)
+                  if (fds[sid].fd != PB_SOCKET_INVALID)
                     {
-                      CLOSE_SOCKET (fds[sid].fd);
-                      fds[sid].fd = SOCKET_INVALID;
+                      PB_SOCKET_CLOSE (fds[sid].fd);
+                      fds[sid].fd = PB_SOCKET_INVALID;
                     }
                   compress_array = true;
 
@@ -374,7 +381,7 @@ POP3::run ()
         {
           LogPrint (eLogDebug, "POP3session: sid: ", sid, ", nfds: ", nfds);
           /* Skip good FD */
-          if (fds[sid].fd != SOCKET_INVALID)
+          if (fds[sid].fd != PB_SOCKET_INVALID)
             continue;
 
           for(int j = sid; j < nfds; j++)
@@ -674,7 +681,7 @@ POP3::NOOP (int sid)
     reply (sid, reply_err[ERR_DENIED]);
     return;
   }
-    
+
   reply (sid, reply_ok[OK_SIMP]);
 }
 
@@ -709,8 +716,8 @@ POP3::QUIT (int sid)
   session.state = STATE_QUIT;
   reply (sid, reply_ok[OK_QUIT]);
 
-  CLOSE_SOCKET (fds[sid].fd);
-  fds[sid].fd = SOCKET_INVALID;
+  PB_SOCKET_CLOSE (fds[sid].fd);
+  fds[sid].fd = PB_SOCKET_INVALID;
 
   if (session.need_clean)
     {

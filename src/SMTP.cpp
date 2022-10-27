@@ -7,18 +7,12 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#include <arpa/inet.h>
 #include <cstring>
 #include <errno.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 #include "BoteContext.h"
-#include "compat.h"
 #include "Logging.h"
 #include "SMTP.h"
 
@@ -80,20 +74,25 @@ SMTP::start ()
 
   server_sockfd = socket (res->ai_family, res->ai_socktype, res->ai_protocol);
 
-  if (server_sockfd == SOCKET_INVALID)
+  if (server_sockfd == PB_SOCKET_INVALID)
     {
       freeaddrinfo (res);
       LogPrint (eLogError, "SMTP: Socket create error: ", strerror (errno));
     }
 
-  int on = 1; 
+#ifndef _WIN32
+  int on = 1;
+#else
+  DWORD on = 1;
+#endif
+
   rc = setsockopt(server_sockfd, SOL_SOCKET,  SO_REUSEADDR,
                   (char *)&on, sizeof(on));
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "SMTP: setsockopt(SO_REUSEADDR) failed: ",
               strerror (errno));
-    CLOSE_SOCKET (server_sockfd);
+    PB_SOCKET_CLOSE (server_sockfd);
     freeaddrinfo (res);
     return;
   }
@@ -114,17 +113,21 @@ SMTP::start ()
   {
     LogPrint (eLogError, "SMTP: setsockopt(SO_RCVTIMEO) failed: ",
               strerror (errno));
-    CLOSE_SOCKET (server_sockfd);
+    PB_SOCKET_CLOSE (server_sockfd);
     freeaddrinfo (res);
     return;
   }
 */
 
+#ifndef _WIN32
   rc = ioctl(server_sockfd, FIONBIO, (char *)&on);
+#else
+  rc = ioctlsocket(server_sockfd, FIONBIO, &on);
+#endif
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "SMTP: ioctl() failed: ", strerror (errno));
-    CLOSE_SOCKET (server_sockfd);
+    PB_SOCKET_CLOSE (server_sockfd);
     freeaddrinfo (res);
     return;
   }
@@ -166,13 +169,13 @@ SMTP::stop ()
 
   started = false;
 
-  
+
   for (int sid = 0; sid < nfds; sid++)
     {
       /* Clean up all of the sockets that are open */
-      if (fds[sid].fd != SOCKET_INVALID)
+      if (fds[sid].fd != PB_SOCKET_INVALID)
         {
-          CLOSE_SOCKET (fds[sid].fd);
+          PB_SOCKET_CLOSE (fds[sid].fd);
           fds[sid].revents = POLLHUP;
         }
 
@@ -199,7 +202,7 @@ SMTP::run ()
   while (started)
     {
       LogPrint(eLogDebug, "SMTP: run: Waiting on poll");
-      rc = poll(fds, nfds, SMTP_POLL_TIMEOUT);
+      rc = PB_SOCKET_POLL(fds, nfds, SMTP_POLL_TIMEOUT);
 
       if (!started)
         return;
@@ -230,7 +233,7 @@ SMTP::run ()
               LogPrint(eLogError, "SMTP: Revents ", sid, ": ", fds[sid].revents);
               continue;
             }
-      
+
           if (fds[sid].fd == server_sockfd && fds[sid].revents & POLLIN)
             {
               LogPrint(eLogDebug, "SMTP: run: Checking server socket");
@@ -243,7 +246,11 @@ SMTP::run ()
                   client_sockfd = accept(fds[sid].fd, (struct sockaddr *)&client_addr,
                                          &sin_size);
 
+#ifndef _WIN32
                   if (client_sockfd == RC_ERROR)
+#else
+                  if (client_sockfd == PB_SOCKET_INVALID)
+#endif
                   {
                     /*
                      * EWOULDBLOCK and EAGAIN - socket is marked nonblocking
@@ -263,7 +270,7 @@ SMTP::run ()
                   if (nfds >= SMTP_MAX_CLIENTS)
                     {
                       LogPrint (eLogWarning, "SMTP: run: Session limit");
-                      CLOSE_SOCKET (client_sockfd);
+                      PB_SOCKET_CLOSE (client_sockfd);
                       continue;
                     }
 
@@ -273,7 +280,7 @@ SMTP::run ()
                   session.state = STATE_QUIT;
 
                   nfds++;
-                } while (client_sockfd != SOCKET_INVALID);
+                } while (client_sockfd != PB_SOCKET_INVALID);
               LogPrint (eLogDebug, "SMTP: End of accept");
             }
         }
@@ -283,7 +290,7 @@ SMTP::run ()
       for (int sid = 0; sid < current_sc; sid++)
         {
           LogPrint(eLogDebug, "SMTP: Revents ", sid, ": ", fds[sid].revents);
-          
+
           if (fds[sid].fd != server_sockfd)
             {
               if (session.state == STATE_QUIT)
@@ -298,7 +305,7 @@ SMTP::run ()
               /* until the recv fails with EWOULDBLOCK */
               do
                 {
-                  if (fds[sid].fd == SOCKET_INVALID)
+                  if (fds[sid].fd == PB_SOCKET_INVALID)
                     {
                       LogPrint (eLogWarning, "SMTPsession: Session #", sid,
                            " closed");
@@ -347,12 +354,12 @@ SMTP::run ()
               if (need_close)
                 {
                   fds[sid].revents = POLLHUP;
-                  if (fds[sid].fd != SOCKET_INVALID)
+                  if (fds[sid].fd != PB_SOCKET_INVALID)
                     {
-                      CLOSE_SOCKET (fds[sid].fd);
-                      fds[sid].fd = SOCKET_INVALID;
+                      PB_SOCKET_CLOSE (fds[sid].fd);
+                      fds[sid].fd = PB_SOCKET_INVALID;
                     }
-                  
+
                   compress_array = true;
 
                   if (session.need_clean)
@@ -376,7 +383,7 @@ SMTP::run ()
         {
           LogPrint (eLogDebug, "POP3session: sid: ", sid, ", nfds: ", nfds);
           /* Skip good FD */
-          if (fds[sid].fd != SOCKET_INVALID)
+          if (fds[sid].fd != PB_SOCKET_INVALID)
             continue;
 
           for(int j = sid; j < nfds; j++)
@@ -511,7 +518,7 @@ SMTP::EHLO (int sid)
   session.state = STATE_EHLO;
   */
 
-  reply (sid, reply_5XX[CODE_502]);    
+  reply (sid, reply_5XX[CODE_502]);
 }
 
 void
@@ -691,8 +698,8 @@ SMTP::QUIT (int sid)
   reply (sid, reply_2XX[CODE_221]);
 
   fds[sid].revents = POLLHUP;
-  CLOSE_SOCKET (fds[sid].fd);
-  fds[sid].fd = SOCKET_INVALID;
+  PB_SOCKET_CLOSE (fds[sid].fd);
+  fds[sid].fd = PB_SOCKET_INVALID;
 
   if (session.need_clean)
     {

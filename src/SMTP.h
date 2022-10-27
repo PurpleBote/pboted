@@ -10,10 +10,7 @@
 #ifndef BOTE_SRC_SMTP_H
 #define BOTE_SRC_SMTP_H
 
-#include <netinet/in.h>
-#include <poll.h>
 #include <string>
-#include <sys/socket.h>
 #include <sys/types.h>
 
 #include "compat.h"
@@ -196,12 +193,18 @@ private:
   bool started;
   std::thread *smtp_thread;
 
-  int server_sockfd = SOCKET_INVALID, client_sockfd = SOCKET_INVALID;
+#ifndef _WIN32
+  int server_sockfd = PB_SOCKET_INVALID, client_sockfd = PB_SOCKET_INVALID;
+  struct pollfd fds[SMTP_MAX_CLIENTS];
+#else
+  SOCKET server_sockfd = PB_SOCKET_INVALID, client_sockfd = PB_SOCKET_INVALID;
+  WSAPOLLFD fds[SMTP_MAX_CLIENTS];
+#endif
+
   std::string m_address;
   uint16_t m_port = 0;
   int nfds = 1; /* descriptors count */
 
-  struct pollfd fds[SMTP_MAX_CLIENTS];
   struct smtp_session session;
 };
 

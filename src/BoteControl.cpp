@@ -7,14 +7,9 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#include <arpa/inet.h>
 #include <errno.h>
-#include <netinet/in.h>
-#include <netdb.h>
 #include <string.h>
-#include <sys/ioctl.h>
 #include <sys/types.h>
-#include <sys/socket.h>
 
 #include "BoteControl.h"
 #include "BoteContext.h"
@@ -30,7 +25,7 @@ BoteControl::BoteControl ()
   : m_is_running (false),
     m_control_thread (nullptr)
 {
-#if !defined(_WIN32) || !defined(DISABLE_SOCKET)
+#if !defined(DISABLE_SOCKET)
   pbote::config::GetOption("control.socket", socket_path);
   if (socket_path.empty ())
     {
@@ -88,13 +83,18 @@ BoteControl::start ()
 
   LogPrint (eLogInfo, "Control: Starting");
 
+#ifndef _WIN32
   int cur_sn = 0, rc = 0, enabled = 1;
+#else
+  int cur_sn = 0, rc = 0;
+  DWORD enabled = 1;
+#endif
 
-#if !defined(_WIN32) || !defined(DISABLE_SOCKET)
+#if !defined(DISABLE_SOCKET)
   if (m_socket_enabled)
     {
       conn_sockfd = socket (AF_UNIX, SOCK_STREAM, 0);
-      if (conn_sockfd == SOCKET_ERROR)
+      if (conn_sockfd == PB_SOCKET_INVALID)
         {
           LogPrint (eLogError, "Control: File socket: ", strerror (errno));
           return;
@@ -109,34 +109,37 @@ BoteControl::start ()
                sizeof file_addr.sun_path - 1)[sizeof file_addr.sun_path - 1]
           = 0;
 
-       
       rc = setsockopt(conn_sockfd, SOL_SOCKET,  SO_REUSEADDR,
                       (char *)&enabled, sizeof(enabled));
-      if (rc == SOCKET_ERROR)
+      if (rc == PB_SOCKET_ERROR)
       {
         LogPrint (eLogError, "Control: setsockopt() failed: ", strerror (errno));
-        CLOSE_SOCKET (conn_sockfd);
+        PB_SOCKET_CLOSE (conn_sockfd);
         return;
       }
 
+#ifndef _WIN32
       rc = ioctl(conn_sockfd, FIONBIO, (char *)&enabled);
-      if (rc == SOCKET_ERROR)
+#else
+      rc = ioctlsocket(conn_sockfd, FIONBIO, &enabled);
+#endif
+      if (rc == PB_SOCKET_ERROR)
       {
         LogPrint (eLogError, "Control: ioctl() failed: ", strerror (errno));
-        CLOSE_SOCKET (conn_sockfd);
+        PB_SOCKET_CLOSE (conn_sockfd);
         return;
       }
 
       rc = bind (conn_sockfd, (const struct sockaddr *)&file_addr,
                  sizeof (file_addr));
-      if (rc == SOCKET_ERROR)
+      if (rc == PB_SOCKET_ERROR)
         {
           LogPrint (eLogError, "Control: File bind error: ", strerror (errno));
         }
       else
         {
           rc = listen (conn_sockfd, CONTROL_MAX_CLIENTS);
-          if (rc == SOCKET_ERROR)
+          if (rc == PB_SOCKET_ERROR)
             {
               LogPrint (eLogError, "Control: File listen error: ",
                         strerror (errno));
@@ -177,7 +180,7 @@ BoteControl::start ()
     }
 
   tcp_fd = socket (res->ai_family, res->ai_socktype, res->ai_protocol);
-  if (tcp_fd == SOCKET_INVALID)
+  if (tcp_fd == PB_SOCKET_INVALID)
     {
       freeaddrinfo (res);
       LogPrint (eLogError, "Control: TCP socket: ", m_address, ":", m_port,
@@ -185,13 +188,17 @@ BoteControl::start ()
       return;
     }
 
-  enabled = 1; 
+  enabled = 1;
 
-  rc = ioctl(tcp_fd, FIONBIO, (char *)&enabled);
+#ifndef _WIN32
+      rc = ioctl(tcp_fd, FIONBIO, (char *)&enabled);
+#else
+      rc = ioctlsocket(tcp_fd, FIONBIO, &enabled);
+#endif
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "Control: ioctl(FIONBIO) failed: ", strerror (errno));
-    CLOSE_SOCKET (tcp_fd);
+    PB_SOCKET_CLOSE (tcp_fd);
     freeaddrinfo (res);
     return;
   }
@@ -200,7 +207,7 @@ BoteControl::start ()
   if (rc == RC_ERROR)
     {
       freeaddrinfo (res);
-      CLOSE_SOCKET (tcp_fd);
+      PB_SOCKET_CLOSE (tcp_fd);
       LogPrint (eLogError, "Control: TCP bind error: ", strerror (errno));
       return;
     }
@@ -245,9 +252,9 @@ BoteControl::stop ()
   for (int sid = 0; sid < nfds; sid++)
     {
       /* Clean up all of the sockets that are open */
-      if (fds[sid].fd != SOCKET_INVALID)
+      if (fds[sid].fd != PB_SOCKET_INVALID)
         {
-          CLOSE_SOCKET (fds[sid].fd);
+          PB_SOCKET_CLOSE (fds[sid].fd);
           fds[sid].revents = POLLHUP;
         }
 
@@ -275,7 +282,7 @@ BoteControl::run ()
   while (m_is_running)
     {
       LogPrint(eLogDebug, "Control: run: Waiting on poll");
-      rc = poll(fds, nfds, CONTROL_POLL_TIMEOUT);
+      rc = PB_SOCKET_POLL(fds, nfds, CONTROL_POLL_TIMEOUT);
 
       if (!m_is_running)
         return;
@@ -308,8 +315,8 @@ BoteControl::run ()
                        " revents ", fds[sid].revents);
               continue;
             }
-      
-#if !defined(_WIN32) || !defined(DISABLE_SOCKET)
+
+#if !defined(DISABLE_SOCKET)
           if ((fds[sid].fd == tcp_fd || fds[sid].fd == conn_sockfd) &&
               fds[sid].revents & POLLIN)
 #else
@@ -326,7 +333,7 @@ BoteControl::run ()
                   client_sockfd = accept(fds[sid].fd, (struct sockaddr *)&client_addr,
                                          &sin_size);
 
-                  if (client_sockfd == SOCKET_ERROR)
+                  if (client_sockfd == PB_SOCKET_INVALID)
                   {
                     /*
                      * EWOULDBLOCK and EAGAIN - socket is marked nonblocking
@@ -346,7 +353,7 @@ BoteControl::run ()
                   if (nfds >= CONTROL_MAX_CLIENTS)
                     {
                       LogPrint(eLogWarning, "Control: run: Session limit");
-                      CLOSE_SOCKET (client_sockfd);
+                      PB_SOCKET_CLOSE (client_sockfd);
                       continue;
                     }
 
@@ -356,7 +363,7 @@ BoteControl::run ()
                   session.state = STATE_INIT;
 
                   nfds++;
-                } while (client_sockfd != SOCKET_INVALID);
+                } while (client_sockfd != PB_SOCKET_INVALID);
               LogPrint (eLogDebug, "Control: run: End of accepting");
             }
         }
@@ -367,8 +374,8 @@ BoteControl::run ()
         {
           LogPrint(eLogDebug, "Control: run: FD #", sid,
                    " revents: ", fds[sid].revents);
-          
-#if !defined(_WIN32) || !defined(DISABLE_SOCKET)
+
+#if !defined(DISABLE_SOCKET)
           if (fds[sid].fd != tcp_fd && fds[sid].fd != conn_sockfd)
 #else
           if (fds[sid].fd != tcp_fd)
@@ -387,7 +394,7 @@ BoteControl::run ()
               /* until the recv fails with EWOULDBLOCK */
               do
                 {
-                  if (fds[sid].fd == SOCKET_INVALID)
+                  if (fds[sid].fd == PB_SOCKET_INVALID)
                     {
                       LogPrint (eLogError, "ControlSession: run: FD #", sid,
                            " closed");
@@ -404,9 +411,9 @@ BoteControl::run ()
                   session.buf = (char *)malloc (CONTROL_BUFF_SIZE);
                   session.need_clean = true;
                   memset (session.buf, 0, CONTROL_BUFF_SIZE);
-                  ssize_t rc = read (fds[sid].fd, session.buf,
+                  ssize_t rc = PB_SOCKER_READ (fds[sid].fd, session.buf,
                                      CONTROL_BUFF_SIZE - 1);
-                  if (rc == SOCKET_ERROR)
+                  if (rc == PB_SOCKET_ERROR)
                   {
                     /*
                      * EWOULDBLOCK and EAGAIN - socket is marked nonblocking
@@ -436,10 +443,10 @@ BoteControl::run ()
               if (close_conn)
                 {
                   fds[sid].revents = POLLHUP;
-                  if (fds[sid].fd != SOCKET_INVALID)
+                  if (fds[sid].fd != PB_SOCKET_INVALID)
                     {
-                      CLOSE_SOCKET (fds[sid].fd);
-                      fds[sid].fd = SOCKET_INVALID;
+                      PB_SOCKET_CLOSE (fds[sid].fd);
+                      fds[sid].fd = PB_SOCKET_INVALID;
                     }
                   compress_array = true;
 
@@ -466,7 +473,7 @@ BoteControl::run ()
           LogPrint (eLogDebug, "ControlSession: run: FD #", sid,
                     ", total count: ", nfds);
           /* Skip good FD */
-          if (fds[sid].fd != SOCKET_INVALID)
+          if (fds[sid].fd != PB_SOCKET_INVALID)
             continue;
 
           LogPrint (eLogDebug, "ControlSession: run: FD #", sid,
@@ -490,8 +497,8 @@ void
 BoteControl::reply (int sid, const std::string &msg)
 {
   //ssize_t rc = send (fds[sid].fd, msg.c_str (), msg.length (), 0);
-  ssize_t rc = write (fds[sid].fd, msg.c_str (), msg.length ());
-  if (rc == SOCKET_ERROR)
+  ssize_t rc = PB_SOCKET_WRITE (fds[sid].fd, msg.c_str (), msg.length ());
+  if (rc == PB_SOCKET_ERROR)
     {
       LogPrint (eLogError, "Control: reply: Failed to send data");
       return;
@@ -576,7 +583,7 @@ BoteControl::all (const std::string &cmd_id, std::ostringstream &results)
   results << ", ";
   node (empty, results);
 }
-  
+
 void
 BoteControl::daemon (const std::string &cmd_id, std::ostringstream &results)
 {

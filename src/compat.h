@@ -11,15 +11,37 @@
 
 /* Network stuff */
 #ifdef _WIN32
-#include <winsock2.h>
-#define SOCKET_INVALID INVALID_SOCKET
-#define CLOSE_SOCKET closesocket
+  #include <winsock2.h>
+  #include <ws2tcpip.h>
+  #include <wspiapi.h>
+  #include <mstcpip.h>
+  #include <afunix.h>
+
+  #define MSG_DONTWAIT 0
+
+  #define PB_SOCKET_ERROR SOCKET_ERROR
+  #define PB_SOCKET_INVALID INVALID_SOCKET
+  #define PB_SOCKET_CLOSE closesocket
+  #define PB_SOCKET_POLL WSAPoll
+  #define PB_SOCKER_READ(a,b,c) recv(a, b, c, 0)
+  #define PB_SOCKET_WRITE(a,b,c) send(a, b, c, 0)
 #else
-#define SOCKET_INVALID -1
-#define CLOSE_SOCKET close
+  #include <arpa/inet.h>
+  #include <netdb.h>
+  #include <netinet/in.h>
+  #include <poll.h>
+  #include <sys/ioctl.h>
+  #include <sys/select.h>
+  #include <sys/socket.h>
+
+  #define PB_SOCKET_ERROR -1
+  #define PB_SOCKET_INVALID -1
+  #define PB_SOCKET_CLOSE close
+  #define PB_SOCKET_POLL poll
+  #define PB_SOCKER_READ read
+  #define PB_SOCKET_WRITE write
 #endif
 
-#define SOCKET_ERROR -1
 
 //#ifndef INVALID_SOCKET
 //#define INVALID_SOCKET -1
