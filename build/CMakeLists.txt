@@ -68,12 +68,23 @@ add_library(liblzma ${LIBLZMA_SRC})
 set_target_properties(liblzma PROPERTIES PREFIX "")
 
 # pboted stuff
-include_directories(${PBOTE_SRC_DIR})
+include_directories(${PBOTED_SRC_DIR})
 file(GLOB PBOTED_SRC ${PBOTED_SRC_DIR}/*.cpp)
 
+if (MSYS)
+  set(CMAKE_RC_COMPILER_INIT windres)
+  ENABLE_LANGUAGE(RC)
+  SET(CMAKE_RC_COMPILE_OBJECT
+      "<CMAKE_RC_COMPILER> <FLAGS> -O coff <DEFINES> -i <SOURCE> -o <OBJECT>")
+
+  set(WIN32_SRC_DIR ${PBOTED_SRC_DIR}/win32)
+  file(GLOB WIN32_RC ${WIN32_SRC_DIR}/*.rc)
+
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWIN32 -DWIN32_LEAN_AND_MEAN")
+endif ()
 # Compiler flags customization (by vendor)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Winvalid-pch -Wno-unused-parameter")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -Wall -Wextra")
+set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -pedantic")
 set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -flto -s -ffunction-sections -fdata-sections")
 set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-Wl,--gc-sections") # -flto is added from above
@@ -155,6 +166,8 @@ if (WITH_STATIC)
   set(Boost_USE_RELEASE_LIBS   ON)
   set(Boost_USE_STATIC_RUNTIME OFF)
 
+  set(OPENSSL_USE_STATIC_LIBS ON)
+
   set(ZLIB_USE_STATIC_LIBS ON)
   set(ZLIB_NAMES libz zlibstatic zlibstat zlib z)
   #set(ZLIB_NAMES_DEBUG zlibstaticd zlibstatd)
@@ -230,10 +243,10 @@ endif ()
 
 # Load includes
 set(INCLUDED_DIRS
-    ${MIMETIC_INCLUDE_DIRS}
+    ${Boost_INCLUDE_DIRS}
     ${OPENSSL_INCLUDE_DIR}
     ${ZLIB_INCLUDE_DIRS}
-    ${Boost_INCLUDE_DIRS})
+    ${MIMETIC_INCLUDE_DIRS})
 
 # After migrating to CLI11
 #if (CMAKE_CXX_STANDARD LESS 17)
@@ -261,9 +274,28 @@ message(STATUS "  FORCE C++11      : ${WITH_CXX11}")
 message(STATUS "  FORCE C++17      : ${WITH_CXX17}")
 message(STATUS "----------------------------------------")
 
-add_executable("${PROJECT_NAME}" ${PBOTED_SRC})
+if(MSYS)
+  add_executable("${PROJECT_NAME}" ${PBOTED_SRC} ${WIN32_RC})
+else()
+  add_executable("${PROJECT_NAME}" ${PBOTED_SRC})
+endif()
 
 if (NOT MSVC)
+  if (MSYS)
+    set(MINGW_EXTRA
+        "wsock32"
+        "ws2_32"
+        "iphlpapi"
+    )
+    #add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    #                   DEPENDS "${PROJECT_NAME}"
+    #                   COMMAND ${CMAKE_OBJCOPY}
+    #                   ARGS --only-keep-debug $<TARGET_FILE:${PROJECT_NAME}> $<TARGET_FILE:${PROJECT_NAME}>.debug)
+    #add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    #                   DEPENDS "${PROJECT_NAME}"
+    #                   COMMAND ${CMAKE_STRIP}
+    #                   ARGS $<TARGET_FILE:${PROJECT_NAME}>)
+  endif ()
   if (WITH_STATIC)
     set_target_properties("${PROJECT_NAME}" PROPERTIES LINK_FLAGS "-static")
   endif ()
@@ -280,23 +312,25 @@ if (WITH_STATIC)
   set(DL_LIB ${CMAKE_DL_LIBS})
 endif ()
 
+if (CMAKE_CXX_STANDARD LESS 17)
+  set(PBOTED_BOOST_Libs Boost::system Boost::filesystem Boost::program_options)
+else ()
+  set(PBOTED_BOOST_Libs Boost::program_options )
+endif ()
+
 set(LINK_LIBS
   libi2pd
   libi2psam
   liblzma
-  Threads::Threads
-  ZLIB::ZLIB
   ${MIMETIC_LIBRARIES}
-  ${OPENSSL_LIBRARIES}
+  ${PBOTED_BOOST_Libs}
+  OpenSSL::SSL
+  OpenSSL::Crypto
+  ZLIB::ZLIB
+  Threads::Threads
   ${MINGW_EXTRA}
   ${DL_LIB}
   ${CMAKE_REQUIRED_LIBRARIES})
-
-if (CMAKE_CXX_STANDARD LESS 17)
-  list(APPEND LINK_LIBS Boost::system Boost::filesystem Boost::program_options)
-else ()
-  list(APPEND LINK_LIBS Boost::program_options )
-endif ()
 
 # If GCC version is less than 9 we need to link filesystem manually
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
