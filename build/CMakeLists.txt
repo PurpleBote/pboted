@@ -23,10 +23,10 @@ project(
   VERSION ${PROJECT_VERSION})
 
 # Configuration options
-option(DISABLE_SOCKET "Disable UNIX socket in control module" OFF)
-option(WITH_STATIC    "Static build"                          OFF)
-option(WITH_CXX11     "Force C++11"                           OFF)
-option(WITH_CXX17     "Force C++17"                           OFF)
+option(CONTROL_SOCKET "Use UNIX socket in control module" ON)
+option(WITH_STATIC    "Static build"                      OFF)
+option(WITH_CXX11     "Force C++11"                       OFF)
+option(WITH_CXX17     "Force C++17"                       OFF)
 # ToDo?
 #option(WITH_CLANG  "Force Clang compiler" OFF)
 #if (WITH_CLANG)
@@ -89,7 +89,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -pedantic")
 set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -flto -s -ffunction-sections -fdata-sections")
 set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-Wl,--gc-sections") # -flto is added from above
 
-if (DISABLE_SOCKET)
+if (NOT CONTROL_SOCKET)
   add_definitions("-DDISABLE_SOCKET=1")
 endif ()
 
@@ -269,7 +269,7 @@ message(STATUS "Architecture       : ${ARCHITECTURE}")
 message(STATUS "Install prefix     : ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "Options:")
 message(STATUS "  STATIC BUILD     : ${WITH_STATIC}")
-message(STATUS "  OFF UNIX SOCKET  : ${DISABLE_SOCKET}")
+message(STATUS "  UNIX SOCKET      : ${CONTROL_SOCKET}")
 message(STATUS "  FORCE C++11      : ${WITH_CXX11}")
 message(STATUS "  FORCE C++17      : ${WITH_CXX17}")
 message(STATUS "----------------------------------------")
