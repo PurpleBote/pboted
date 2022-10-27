@@ -1,0 +1,42 @@
+name: Build on Windows
+
+on: [push, pull_request]
+
+defaults:
+  run:
+    shell: msys2 {0}
+
+jobs:
+  build:
+    name: Building using ${{ matrix.arch }} toolchain
+    runs-on: windows-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include: [
+          { msystem: UCRT64, arch: ucrt-x86_64, arch_short: x64-ucrt },
+          { msystem: MINGW64, arch: x86_64, arch_short: x64 },
+        ]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup MSYS2
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: ${{ matrix.msystem }}
+        install: base-devel mingw-w64-${{ matrix.arch }}-cmake mingw-w64-${{ matrix.arch }}-gcc mingw-w64-${{ matrix.arch }}-boost mingw-w64-${{ matrix.arch }}-openssl
+        update: true
+    - name: Build application
+      run: |
+        cd build
+        cmake -G "MSYS Makefiles" -DMIMETIC_LIBRARY=../lib/compat-win/${{ matrix.arch_short }}/lib/libmimetic.a -DMIMETIC_INCLUDE_DIR=../lib/compat-win/include -DWITH_STATIC=ON .
+        make -j$(nproc)
+    - name: Upload binary
+      uses: actions/upload-artifact@v2
+      with:
+        name: pboted-${{ matrix.arch_short }}
+        path: build/pboted.exe
+    - name: Upload debug symbols
+      uses: actions/upload-artifact@v2
+      with:
+        name: pboted-${{ matrix.arch_short }}-debug
+        path: build/pboted.exe.debug
