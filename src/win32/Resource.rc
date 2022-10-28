@@ -1,17 +1,10 @@
+#include "resource.h"
 #include "../version.h"
 
-#define MAINICON                  101
-
-#ifdef APSTUDIO_INVOKED
-#ifndef APSTUDIO_READONLY_SYMBOLS
-#define _APS_NEXT_RESOURCE_VALUE  102
-#define _APS_NEXT_COMMAND_VALUE   40001
-#define _APS_NEXT_CONTROL_VALUE   1001
-#define _APS_NEXT_SYMED_VALUE     101
-#endif
-#endif
-
 #define APSTUDIO_READONLY_SYMBOLS
+#define APSTUDIO_HIDDEN_SYMBOLS
+#include "windows.h"
+#undef APSTUDIO_HIDDEN_SYMBOLS
 #include <winresrc.h>
 #undef APSTUDIO_READONLY_SYMBOLS
 
@@ -19,7 +12,49 @@
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 #pragma code_page(1252)
 
-MAINICON ICON "pboted.ico"
+IDI_PBOTEDICON ICON "pboted.ico"
+
+IDC_CONTEXTMENU MENU
+BEGIN
+    POPUP ""
+    BEGIN
+    MENUITEM "E&xit", IDM_EXIT
+    END
+END
+
+
+#ifdef APSTUDIO_INVOKED
+1 TEXTINCLUDE
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE
+BEGIN
+    "#ifndef APSTUDIO_INVOKED\r\n"
+    "#include ""targetver.h""\r\n"
+    "#endif\r\n"
+    "#define APSTUDIO_HIDDEN_SYMBOLS\r\n"
+    "#include ""windows.h""\r\n"
+    "#undef APSTUDIO_HIDDEN_SYMBOLS\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif // APSTUDIO_INVOKED
+
+STRINGTABLE
+BEGIN
+    IDS_APP_TITLE       "pboted"
+    IDS_TOOLTIP         CODENAME
+
+END
+
 #endif
 
 VS_VERSION_INFO VERSIONINFO
@@ -43,7 +78,7 @@ BEGIN
             VALUE "FileDescription", "Standalone C++ client for I2P-Bote"
             VALUE "FileVersion", PBOTED_VERSION
             VALUE "InternalName", CODENAME
-            VALUE "LegalCopyright", "Copyright (C) 2019-2022, The PurpleBote team"
+            VALUE "LegalCopyright", "Copyright (C) 2019-2022, The PurpleBote Team"
             VALUE "OriginalFilename", "pboted"
             VALUE "ProductName", "Plus Bote Daemon"
             VALUE "ProductVersion", PBOTED_VERSION

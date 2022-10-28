@@ -1,310 +1,328 @@
-/**
- * Windows Service handler
- *
- * Source:
- * https://github.com/kazaamjt/Win32_Service-CPP-Template
- */
+  /**
+   * Windows Service handler
+   *
+   * Source:
+   * https://github.com/kazaamjt/Win32_Service-CPP-Template
+   */
 
-#pragma once
-#include <string>
-#include <iostream>
-#include <Windows.h>
+  #pragma once
+  #include <string>
+  #include <iostream>
+  #include <Windows.h>
 
-class WindowsService {
-private:
-	std::string name;
-	LPSTR Wname;
-	bool canPauseContinue;
+  class WindowsService {
+  private:
+    std::string name;
+    LPWSTR Wname;
+    bool canPauseContinue;
 
-	SERVICE_STATUS status;
-	SERVICE_STATUS_HANDLE statusHandle;
+    SERVICE_STATUS status;
+    SERVICE_STATUS_HANDLE statusHandle;
 
-	HANDLE workerPaused;
-	HANDLE workerContinued;
+    HANDLE workerPaused;
+    HANDLE workerContinued;
 
-	static void WINAPI service_main();
-	static void WINAPI control_handler(DWORD);
-	static DWORD WINAPI worker_thread(LPVOID lpParam);
+    static void WINAPI service_main();
+    static void WINAPI control_handler(DWORD);
+    static DWORD WINAPI worker_thread(LPVOID lpParam);
 
-	// Set accepted controls
-	void set_acceptedControls(bool _in);
+    // Set accepted controls
+    void set_acceptedControls(bool _in);
 
-	// Internal start/stop functions
-	void startup();
-	void exit();
-	void on_error();
+    // Internal start/stop functions
+    void startup();
+    void exit();
+    void on_error();
 
-	// Service controller invoked start/stop functions
-	void control_stop();
-	void control_pause();
-	void control_continue();
-	void control_stopOnPause();
+    // Service controller invoked start/stop functions
+    void control_stop();
+    void control_pause();
+    void control_continue();
+    void control_stopOnPause();
 
-protected:
-	HANDLE stopEvent;
-	HANDLE pauseEvent;
-	HANDLE continueEvent;
+  protected:
+    HANDLE stopEvent;
+    HANDLE pauseEvent;
+    HANDLE continueEvent;
 
-	void set_state(DWORD state);
-	static WindowsService *instance;
-	virtual DWORD WINAPI worker(LPVOID) { return ERROR_SUCCESS; }
+    void set_state(DWORD state);
+    static WindowsService *instance;
+    virtual DWORD WINAPI worker(LPVOID) { return ERROR_SUCCESS; }
 
-	void confirm_pause() {SetEvent(workerPaused);}
-	void confirm_continue() {SetEvent(workerContinued);}
+    void confirm_pause() {SetEvent(workerPaused);}
+    void confirm_continue() {SetEvent(workerContinued);}
 
-	// Functions that get called on specific events
-	virtual void on_startup() {};
-	virtual void on_pause() {};
-	virtual void on_continue() {};
-	virtual void on_stop() {};
-	virtual void on_exit() {};
+    // Functions that get called on specific events
+    virtual void on_startup() {};
+    virtual void on_pause() {};
+    virtual void on_continue() {};
+    virtual void on_stop() {};
+    virtual void on_exit() {};
 
-	// Run this when we fail to register with the Windows Service Manager
-	virtual void on_failedRegistration() { test_startStop(); }
+    // Run this when we fail to register with the Windows Service Manager
+    virtual void on_failedRegistration() { test_startStop(); }
 
-	// Tell the service controller we're still alive during lenghty pending operations. EG STOP_PENDING. Not for during bump.
-	void bump();
+    // Tell the service controller we're still alive during lenghty pending operations. EG STOP_PENDING. Not for during bump.
+    void bump();
 
-public:
-	WindowsService(std::string _name, bool _canPauseContinue);
-	void test_startStop();
-	int run();
+  public:
+    WindowsService(std::string _name, bool _canPauseContinue);
+    void test_startStop();
+    int run();
 
-};
+  };
 
-WindowsService *WindowsService::instance;
+  void castWStr(wchar_t* &wsz, const char* sz)
+  {
+    std::vector<wchar_t> vec;
+    size_t len = strlen(sz);
+    vec.resize(len+1);
+    mbstowcs(&vec[0],sz,len);
+    wsz = &vec[0];
+  }
 
-WindowsService::WindowsService(std::string _name, bool _canPauseContinue):
-	name(_name), canPauseContinue(_canPauseContinue) {
-	Wname = const_cast<char*>(name.c_str());
+  WindowsService *WindowsService::instance;
 
-	//status = { 0 };
-	statusHandle = NULL;
+  WindowsService::WindowsService(std::string _name, bool _canPauseContinue):
+    name(_name), canPauseContinue(_canPauseContinue) {
+    //Wname = const_cast<wchar_t*>(name.c_str());
+    castWStr(Wname, name.c_str());
 
-	stopEvent = INVALID_HANDLE_VALUE;
-	pauseEvent = INVALID_HANDLE_VALUE;
-	continueEvent = INVALID_HANDLE_VALUE;
-}
+    //status = { 0 };
+    statusHandle = NULL;
 
-int WindowsService::run() {
-	instance = this;
+    stopEvent = INVALID_HANDLE_VALUE;
+    pauseEvent = INVALID_HANDLE_VALUE;
+    continueEvent = INVALID_HANDLE_VALUE;
+  }
 
-	SERVICE_TABLE_ENTRY serviceTable[] =
-	{
-		{ Wname, (LPSERVICE_MAIN_FUNCTION)service_main },
-	{ NULL, NULL }
-	};
+  int WindowsService::run() {
+    instance = this;
 
-	if (StartServiceCtrlDispatcher(serviceTable) == FALSE) {
-		DWORD serviceDispatchError = GetLastError();
-		if (serviceDispatchError == ERROR_FAILED_SERVICE_CONTROLLER_CONNECT) {
-			on_failedRegistration();
-		}
-		else {
-			return serviceDispatchError;
-		}
-	}
+    SERVICE_TABLE_ENTRY serviceTable[] =
+    {
+      { Wname, (LPSERVICE_MAIN_FUNCTION)service_main },
+    { NULL, NULL }
+    };
 
-	return 0;
-}
+    if (StartServiceCtrlDispatcher(serviceTable) == FALSE) {
+      DWORD serviceDispatchError = GetLastError();
+      if (serviceDispatchError == ERROR_FAILED_SERVICE_CONTROLLER_CONNECT) {
+        on_failedRegistration();
+      }
+      else {
+        return serviceDispatchError;
+      }
+    }
 
-void WINAPI WindowsService::service_main() {
-	// Register our service control handler with the SCM
-	instance->statusHandle = RegisterServiceCtrlHandler(instance->Wname, instance->control_handler);
+    return 0;
+  }
 
-	if (instance->statusHandle == NULL) {
-		return;
-	}
+  void WINAPI WindowsService::service_main() {
+    // Register our service control handler with the SCM
+    instance->statusHandle = RegisterServiceCtrlHandler(instance->Wname, instance->control_handler);
 
-	instance->startup();
+    if (instance->statusHandle == NULL) {
+      return;
+    }
 
-	// Start a thread that will perform the main task of the service
-	HANDLE hThread = CreateThread(NULL, 0, worker_thread, NULL, 0, NULL);
+    instance->startup();
 
-	// Wait until our worker thread exits signaling that the service needs to stop
-	WaitForSingleObject(hThread, INFINITE);
+    // Start a thread that will perform the main task of the service
+    HANDLE hThread = CreateThread(NULL, 0, worker_thread, NULL, 0, NULL);
 
-	instance->exit();
-}
+    // Wait until our worker thread exits signaling that the service needs to stop
+    WaitForSingleObject(hThread, INFINITE);
 
-void WINAPI WindowsService::control_handler(DWORD CtrlCode)
-{
-	switch (CtrlCode) {
-	case SERVICE_CONTROL_STOP:
-		if (instance->status.dwCurrentState == SERVICE_PAUSED) {
-			instance->control_stopOnPause();
-			break;
-		}
+    instance->exit();
+  }
 
-		if (instance->status.dwCurrentState != SERVICE_RUNNING) { break; }
-		instance->control_stop();
-		break;
+  void WINAPI WindowsService::control_handler(DWORD CtrlCode)
+  {
+    switch (CtrlCode) {
+    case SERVICE_CONTROL_STOP:
+      if (instance->status.dwCurrentState == SERVICE_PAUSED) {
+        instance->control_stopOnPause();
+        break;
+      }
 
-	case SERVICE_CONTROL_PAUSE:
-		if (instance->status.dwCurrentState != SERVICE_RUNNING) { break; }
-		instance->control_pause();
-		break;
+      if (instance->status.dwCurrentState != SERVICE_RUNNING) { break; }
+      instance->control_stop();
+      break;
 
-	case SERVICE_CONTROL_CONTINUE:
-		if (instance->status.dwCurrentState != SERVICE_PAUSED) { break; }
-		instance->control_continue();
-		break;
+    case SERVICE_CONTROL_PAUSE:
+      if (instance->status.dwCurrentState != SERVICE_RUNNING) { break; }
+      instance->control_pause();
+      break;
 
-	case SERVICE_CONTROL_SHUTDOWN:
-		if (instance->status.dwCurrentState != SERVICE_RUNNING) { break; }
-		instance->control_stop();
-		break;
+    case SERVICE_CONTROL_CONTINUE:
+      if (instance->status.dwCurrentState != SERVICE_PAUSED) { break; }
+      instance->control_continue();
+      break;
 
-	case SERVICE_CONTROL_INTERROGATE: // Deprecated, but you never know... let's just handle it.
-		SetServiceStatus(instance->statusHandle, &instance->status);
-		break;
+    case SERVICE_CONTROL_SHUTDOWN:
+      if (instance->status.dwCurrentState != SERVICE_RUNNING) { break; }
+      instance->control_stop();
+      break;
 
-	default:
-		break;
-	}
-}
+    case SERVICE_CONTROL_INTERROGATE: // Deprecated, but you never know... let's just handle it.
+      SetServiceStatus(instance->statusHandle, &instance->status);
+      break;
 
-DWORD WINAPI WindowsService::worker_thread(LPVOID lpParam) {
-	return instance->worker(lpParam);
-}
+    default:
+      break;
+    }
+  }
 
-void WindowsService::startup() {
-	ZeroMemory(&status, sizeof(status));
-	status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
-	set_acceptedControls(false);
-	status.dwServiceSpecificExitCode = 0;
-	set_state(SERVICE_START_PENDING);
+  DWORD WINAPI WindowsService::worker_thread(LPVOID lpParam) {
+    return instance->worker(lpParam);
+  }
 
-	on_startup();
+  void WindowsService::startup() {
+    ZeroMemory(&status, sizeof(status));
+    status.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
+    set_acceptedControls(false);
+    status.dwServiceSpecificExitCode = 0;
+    set_state(SERVICE_START_PENDING);
 
-	stopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-	pauseEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-	continueEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    on_startup();
 
-	if (stopEvent == NULL) {
-		on_error();
-		return;
-	}
+    stopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    pauseEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    continueEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
-	set_acceptedControls(true);
+    if (stopEvent == NULL) {
+      on_error();
+      return;
+    }
 
-	set_state(SERVICE_RUNNING);
-}
+    set_acceptedControls(true);
 
-void WindowsService::exit() {
-	on_exit();
-	CloseHandle(stopEvent);
-	CloseHandle(pauseEvent);
-	CloseHandle(continueEvent);
-	CloseHandle(workerPaused);
-	CloseHandle(workerContinued);
-	set_state(SERVICE_STOPPED);
-}
+    set_state(SERVICE_RUNNING);
+  }
 
-void WindowsService::on_error() {
-	set_acceptedControls(false);
-	status.dwCurrentState = SERVICE_STOPPED;
-	status.dwWin32ExitCode = GetLastError();
-	status.dwCheckPoint = 0;
+  void WindowsService::exit() {
+    on_exit();
+    CloseHandle(stopEvent);
+    CloseHandle(pauseEvent);
+    CloseHandle(continueEvent);
+    CloseHandle(workerPaused);
+    CloseHandle(workerContinued);
+    set_state(SERVICE_STOPPED);
+  }
 
-	if (SetServiceStatus(statusHandle, &status) == FALSE)
-	{
-		std::string debugmsg = name + ": service_main: SetServiceStatus returned an error";
-		OutputDebugString(debugmsg.c_str());
-	}
-}
+  void WindowsService::on_error() {
+    set_acceptedControls(false);
+    status.dwCurrentState = SERVICE_STOPPED;
+    status.dwWin32ExitCode = GetLastError();
+    status.dwCheckPoint = 0;
 
-void WindowsService::control_stop() {
-	set_state(SERVICE_STOP_PENDING);
-	on_stop();
-	set_acceptedControls(false);
-	SetEvent(stopEvent);
-}
+    if (SetServiceStatus(statusHandle, &status) == FALSE)
+    {
+      LPWSTR MSG;
+      std::string debugmsg = name + ": service_main: SetServiceStatus returned an error";
+      castWStr(MSG, debugmsg.c_str());
+      OutputDebugString(MSG);
+    }
+  }
 
-void WindowsService::control_pause() {
-	set_state(SERVICE_PAUSE_PENDING);
-	on_pause();
-	SetEvent(pauseEvent);
-	WaitForSingleObject(workerPaused, INFINITE);
-	set_state(SERVICE_PAUSED);
-}
+  void WindowsService::control_stop() {
+    set_state(SERVICE_STOP_PENDING);
+    on_stop();
+    set_acceptedControls(false);
+    SetEvent(stopEvent);
+  }
 
-void WindowsService::control_continue() {
-	set_state(SERVICE_CONTINUE_PENDING);
-	set_acceptedControls(false);
-	ResetEvent(pauseEvent);
-	on_continue();
-	SetEvent(continueEvent);
-	WaitForSingleObject(workerContinued, INFINITE);
-	set_acceptedControls(true);
-	ResetEvent(continueEvent);
-	set_state(SERVICE_RUNNING);
-}
+  void WindowsService::control_pause() {
+    set_state(SERVICE_PAUSE_PENDING);
+    on_pause();
+    SetEvent(pauseEvent);
+    WaitForSingleObject(workerPaused, INFINITE);
+    set_state(SERVICE_PAUSED);
+  }
 
-void WindowsService::control_stopOnPause() {
-	set_acceptedControls(false);
-	set_state(SERVICE_STOP_PENDING);
-	on_continue();
-	SetEvent(stopEvent);
-	SetEvent(continueEvent);
-}
+  void WindowsService::control_continue() {
+    set_state(SERVICE_CONTINUE_PENDING);
+    set_acceptedControls(false);
+    ResetEvent(pauseEvent);
+    on_continue();
+    SetEvent(continueEvent);
+    WaitForSingleObject(workerContinued, INFINITE);
+    set_acceptedControls(true);
+    ResetEvent(continueEvent);
+    set_state(SERVICE_RUNNING);
+  }
 
-void WindowsService::set_state(DWORD state) {
-	status.dwCurrentState = state;
-	status.dwWin32ExitCode = 0;
-	status.dwCheckPoint = 0;
-	status.dwWaitHint = 0;
-	SetServiceStatus(statusHandle, &status);
-	if (SetServiceStatus(statusHandle, &status) == FALSE)
-	{
-		std::string debugmsg = name + ": service_main: SetServiceStatus returned an error";
-		OutputDebugString(debugmsg.c_str());
-	}
-}
+  void WindowsService::control_stopOnPause() {
+    set_acceptedControls(false);
+    set_state(SERVICE_STOP_PENDING);
+    on_continue();
+    SetEvent(stopEvent);
+    SetEvent(continueEvent);
+  }
 
-void WindowsService::set_acceptedControls(bool _in) {
-	if (_in) {
-		status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
-		if (canPauseContinue) {
-			status.dwControlsAccepted |= SERVICE_ACCEPT_PAUSE_CONTINUE;
-		}
-	}
-	else {
-		status.dwControlsAccepted = 0;
-	}
+  void WindowsService::set_state(DWORD state) {
+    status.dwCurrentState = state;
+    status.dwWin32ExitCode = 0;
+    status.dwCheckPoint = 0;
+    status.dwWaitHint = 0;
+    SetServiceStatus(statusHandle, &status);
+    if (SetServiceStatus(statusHandle, &status) == FALSE)
+    {
+      LPWSTR MSG;
+      std::string debugmsg = name + ": service_main: SetServiceStatus returned an error";
+      castWStr(MSG, debugmsg.c_str());
+      OutputDebugString(MSG);
+    }
+  }
 
-	if (SetServiceStatus(statusHandle, &status) == FALSE)
-	{
-		std::string debugmsg = name + ": service_main: SetServiceStatus change accepted controls operation failed";
-		OutputDebugString(debugmsg.c_str());
-	}
-}
+  void WindowsService::set_acceptedControls(bool _in) {
+    if (_in) {
+      status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
+      if (canPauseContinue) {
+        status.dwControlsAccepted |= SERVICE_ACCEPT_PAUSE_CONTINUE;
+      }
+    }
+    else {
+      status.dwControlsAccepted = 0;
+    }
 
-void WindowsService::bump() {
-	status.dwCheckPoint++;
-	if (SetServiceStatus(statusHandle, &status) == FALSE)
-	{
-		std::string debugmsg = name + ": service_main: SetServiceStatus dwCheckPoint operation failed";
-		OutputDebugString(debugmsg.c_str());
-	}
-}
+    if (SetServiceStatus(statusHandle, &status) == FALSE)
+    {
+      LPWSTR MSG;
+      std::string debugmsg = name + ": service_main: SetServiceStatus change accepted controls operation failed";
+      castWStr(MSG, debugmsg.c_str());
+      OutputDebugString(MSG);
+    }
+  }
 
-void WindowsService::test_startStop() {
-	std::cout << "START_PENDING" << std::endl;
-	on_startup();
+  void WindowsService::bump() {
+    status.dwCheckPoint++;
+    if (SetServiceStatus(statusHandle, &status) == FALSE)
+    {
+      LPWSTR MSG;
+      std::string debugmsg = name + ": service_main: SetServiceStatus dwCheckPoint operation failed";
+      castWStr(MSG, debugmsg.c_str());
+      OutputDebugString(MSG);
+    }
+  }
 
-	stopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-	pauseEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-	continueEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-	HANDLE hThread = CreateThread(NULL, 0, worker_thread, NULL, 0, NULL);
-	std::cout << "RUNNING\n" << std::endl;
+  void WindowsService::test_startStop() {
+    std::cout << "START_PENDING" << std::endl;
+    on_startup();
 
-	std::cout << "Press enter to simulate SCM stop event...";
-	std::cin.ignore();
+    stopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    pauseEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    continueEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+    HANDLE hThread = CreateThread(NULL, 0, worker_thread, NULL, 0, NULL);
+    std::cout << "RUNNING\n" << std::endl;
 
-	std::cout << "\nSTOP_PENDING" << std::endl;
-	on_stop();
-	SetEvent(stopEvent);
-	WaitForSingleObject(hThread, INFINITE);
-	std::cout << "STOPPED" << std::endl;
-}
+    std::cout << "Press enter to simulate SCM stop event...";
+    std::cin.ignore();
+
+    std::cout << "\nSTOP_PENDING" << std::endl;
+    on_stop();
+    SetEvent(stopEvent);
+    WaitForSingleObject(hThread, INFINITE);
+    std::cout << "STOPPED" << std::endl;
+  }

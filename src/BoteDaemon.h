@@ -16,6 +16,15 @@
 #include <ostream>
 #include <string>
 
+#ifdef _WIN32
+
+#ifndef UNICODE
+#define UNICODE
+#endif
+
+#include <windows.h>
+#endif
+
 namespace pbote
 {
 namespace util
@@ -47,28 +56,7 @@ protected:
   Daemon_Singleton_Private &d;
 };
 
-#ifdef _WIN32
-#define Daemon pbote::util::DaemonWin32::Instance()
-class DaemonWin32 : public Daemon_Singleton
-{
-public:
-  static DaemonWin32 &Instance()
-    {
-      static DaemonWin32 instance;
-      return instance;
-    }
-
-  bool init(int argc, char *argv[]) override;
-  int start() override;
-  bool stop() override;
-  void run() override;
-
-private:
-  mutable std::mutex m_cv_mutex;
-  std::condition_variable m_check_cv;
-};
-
-#else // _WIN32
+#ifndef _WIN32
 #define Daemon pbote::util::DaemonLinux::Instance ()
 class DaemonLinux : public Daemon_Singleton
 {
@@ -90,6 +78,31 @@ private:
   int pidFH;
   mutable std::mutex m_cv_mutex;
   std::condition_variable m_check_cv;
+};
+
+#else // _WIN32
+#define Daemon pbote::util::DaemonWin32::Instance()
+class DaemonWin32 : public Daemon_Singleton
+{
+public:
+  static DaemonWin32 &Instance()
+    {
+      static DaemonWin32 instance;
+      return instance;
+    }
+
+  bool init(int argc, char *argv[]) override;
+  int start() override;
+  bool stop() override;
+  void run() override;
+
+  HINSTANCE m_hInstance;
+  int m_CmdShow;
+
+private:
+  mutable std::mutex m_cv_mutex;
+  std::condition_variable m_check_cv;
+
 };
 #endif // _WIN32
 
