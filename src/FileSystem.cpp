@@ -27,7 +27,11 @@ namespace fs
 
 std::string appName = "pboted";
 std::string dataDir = "";
+#ifdef _WIN32
+std::string dirSep = "\\";
+#else
 std::string dirSep = "/";
+#endif
 const std::vector<std::string> dir_list
   = {"DHTindex", "DHTemail", "DHTdirectory",
      "inbox", "incomplete", "outbox", "sent"};
@@ -46,12 +50,62 @@ DetectDataDir (const std::string &cmdline_param, bool isService)
       dataDir = cmdline_param;
       return;
     }
-  // otherwise use /data/files
+
+#ifndef _WIN32
   char *home = getenv("HOME");
+#endif
+
   if (isService)
     {
+#ifdef _WIN32
+      wchar_t commonAppData[MAX_PATH];
+      if(SHGetFolderPathW(NULL, CSIDL_COMMON_APPDATA, NULL, 0, commonAppData) != S_OK)
+        {
+           fprintf(stderr, "Error: Unable to get common AppData path!");
+           exit(1);
+        }
+      else
+        {
+           dataDir = nsfs::path(commonAppData).string() + dirSep + appName;
+        }
+#else
       dataDir = "/var/lib/" + appName;
+#endif
     }
+#ifdef _WIN32
+  else
+    {
+      wchar_t localAppData[MAX_PATH];
+
+      // check executable directory first
+      if(!GetModuleFileNameW(NULL, localAppData, MAX_PATH))
+        {
+          fprintf(stderr, "Error: Unable to get application path!");
+          exit(1);
+        }
+      else
+        {
+          auto execPath = nsfs::path(localAppData).parent_path();
+
+          if(nsfs::exists(execPath/"pboted.conf"))
+            {
+              dataDir = execPath.string ();
+            }
+          else // otherwise %appdata%
+            {
+              if(SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, localAppData) != S_OK)
+                {
+                  fprintf(stderr, "Error: Unable to get AppData path!");
+                  exit(1);
+                }
+              else
+                {
+                  dataDir = nsfs::path(localAppData).string() + dirSep + appName;
+                }
+            }
+        }
+    }
+#else
   else if (home != nullptr && strlen(home) > 0)
     {
       dataDir = std::string(home) + "/." + appName;
@@ -60,6 +114,7 @@ DetectDataDir (const std::string &cmdline_param, bool isService)
     {
       dataDir = "/tmp/" + appName;
     }
+#endif
 }
 
 bool

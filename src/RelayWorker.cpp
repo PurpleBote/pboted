@@ -6,9 +6,9 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#include <netinet/in.h>
 #include <utility>
 
+#include "compat.h"
 #include "Packet.h"
 #include "RelayWorker.h"
 

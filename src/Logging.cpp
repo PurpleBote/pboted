@@ -46,6 +46,7 @@ static const char *LogMsgColors[] = {
 };
 #endif
 
+#ifndef _WIN32
 /**
  * @brief  Maps our log levels to syslog one
  * @return syslog priority LOG_*, as defined in syslog.h
@@ -71,6 +72,7 @@ GetSyslogPrio (enum LogLevel l)
     }
   return priority;
 }
+#endif
 
 Logging::Logging ()
     : m_Destination (eLogStdout),
@@ -104,9 +106,11 @@ Logging::Stop ()
 {
   switch (m_Destination)
     {
+#ifndef _WIN32
       case eLogSyslog:
         closelog ();
         break;
+#endif
       case eLogFile:
       case eLogStream:
         if (m_LogStream)

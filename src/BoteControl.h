@@ -11,17 +11,12 @@
 #define PBOTED_SRC_BOTECONTROL_H
 
 #include <map>
-#include <netinet/in.h>
-#include <poll.h>
 #include <string>
-#include <sys/socket.h>
 #include <sys/types.h>
 #include <thread>
 
-#if !defined(_WIN32) || !defined(DISABLE_SOCKET)
+#if !defined(_WIN32) && !defined(DISABLE_SOCKET)
 #include <sys/un.h>
-#else
-// NOOP
 #endif
 
 #include "compat.h"
@@ -94,17 +89,25 @@ private:
   bool m_is_running = false;
   std::thread *m_control_thread;
 
-#if !defined(_WIN32) || !defined(DISABLE_SOCKET)
+#if !defined(DISABLE_SOCKET)
   /* Socket stuff */
   bool m_socket_enabled = false;
 
-  int conn_sockfd = SOCKET_INVALID;
+#ifndef _WIN32
+  int conn_sockfd = PB_SOCKET_INVALID;
+#else
+  SOCKET conn_sockfd = PB_SOCKET_INVALID;
+#endif
   std::string socket_path;
   struct sockaddr_un file_addr;
 #endif
 
   /* TCP stuff */
-  int tcp_fd = SOCKET_INVALID;
+#ifndef _WIN32
+  int tcp_fd = PB_SOCKET_INVALID;
+#else
+  SOCKET tcp_fd = PB_SOCKET_INVALID;
+#endif
   std::string m_address;
   uint16_t m_port = 0;
   socklen_t sin_size; /* for client addr */
@@ -112,7 +115,11 @@ private:
 
   /* For both */
   int nfds = 1;
-  int client_sockfd = SOCKET_INVALID;
+#ifndef _WIN32
+  int client_sockfd = PB_SOCKET_INVALID;
+#else
+  SOCKET client_sockfd = PB_SOCKET_INVALID;
+#endif
   struct pollfd fds[CONTROL_MAX_CLIENTS];
 
   /* Sessions stuff */

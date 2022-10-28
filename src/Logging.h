@@ -17,8 +17,11 @@
 #include <memory>
 #include <sstream>
 #include <string>
-#include <syslog.h>
 #include <thread>
+
+#ifndef _WIN32
+#include <syslog.h>
+#endif
 
 #include "Queue.h"
 

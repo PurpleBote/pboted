@@ -89,7 +89,7 @@ UDPReceiver::start ()
     }
 
   server_sockfd = socket (res->ai_family, res->ai_socktype, res->ai_protocol);
-  if (server_sockfd == SOCKET_INVALID)
+  if (server_sockfd == PB_SOCKET_INVALID)
     {
       freeaddrinfo (res);
       LogPrint (eLogError, "Network: UDPReceiver: Could not create UDP socket ",
@@ -101,7 +101,7 @@ UDPReceiver::start ()
   if (rc == RC_ERROR)
     {
       freeaddrinfo (res);
-      CLOSE_SOCKET (server_sockfd);
+      PB_SOCKET_CLOSE (server_sockfd);
       LogPrint (eLogError, "Network: UDPReceiver: Could not bind UDP socket ",
                 m_address, ":", m_port, ": ", strerror (errno));
       return;
@@ -126,7 +126,7 @@ UDPReceiver::stop ()
   m_running = false;
 
   FD_CLR (server_sockfd, &rset);
-  CLOSE_SOCKET (server_sockfd);
+  PB_SOCKET_CLOSE (server_sockfd);
 
   LogPrint (eLogInfo, "Network: UDPReceiver: Stopped");
 }
@@ -177,7 +177,11 @@ UDPReceiver::handle_receive ()
 {
   /* ToDo: recvfrom? */
   buf = (uint8_t *)malloc (MAX_DATAGRAM_SIZE);
-  ssize_t rc = recv (server_sockfd, buf, MAX_DATAGRAM_SIZE - 1, 0);
+#ifndef _WIN32
+  ssize_t rc = PB_SOCKET_READ (server_sockfd, buf, MAX_DATAGRAM_SIZE - 1);
+#else
+  ssize_t rc = PB_SOCKET_READ (server_sockfd, (char *)buf, MAX_DATAGRAM_SIZE - 1);
+#endif
 
   if (!m_running)
     return;
@@ -236,7 +240,7 @@ UDPReceiver::handle_receive ()
 UDPSender::UDPSender (const std::string &addr, int port)
   : m_running (false),
     m_send_thread (nullptr),
-    m_socket (SOCKET_INVALID),
+    m_socket (PB_SOCKET_INVALID),
     m_sam_port (port),
     m_sam_addr (addr),
     m_send_queue (nullptr)
@@ -285,7 +289,7 @@ UDPSender::start ()
   hints.ai_socktype = SOCK_DGRAM;
   hints.ai_flags = 0;
   hints.ai_protocol = 0;
-  
+
   int rc = getaddrinfo (m_sam_addr.c_str (), c_port, &hints, &m_sam_addrinfo);
   if (rc != RC_SUCCESS || m_sam_addrinfo == nullptr)
     {
@@ -296,9 +300,9 @@ UDPSender::start ()
 
   m_socket = socket (m_sam_addrinfo->ai_family, m_sam_addrinfo->ai_socktype,
                      m_sam_addrinfo->ai_protocol);
-  if (m_socket == SOCKET_INVALID)
+  if (m_socket == PB_SOCKET_INVALID)
     {
-      CLOSE_SOCKET (m_socket);
+      PB_SOCKET_CLOSE (m_socket);
       LogPrint (eLogError, "Network: UDPSender: Can't create socket to ",
                 m_sam_addr, ":", m_sam_port);
       return;
@@ -321,7 +325,7 @@ UDPSender::stop ()
 
   freeaddrinfo (m_sam_addrinfo);
   FD_CLR (m_socket, &m_wset);
-  CLOSE_SOCKET (m_socket);
+  PB_SOCKET_CLOSE (m_socket);
 
   LogPrint (eLogInfo, "Network: UDPSender: Stopped");
 }
@@ -526,7 +530,7 @@ NetworkWorker::stop ()
 
   m_receiver->stop ();
   m_sender->stop ();
-  
+
   // ToDo: Close SAM session
 
   LogPrint (eLogInfo, "Network: Stopped");

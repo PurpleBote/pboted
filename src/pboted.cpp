@@ -10,6 +10,7 @@
 
 #include "BoteDaemon.h"
 
+#ifndef _WIN32
 int
 main (int argc, char *argv[])
 {
@@ -32,3 +33,31 @@ main (int argc, char *argv[])
     }
   return EXIT_SUCCESS;
 }
+
+#else // _WIN32
+INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, PSTR, INT nCmdShow)
+{
+  Daemon.m_hInstance = hInstance;
+  Daemon.m_CmdShow = nCmdShow;
+
+  if (Daemon.init (__argc, __argv))
+  {
+    int res = Daemon.start ();
+    if (res == EXIT_SUCCESS)
+      {
+        Daemon.run ();
+      }
+    else if (res != EXIT_SUCCESS)
+      {
+        return EXIT_SUCCESS;
+      }
+    else
+      {
+        return EXIT_FAILURE;
+      }
+    Daemon.stop ();
+  }
+  return EXIT_SUCCESS;
+
+}
+#endif
