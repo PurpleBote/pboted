@@ -411,7 +411,7 @@ BoteControl::run ()
                   session.buf = (char *)malloc (CONTROL_BUFF_SIZE);
                   session.need_clean = true;
                   memset (session.buf, 0, CONTROL_BUFF_SIZE);
-                  ssize_t rc = PB_SOCKER_READ (fds[sid].fd, session.buf,
+                  ssize_t rc = PB_SOCKET_READ (fds[sid].fd, session.buf,
                                      CONTROL_BUFF_SIZE - 1);
                   if (rc == PB_SOCKET_ERROR)
                   {

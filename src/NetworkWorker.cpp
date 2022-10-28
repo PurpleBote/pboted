@@ -178,9 +178,9 @@ UDPReceiver::handle_receive ()
   /* ToDo: recvfrom? */
   buf = (uint8_t *)malloc (MAX_DATAGRAM_SIZE);
 #ifndef _WIN32
-  ssize_t rc = recv (server_sockfd, buf, MAX_DATAGRAM_SIZE - 1, 0);
+  ssize_t rc = PB_SOCKET_READ (server_sockfd, buf, MAX_DATAGRAM_SIZE - 1);
 #else
-  ssize_t rc = recv (server_sockfd, (char *)buf, MAX_DATAGRAM_SIZE - 1, 0);
+  ssize_t rc = PB_SOCKET_READ (server_sockfd, (char *)buf, MAX_DATAGRAM_SIZE - 1);
 #endif
 
   if (!m_running)

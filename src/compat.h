@@ -23,7 +23,7 @@
   #define PB_SOCKET_INVALID INVALID_SOCKET
   #define PB_SOCKET_CLOSE closesocket
   #define PB_SOCKET_POLL WSAPoll
-  #define PB_SOCKER_READ(a,b,c) recv(a, b, c, 0)
+  #define PB_SOCKET_READ(a,b,c) recv(a, b, c, 0)
   #define PB_SOCKET_WRITE(a,b,c) send(a, b, c, 0)
 #else
   #include <arpa/inet.h>
@@ -38,7 +38,7 @@
   #define PB_SOCKET_INVALID -1
   #define PB_SOCKET_CLOSE close
   #define PB_SOCKET_POLL poll
-  #define PB_SOCKER_READ read
+  #define PB_SOCKET_READ read
   #define PB_SOCKET_WRITE write
 #endif
 
