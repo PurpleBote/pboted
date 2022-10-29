@@ -1,5 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -11,6 +12,7 @@
 
 #include "BoteContext.h"
 #include "DHTworker.h"
+#include "NetworkWorker.h"
 #include "Packet.h"
 
 namespace pbote
@@ -42,8 +44,8 @@ DHTworker::~DHTworker ()
 void
 DHTworker::start ()
 {
-  m_local_node
-      = std::make_shared<Node> (context.getLocalDestination ()->ToBase64 ());
+  auto local_destination = pbote::network::network_worker.get_local_destination ();
+  m_local_node = std::make_shared<Node> (local_destination->ToBase64 ());
   if (isStarted ())
     return;
 
@@ -103,7 +105,7 @@ DHTworker::addNode (const i2p::data::IdentityEx &identity)
   if (findNode (identity.GetIdentHash ()))
     return false;
 
-  auto local_destination = context.getLocalDestination ();
+  auto local_destination = pbote::network::network_worker.get_local_destination ();
   if (*local_destination == identity)
     {
       LogPrint (eLogDebug, "DHT: addNode: Local destination, skipped");
@@ -318,7 +320,7 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
     }
 
   LogPrint (eLogDebug, "DHT: find: Batch size: ", batch->packetCount ());
-  context.send (batch);
+  pbote::network::network_worker.send (batch);
 
   if (exhaustive)
     batch->waitLast (RESPONSE_TIMEOUT);
@@ -330,8 +332,8 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
   while (batch->responseCount () < 1 && counter < 5 && m_started)
     {
       LogPrint (eLogWarning, "DHT: find: No responses, resend: #", counter);
-      context.removeBatch (batch);
-      context.send (batch);
+      pbote::network::network_worker.remove_batch (batch);
+      pbote::network::network_worker.send (batch);
 
       if (exhaustive)
         batch->waitLast (RESPONSE_TIMEOUT);
@@ -343,7 +345,7 @@ DHTworker::find (HashKey key, uint8_t type, bool exhaustive)
   LogPrint (eLogDebug, "DHT: find: Got ", batch->responseCount (),
             " responses for ", key.ToBase64 (), ", type: ", type);
 
-  context.removeBatch (batch);
+  pbote::network::network_worker.remove_batch (batch);
   auto responses = batch->getResponses ();
 
   std::vector<sp_comm_pkt> result;
@@ -420,7 +422,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
 
   LogPrint (eLogDebug, "DHT: store: Batch size: ", batch->packetCount ());
 
-  context.send (batch);
+  pbote::network::network_worker.send (batch);
   batch->waitLast (RESPONSE_TIMEOUT);
 
   int counter = 0;
@@ -430,8 +432,8 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
   while (batch->responseCount () < 2 && counter <= 5 && m_started)
     {
       LogPrint (eLogWarning, "DHT: store: No responses, resend: #", counter);
-      context.removeBatch (batch);
-      context.send (batch);
+      pbote::network::network_worker.remove_batch (batch);
+      pbote::network::network_worker.send (batch);
 
       batch->waitLast (RESPONSE_TIMEOUT);
       counter++;
@@ -440,7 +442,7 @@ DHTworker::store (HashKey hash, uint8_t type, pbote::StoreRequestPacket packet)
   LogPrint (eLogDebug, "DHT: store: Got ", batch->responseCount (),
             " responses for ", hash.ToBase64 (), ", type: ", type);
 
-  context.removeBatch (batch);
+  pbote::network::network_worker.remove_batch (batch);
   auto responses = batch->getResponses ();
 
   std::vector<std::string> result;
@@ -541,7 +543,7 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
 
   LogPrint (eLogDebug,
             "DHT: deleteEmail: Batch size: ", batch->packetCount ());
-  context.send (batch);
+  pbote::network::network_worker.send (batch);
 
   batch->waitLast (RESPONSE_TIMEOUT);
 
@@ -550,8 +552,8 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
     {
       LogPrint (eLogWarning, "DHT: deleteEmail: No responses, resend: #",
                 counter);
-      context.removeBatch (batch);
-      context.send (batch);
+      pbote::network::network_worker.remove_batch (batch);
+      pbote::network::network_worker.send (batch);
       // ToDo: remove answered nodes from batch
       batch->waitLast (RESPONSE_TIMEOUT);
       counter++;
@@ -559,7 +561,7 @@ DHTworker::deleteEmail (HashKey hash, uint8_t type,
 
   LogPrint (eLogDebug, "DHT: deleteEmail: Got ", batch->responseCount (),
             " responses for ", hash.ToBase64 (), ", type: ", type);
-  context.removeBatch (batch);
+  pbote::network::network_worker.remove_batch (batch);
 
   std::vector<std::string> res;
 
@@ -655,7 +657,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
   LogPrint (eLogDebug,
             "DHT: deleteIndexEntry: Batch size: ", batch->packetCount ());
 
-  context.send (batch);
+  pbote::network::network_worker.send (batch);
 
   batch->waitLast (RESPONSE_TIMEOUT);
 
@@ -664,8 +666,8 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
     {
       LogPrint (eLogWarning, "DHT: deleteIndexEntry: No responses, resend: #",
                 counter);
-      context.removeBatch (batch);
-      context.send (batch);
+      pbote::network::network_worker.remove_batch (batch);
+      pbote::network::network_worker.send (batch);
       // ToDo: remove answered nodes from batch
       batch->waitLast (RESPONSE_TIMEOUT);
       counter++;
@@ -674,7 +676,7 @@ DHTworker::deleteIndexEntry (HashKey index_dht_key, HashKey email_dht_key,
   LogPrint (eLogDebug, "DHT: deleteIndexEntry: Got ", batch->responseCount (),
             " responses for key ", email_dht_key.ToBase64 ());
 
-  context.removeBatch (batch);
+  pbote::network::network_worker.remove_batch (batch);
 
   std::vector<std::string> res;
 
@@ -760,7 +762,7 @@ DHTworker::deleteIndexEntries (HashKey index_dht_key,
   LogPrint (eLogDebug,
             "DHT: deleteIndexEntries: Batch size: ", batch->packetCount ());
 
-  context.send (batch);
+  pbote::network::network_worker.send (batch);
 
   batch->waitLast (RESPONSE_TIMEOUT);
 
@@ -769,8 +771,8 @@ DHTworker::deleteIndexEntries (HashKey index_dht_key,
     {
       LogPrint (eLogWarning, "DHT: deleteIndexEntries: No responses, resend: #",
                 counter);
-      context.removeBatch (batch);
-      context.send (batch);
+      pbote::network::network_worker.remove_batch (batch);
+      pbote::network::network_worker.send (batch);
       // ToDo: remove answered nodes from batch
       batch->waitLast (RESPONSE_TIMEOUT);
       counter++;
@@ -779,7 +781,7 @@ DHTworker::deleteIndexEntries (HashKey index_dht_key,
   LogPrint (eLogDebug, "DHT: deleteIndexEntries: Got ", batch->responseCount (),
             " responses for key ", index_dht_key.ToBase64 ());
 
-  context.removeBatch (batch);
+  pbote::network::network_worker.remove_batch (batch);
 
   std::vector<std::string> res;
 
@@ -890,7 +892,7 @@ DHTworker::deletion_query (const HashKey &key)
   LogPrint (eLogDebug,
             "DHT: deletion_query: Batch size: ", batch->packetCount ());
 
-  context.send (batch);
+  pbote::network::network_worker.send (batch);
 
   batch->waitLast (RESPONSE_TIMEOUT);
 
@@ -899,8 +901,8 @@ DHTworker::deletion_query (const HashKey &key)
     {
       LogPrint (eLogWarning, "DHT: deletion_query: No responses, resend: #",
                 counter);
-      context.removeBatch (batch);
-      context.send (batch);
+      pbote::network::network_worker.remove_batch (batch);
+      pbote::network::network_worker.send (batch);
       // ToDo: remove answered nodes from batch
       batch->waitLast (RESPONSE_TIMEOUT);
       counter++;
@@ -909,7 +911,7 @@ DHTworker::deletion_query (const HashKey &key)
   LogPrint (eLogDebug, "DHT: deletion_query: Got ", batch->responseCount (),
             " responses for key ", key.ToBase64 ());
 
-  context.removeBatch (batch);
+  pbote::network::network_worker.remove_batch (batch);
 
   auto responses = batch->getResponses ();
 
@@ -986,9 +988,9 @@ DHTworker::closestNodesLookupTask (HashKey key)
 
       counter++;
 
-      context.send (batch);
+      pbote::network::network_worker.send (batch);
       batch->waitLast (RESPONSE_TIMEOUT);
-      context.removeBatch (batch);
+      pbote::network::network_worker.remove_batch (batch);
       responses = batch->getResponses ();
 
       if (responses.empty ())
@@ -1031,7 +1033,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
       LogPrint (eLogDebug, "DHT: closestNodesLookup: Timed out");
     }
 
-  context.removeBatch (batch);
+  pbote::network::network_worker.remove_batch (batch);
 
   /// If we have at least one response
   for (const auto &response : responses)
@@ -1149,7 +1151,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
         }
     }
 
-  context.removeBatch (batch);
+  pbote::network::network_worker.remove_batch (batch);
 
   /// If we have no responses - try with known nodes
   if (responses.empty ())
@@ -1257,7 +1259,7 @@ DHTworker::receiveRetrieveRequest (const sp_comm_pkt &packet)
                                response.toByte ().size ());
       LogPrint (eLogDebug, "DHT: receiveRetrieveRequest: Response status: ",
                 statusToString (response.status));
-      context.send (q_packet);
+      pbote::network::network_worker.send (q_packet);
       return;
     }
 
@@ -1303,7 +1305,7 @@ DHTworker::receiveRetrieveRequest (const sp_comm_pkt &packet)
                            response.toByte ().size ());
   LogPrint (eLogDebug, "DHT: receiveRetrieveRequest: Response status: ",
             statusToString (response.status));
-  context.send (q_packet);
+  pbote::network::network_worker.send (q_packet);
 }
 
 void
@@ -1339,7 +1341,7 @@ DHTworker::receiveDeletionQuery (const sp_comm_pkt &packet)
                            response.toByte ().size ());
       LogPrint (eLogDebug, "DHT: receiveDeletionQuery: Response status: ",
                 statusToString (response.status));
-      context.send (q_packet);
+      pbote::network::network_worker.send (q_packet);
       return;
     }
 
@@ -1382,7 +1384,7 @@ DHTworker::receiveDeletionQuery (const sp_comm_pkt &packet)
                            response.toByte ().size ());
   LogPrint (eLogDebug, "DHT: receiveDeletionQuery: Response status: ",
             statusToString (response.status));
-  context.send (q_packet);
+  pbote::network::network_worker.send (q_packet);
 }
 
 void
@@ -1464,7 +1466,7 @@ DHTworker::receiveStoreRequest (const sp_comm_pkt &packet)
                            response.toByte ().size ());
   LogPrint (eLogDebug, "DHT: StoreRequest: Response status: ",
             statusToString (response.status));
-  context.send (q_packet);
+  pbote::network::network_worker.send (q_packet);
 }
 
 void
@@ -1496,7 +1498,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
                                response.toByte ().size ());
       LogPrint (eLogDebug, "DHT: EmailPacketDelete: Response status: ",
                 statusToString (response.status));
-      context.send (q_packet);
+      pbote::network::network_worker.send (q_packet);
       return;
     }
 
@@ -1523,7 +1525,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
                                        response.toByte ().size ());
               LogPrint (eLogDebug, "DHT: EmailPacketDelete: Response status: ",
                         statusToString (response.status));
-              context.send (q_packet);
+              pbote::network::network_worker.send (q_packet);
               return;
             }
         }
@@ -1540,7 +1542,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
                                response.toByte ().size ());
       LogPrint (eLogDebug, "DHT: EmailPacketDelete: Response status: ",
                 statusToString (response.status));
-      context.send (q_packet);
+      pbote::network::network_worker.send (q_packet);
       return;
     }
 
@@ -1569,7 +1571,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
                                response.toByte ().size ());
       LogPrint (eLogDebug, "DHT: EmailPacketDelete: Response status: ",
                 statusToString (response.status));
-      context.send (q_packet);
+      pbote::network::network_worker.send (q_packet);
       return;
     }
 
@@ -1602,7 +1604,7 @@ DHTworker::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
                            response.toByte ().size ());
   LogPrint (eLogDebug, "DHT: EmailPacketDelete: Response status: ",
             statusToString (response.status));
-  context.send (q_packet);
+  pbote::network::network_worker.send (q_packet);
 }
 
 void
@@ -1634,7 +1636,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
                                response.toByte ().size ());
       LogPrint (eLogDebug, "DHT: IndexPacketDelete: Response status: ",
                 statusToString (response.status));
-      context.send (q_packet);
+      pbote::network::network_worker.send (q_packet);
       return;
     }
 
@@ -1669,7 +1671,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
                                        response.toByte ().size ());
               LogPrint (eLogDebug, "DHT: IndexPacketDelete: Response status: ",
                         statusToString (response.status));
-              context.send (q_packet);
+              pbote::network::network_worker.send (q_packet);
               return;
             }
         }
@@ -1685,7 +1687,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
                                response.toByte ().size ());
       LogPrint (eLogDebug, "DHT: IndexPacketDelete: Response status: ",
                 statusToString (response.status));
-      context.send (q_packet);
+      pbote::network::network_worker.send (q_packet);
       return;
     }
 
@@ -1703,7 +1705,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
                                response.toByte ().size ());
       LogPrint (eLogDebug, "DHT: IndexPacketDelete: Response status: ",
                 statusToString (response.status));
-      context.send (q_packet);
+      pbote::network::network_worker.send (q_packet);
       return;
     }
 
@@ -1738,7 +1740,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
                                response.toByte ().size ());
       LogPrint (eLogDebug, "DHT: IndexPacketDelete: Response status: ",
                 statusToString (response.status));
-      context.send (q_packet);
+      pbote::network::network_worker.send (q_packet);
       return;
     }
 
@@ -1786,7 +1788,7 @@ DHTworker::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
                            response.toByte ().size ());
   LogPrint (eLogDebug, "DHT: IndexPacketDelete: Response status: ",
             statusToString (response.status));
-  context.send (q_packet);
+  pbote::network::network_worker.send (q_packet);
 
   // ToDo: re-send to other nodes
   //if (response.status == pbote::StatusCode::OK)
@@ -1840,7 +1842,7 @@ DHTworker::receiveFindClosePeers (const sp_comm_pkt &packet)
                                response.toByte ().size ());
       LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Response status: ",
                 statusToString (response.status));
-      context.send (q_packet);
+      pbote::network::network_worker.send (q_packet);
       return;
     }
 
@@ -1890,7 +1892,7 @@ DHTworker::receiveFindClosePeers (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Response status: ",
             statusToString (response.status));
   
-  context.send (q_packet);
+  pbote::network::network_worker.send (q_packet);
 }
 
 void

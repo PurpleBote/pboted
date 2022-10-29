@@ -14,6 +14,7 @@
 #include <utility>
 
 #include "compat.h"
+#include "ConfigParser.h"
 #include "NetworkWorker.h"
 
 namespace pbote
@@ -203,7 +204,7 @@ UDPReceiver::handle_receive ()
 
   ssize_t len = rc;
   /* Count total receive bytes */
-  context.add_recv_byte_count (len);
+  bytes_recv (len);
   /* Terminating array */
   buf[len] = 0;
   /* Get newline char position */
@@ -382,7 +383,8 @@ UDPSender::handle_send ()
 
   std::string payload (packet->payload.begin (), packet->payload.end ());
   std::string message
-      = SAM::Message::datagramSend (m_session_id, packet->destination);
+      = SAM::Message::datagramSend (m_sam_session->getSessionID (),
+                                    packet->destination);
   message.append (payload);
 
   ssize_t bytes_transferred
@@ -401,14 +403,14 @@ UDPSender::handle_send ()
       return;
     }
 
-  context.add_sent_byte_count (bytes_transferred);
+  bytes_sent (bytes_transferred);
 }
 
 void
 UDPSender::check_sam_session()
 {
   /* To prevent log spamming on session issue */
-  while (sam_session->isSick ())
+  while (m_sam_session->isSick ())
     {
       LogPrint (eLogError, "Network: UDPSender: SAM session is sick");
       std::this_thread::sleep_for (std::chrono::seconds (10));
@@ -418,43 +420,84 @@ UDPSender::check_sam_session()
 ///////////////////////////////////////////////////////////////////////////////
 
 NetworkWorker::NetworkWorker ()
-  : m_listen_port_udp (0),
+  : m_nickname (SAM_DEFAULT_NICKNAME),
+    m_listen_port_udp (0),
     m_router_port_tcp (0),
     m_router_port_udp (0),
     m_sam_session (nullptr),
     m_receiver (nullptr),
     m_sender (nullptr),
     m_recv_queue (nullptr),
-    m_send_queue (nullptr)
+    m_send_queue (nullptr),
+    m_local_destination (nullptr)
 {
+  m_recv_queue = std::make_shared<pbote::util::Queue<sp_queue_pkt>>();
+  m_send_queue = std::make_shared<pbote::util::Queue<sp_queue_pkt>>();
+
+  m_local_keys = std::make_shared<i2p::data::PrivateKeys>();
 }
 
 NetworkWorker::~NetworkWorker ()
 {
   stop ();
 
-  m_receiver = nullptr;
-  m_sender = nullptr;
-  m_sam_session = nullptr;
+  if (m_receiver)
+    m_receiver = nullptr;
+  if (m_sender)
+    m_sender = nullptr;
+
+  if (m_recv_queue)
+    m_recv_queue = nullptr;
+  if (m_send_queue)
+    m_send_queue = nullptr;
+
+  if (m_sam_session)
+    m_sam_session = nullptr;
+
+  m_local_destination = nullptr;
+  m_local_keys = nullptr;
 }
 
 void
 NetworkWorker::init ()
 {
-  m_nickname = context.get_nickname ();
+  pbote::config::GetOption("host", m_listen_address);
+  pbote::config::GetOption("port", m_listen_port_udp);
 
-  m_listen_address = context.get_listen_host ();
-  m_listen_port_udp = context.get_listen_port_SAM ();
+  pbote::config::GetOption("sam.name", m_nickname);
 
-  m_router_address = context.get_router_host ();
-  m_router_port_tcp = context.get_router_port_TCP ();
-  m_router_port_udp = context.get_router_port_UDP ();
+  pbote::config::GetOption("sam.address", m_router_address);
+  pbote::config::GetOption("sam.tcp", m_router_port_tcp);
+  pbote::config::GetOption("sam.udp", m_router_port_udp);
 
-  m_recv_queue = context.getRecvQueue ();
-  m_send_queue = context.getSendQueue ();
+  pbote::config::GetOption("sam.key", m_destination_key_path);
 
-  createRecvHandler ();
-  createSendHandler ();
+  LogPrint(eLogInfo, "Network: Config loaded");
+
+  if (m_destination_key_path.empty ())
+    {
+      m_destination_key_path = pbote::fs::DataDirPath (DEFAULT_KEY_FILE_NAME);
+      LogPrint(eLogDebug,
+        "Network: init: Destination key path empty, try default path: ",
+        m_destination_key_path);
+    }
+
+  int rc = read_keys ();
+  if (rc == RC_ERROR)
+    {
+      LogPrint(eLogWarning,
+               "Network: init: Can't find local destination key, try to create");
+    }
+
+  if (rc > 0)
+    {
+      m_keys_loaded = true;
+      LogPrint(eLogInfo,
+               "Network: init: Local destination key loaded successfully");
+    }
+
+  create_recv_handler ();
+  create_send_handler ();
 }
 
 void
@@ -472,52 +515,56 @@ NetworkWorker::start ()
   bool first_attempt = true;
   do
     {
-      m_receiver->start ();
-
       if (!first_attempt)
         std::this_thread::sleep_for (std::chrono::seconds (10));
 
+      m_receiver->start ();
+
     } while (!m_receiver->running ());
 
-  LogPrint (eLogInfo, "Network: Starting SAM session");
   try
     {
+      LogPrint (eLogInfo, "Network: Starting SAM session");
+
       bool success = false;
       first_attempt = true;
-      std::shared_ptr<i2p::data::PrivateKeys> key;
-
-      while (!success)
+      do
         {
           if (!first_attempt)
             std::this_thread::sleep_for (std::chrono::seconds (10));
 
           first_attempt = false;
 
-          key = createSAMSession ();
+          create_SAM_session ();
 
-          if (!key)
-            continue;
-
-          if (key->ToBase64 ().empty ())
+          if (m_sam_failed)
             LogPrint (eLogError, "Network: SAM session failed, reconnecting");
           else
             success = true;
-        }
+        } while (!success);
 
-      if (!context.keys_loaded ())
-        context.save_new_keys (key);
+      if (!m_keys_loaded)
+        save_keys ();
 
       LogPrint (eLogInfo, "Network: SAM session created");
-
-      /// Because we get sessionID after SAM initialization
-      m_sender->set_sam_session (m_sam_session);
-      m_sender->setSessionID (m_sam_session->getSessionID ());
-      m_sender->start ();
     }
   catch (std::exception &e)
     {
       LogPrint (eLogError, "Network: Exception in SAM: ", e.what ());
     }
+
+  // We can get sessionID only after SAM initialization
+  m_sender->sam_session (m_sam_session);
+
+  first_attempt = true;
+  do
+    {
+      if (!first_attempt)
+        std::this_thread::sleep_for (std::chrono::seconds (10));
+
+      m_sender->start ();
+
+    } while (!m_sender->running ());
 }
 
 void
@@ -534,6 +581,121 @@ NetworkWorker::stop ()
   // ToDo: Close SAM session
 
   LogPrint (eLogInfo, "Network: Stopped");
+}
+
+void
+NetworkWorker::send(const PacketForQueue &packet)
+{
+  m_send_queue->Put(std::make_shared<PacketForQueue>(packet));
+}
+
+void
+NetworkWorker::send(const std::shared_ptr<batch_comm_packet>& batch)
+{
+  size_t count = 0;
+  m_running_batches.push_back(batch);
+  LogPrint(eLogDebug, "Network: send: Running batches: ",
+           m_running_batches.size ());
+
+  auto packets = batch->getPackets();
+  for (const auto& packet: packets)
+    {
+      send(packet.second);
+      count++;
+    }
+  LogPrint(eLogDebug, "Network: send: Sent ", count, " packets from batch ",
+           batch->owner);
+}
+
+bool
+NetworkWorker::receive(const sp_comm_pkt& packet)
+{
+  if (m_running_batches.empty ())
+    {
+      LogPrint(eLogWarning, "Network: receive: No running batches");
+      return false;
+    }
+
+  std::vector<uint8_t> v_cid(packet->cid, packet->cid + 32);
+
+  auto batch_itr = m_running_batches.begin ();
+  while (batch_itr != m_running_batches.end ())
+    {
+      if (*batch_itr)
+        {
+          if ((*batch_itr)->contains (v_cid))
+            {
+              (*batch_itr)->addResponse (packet);
+              LogPrint (eLogDebug, "Network: receive: Response for batch ",
+                        (*batch_itr)->owner, ", remain count: ",
+                        (*batch_itr)->remain ());
+              return true;
+            }
+        }
+      else
+        {
+          LogPrint(eLogError, "Network: receive: Batch is null");
+          m_running_batches.erase (batch_itr);
+        }
+
+      ++batch_itr;
+    }
+
+  return false;
+}
+
+sp_queue_pkt
+NetworkWorker::get_pkt_with_timeout(int usec)
+{
+  return m_recv_queue->GetNextWithTimeout (usec);
+}
+
+void
+NetworkWorker::remove_batch(const std::shared_ptr<batch_comm_packet>& r_batch)
+{
+  std::unique_lock<std::mutex> l (m_batch_mutex);
+
+  if (m_running_batches.empty ())
+    {
+      LogPrint(eLogWarning, "Network: No running batches");
+      return;
+    }
+
+  // For debug only
+  //*
+  for (auto batch : m_running_batches)
+    {
+      if (batch)
+        LogPrint(eLogDebug, "Network: Batch: ", batch->owner);
+      else
+        LogPrint(eLogDebug, "Network: Batch is null");
+    }
+  //*/
+
+  auto batch_itr = m_running_batches.begin ();
+  while (batch_itr != m_running_batches.end ())
+    {
+      if (*batch_itr)
+        {
+          LogPrint(eLogDebug, "Network: Batch: ", (*batch_itr)->owner);
+
+          if (r_batch == *batch_itr)
+            {
+              LogPrint(eLogDebug, "Network: Removing batch ", r_batch->owner);
+              m_running_batches.erase (batch_itr);
+              LogPrint(eLogDebug, "Network: Running batches: ",
+                       m_running_batches.size ());
+              break;
+            }
+
+          ++batch_itr;
+        }
+      else
+        {
+          LogPrint(eLogError, "Network: Batch is null");
+          batch_itr = m_running_batches.erase (batch_itr);
+        }
+    }
 }
 
 bool
@@ -559,46 +721,103 @@ NetworkWorker::running ()
   return (recv_run && send_run && !sam_sick);
 }
 
-std::shared_ptr<i2p::data::PrivateKeys>
-NetworkWorker::createSAMSession ()
+void
+NetworkWorker::create_SAM_session ()
 {
-  auto localKeys = context.getlocalKeys ();
-
-  if (context.keys_loaded ())
+  if (m_keys_loaded)
     {
       m_sam_session = std::make_shared<SAM::DatagramSession> (
               m_nickname, m_router_address, m_router_port_tcp,
               m_router_port_udp, m_listen_address, m_listen_port_udp,
-              localKeys->ToBase64 ());
+              m_local_keys->ToBase64 ());
     }
   else
     {
       m_sam_session = std::make_shared<SAM::DatagramSession> (
               m_nickname, m_router_address, m_router_port_tcp,
               m_router_port_udp, m_listen_address, m_listen_port_udp);
-
-      localKeys->FromBase64 (m_sam_session->getMyDestination ().priv);
+      m_local_keys->FromBase64 (m_sam_session->getMyDestination ().priv);
     }
 
   if (m_sam_session->getMyDestination ().priv.empty () ||
       m_sam_session->getMyDestination ().pub.empty ())
     {
       LogPrint (eLogError, "Network: SAM session failed");
-      return {};
+      m_sam_failed = true;
+      return;
     }
 
-  bool sick = m_sam_session->isSick ();
-  LogPrint (sick ? eLogError : eLogInfo, "Network: SAM session: ",
-            sick ? "Sick" : "OK");
+  if (m_sam_session->isSick ())
+    {
+      LogPrint (eLogError, "Network: SAM session: Sick");
+      m_sam_failed = true;
+      return;
+    }
 
-  LogPrint (eLogInfo, "Network: SAM session created, nickname: ", m_nickname,
-            ", sessionID: ", m_sam_session->getSessionID ());
+  LogPrint (eLogInfo, "Network: SAM session: OK");
+  m_sam_failed = false;
 
-  return localKeys;
+  LogPrint (eLogInfo, "Network: SAM session, nickname: ", m_nickname,
+            ", ID: ", m_sam_session->getSessionID ());
+}
+
+int
+NetworkWorker::read_keys ()
+{
+  LogPrint(eLogDebug, "Network: read_keys: Reading keys from ",
+           m_destination_key_path);
+
+  std::ifstream file(m_destination_key_path, std::ios::binary);
+  if (!file)
+    return RC_ERROR;
+
+  std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(file)),
+                                   (std::istreambuf_iterator<char>()));
+
+  file.close();
+
+  m_local_keys->FromBuffer(bytes.data(), bytes.size());
+  m_local_destination
+    = std::make_shared<i2p::data::IdentityEx>(*m_local_keys->GetPublic());
+
+  LogPrint(eLogDebug, "Network: read_keys: base64 ",
+           m_local_destination->ToBase64().substr (0, 15), "...");
+  LogPrint(eLogDebug, "Network: read_keys: hash.base32 ",
+           m_local_destination->GetIdentHash().ToBase32());
+
+  return bytes.size();
 }
 
 void
-NetworkWorker::createRecvHandler ()
+NetworkWorker::save_keys()
+{
+  if (m_destination_key_path.empty ())
+    m_destination_key_path = pbote::fs::DataDirPath(DEFAULT_KEY_FILE_NAME);
+
+  LogPrint (eLogDebug, "Network: save_keys: Save destination to ",
+            m_destination_key_path);
+
+  std::ofstream file (m_destination_key_path,
+                   std::ofstream::binary | std::ofstream::out);
+  if (!file.is_open ())
+    {
+      LogPrint (eLogError, "Network: save_keys: Can't open file: ",
+                m_destination_key_path);
+      return;
+    }
+
+  const size_t len = m_local_keys->GetFullLen ();
+  uint8_t *buf = (uint8_t *)malloc(len);
+
+  m_local_keys->ToBuffer (buf, len);
+  file.write ((char *)buf, len);
+  file.close ();
+
+  free(buf);
+}
+
+void
+NetworkWorker::create_recv_handler ()
 {
   LogPrint (eLogInfo, "Network: Starting UDP receiver with address ",
             m_listen_address, ":", m_listen_port_udp);
@@ -606,20 +825,18 @@ NetworkWorker::createRecvHandler ()
   m_receiver = std::make_unique<UDPReceiver> (m_listen_address,
                                               m_listen_port_udp);
 
-  m_receiver->setNickname (m_nickname);
-  m_receiver->setQueue (m_recv_queue);
+  m_receiver->queue (m_recv_queue);
 }
 
 void
-NetworkWorker::createSendHandler ()
+NetworkWorker::create_send_handler ()
 {
   LogPrint (eLogInfo, "Network: Starting UDP sender to address ",
             m_router_address, ":", m_router_port_udp);
 
   m_sender = std::make_unique<UDPSender> (m_router_address, m_router_port_udp);
 
-  m_sender->setNickname (m_nickname);
-  m_sender->setQueue (m_send_queue);
+  m_sender->queue (m_send_queue);
 }
 
 } // namespace network

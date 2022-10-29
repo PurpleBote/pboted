@@ -7,6 +7,7 @@
  * See full license text in LICENSE file at top of project tree
  */
 
+#pragma once
 #ifndef PBOTED_SRC_RELAY_WORKER_H_
 #define PBOTED_SRC_RELAY_WORKER_H_
 

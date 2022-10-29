@@ -7,11 +7,11 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTED_SRC_PACKET_H_
-#define PBOTED_SRC_PACKET_H_
+#pragma once
+#ifndef PBOTED_SRC_PACKET_H
+#define PBOTED_SRC_PACKET_H
 
 #include <algorithm>
-#include <chrono>
 #include <condition_variable>
 #include <cstring>
 #include <iomanip>
@@ -19,13 +19,12 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <openssl/sha.h>
+#include <netinet/in.h> /* for ntohs, ntohl, etc. */
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
-#include "compat.h"
 #include "Logging.h"
 
 // libi2pd
@@ -40,11 +39,11 @@ namespace pbote
 
 //#define PACKET_ERROR_MALFORMED -1
 
-const std::array<std::uint8_t, 12> PACKET_TYPE{ 0x52, 0x4b, 0x46, 0x4e,
-                                                0x41, 0x51, 0x59, 0x53,
-                                                0x44, 0x58, 0x43 };
-const std::array<std::uint8_t, 4> COMM_PREFIX{ 0x6D, 0x30, 0x52, 0xE9 };
-const std::array<std::uint8_t, 5> BOTE_VERSION{ 0x1, 0x2, 0x3, 0x4, 0x5 };
+const std::array<std::uint8_t, 12> PACKET_TYPE{0x52, 0x4b, 0x46, 0x4e,
+                                               0x41, 0x51, 0x59, 0x53,
+                                               0x44, 0x58, 0x43};
+const std::array<std::uint8_t, 4> COMM_PREFIX{0x6D, 0x30, 0x52, 0xE9};
+const std::array<std::uint8_t, 5> BOTE_VERSION{0x1, 0x2, 0x3, 0x4, 0x5};
 
 /// Status codes availible for Response Packets
 enum StatusCode
@@ -82,7 +81,7 @@ enum type : uint8_t
   /// Communication Packets
   CommR = 0x52, // relay request
   CommK = 0x4b, // relay return request
-  // CommF = 0x46, // fetch request
+  CommG = 0x47, // fetch request
   CommN = 0x4e, // response packet
   CommA = 0x41, // peer list request
   /// DHT Communication Packets
@@ -1105,32 +1104,101 @@ public:
   uint8_t cid[32] = {0};
 };
 
-/// not implemented
-/*
-struct RelayRequestPacket : public CleanCommunicationPacket
+// ToDo: 
+struct ReturnChain
+{
+  struct item 
+  {
+    uint16_t len;
+    i2p::data::IdentityEx peer;
+    // zero?
+    uint8_t AES[];
+  };
+
+  std::vector<item> data;
+};
+
+///
+struct RelayRequestPacketV5 : public CleanCommunicationPacket
 {
  public:
-  RelayRequestPacket() : CleanCommunicationPacket(CommR) {}
-};
-*/
+  RelayRequestPacketV5() : CleanCommunicationPacket(CommR) {}
 
-/// not implemented
-/*
+  uint16_t hc_len = 0;
+  std::vector<uint8_t> hc;
+  uint32_t delay = 0;
+  i2p::data::IdentityEx next;
+  ReturnChain chain;
+  uint16_t len;
+  std::vector<uint8_t> data;
+  std::vector<uint8_t> padding;
+
+  /*
+  bool
+  from_buffer (uint8_t *buf, size_t len, bool from_net)
+  {
+
+  }
+
+  std::vector<uint8_t>
+  bytes ()
+  {
+
+  }
+  */
+};
+
+///
 struct RelayReturnRequestPacket : public CleanCommunicationPacket
 {
  public:
   RelayReturnRequestPacket() : CleanCommunicationPacket(CommK) {}
-};
-*/
 
-/// not implemented
-/*
-struct FetchRequestPacket : public CleanCommunicationPacket
+  ReturnChain chain;
+  uint16_t len;
+  std::vector<uint8_t> data;
+
+  /*
+  bool
+  from_buffer (uint8_t *buf, size_t len, bool from_net)
+  {
+
+  }
+
+  std::vector<uint8_t>
+  bytes ()
+  {
+
+  }
+  */
+};
+
+///
+struct FetchRequestPacketV5 : public CleanCommunicationPacket
 {
  public:
-  FetchRequestPacket() : CleanCommunicationPacket(CommF) {}
+  FetchRequestPacketV5() : CleanCommunicationPacket(CommG) {}
+
+  uint8_t type;
+  uint8_t dht[32];
+  // EmailIdentity? For what?
+  uint16_t len;
+  RelayRequestPacketV5 data;
+
+  /*
+  bool
+  from_buffer (uint8_t *buf, size_t len, bool from_net)
+  {
+
+  }
+
+  std::vector<uint8_t>
+  bytes ()
+  {
+
+  }
+  */
 };
-*/
 
 /// Packet for response to request
 struct ResponsePacket : public CleanCommunicationPacket
@@ -1862,4 +1930,4 @@ parseCommPacket (const sp_queue_pkt &packet)
 
 } // namespace pbote
 
-#endif // PBOTED_SRC_PACKET_H_
+#endif /* PBOTED_SRC_PACKET_H */

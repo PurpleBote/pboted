@@ -1,25 +1,19 @@
 /**
  * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PACKET_HANDLER_H__
-#define PACKET_HANDLER_H__
+#pragma once
+#ifndef PBOTED_SRC_PACKET_HANDLER_H
+#define PBOTED_SRC_PACKET_HANDLER_H
 
-#include <cstdint>
-#include <functional>
-#include <future>
-#include <map>
-#include <memory>
-//#include <queue>
-#include <string>
 #include <thread>
-#include <tuple>
 
-#include "Logging.h"
+#include "NetworkWorker.h"
 #include "Packet.h"
 
 namespace pbote
@@ -84,9 +78,8 @@ private:
   void run ();
 
   bool m_running;
-  std::unique_ptr<std::thread> m_main_thread; //, m_request_thread;
+  std::unique_ptr<std::thread> m_main_thread;
   std::shared_ptr<std::thread> m_request_thread;
-  queue_type m_recv_queue, m_send_queue;
 };
 
 extern RequestHandler packet_handler;
@@ -94,4 +87,4 @@ extern RequestHandler packet_handler;
 } // namespace packet
 } // namespace pbote
 
-#endif // PACKET_HANDLER_H__
+#endif // PBOTED_SRC_PACKET_HANDLER_H

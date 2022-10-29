@@ -1,16 +1,16 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef BOTE_IDENTITY_H_
-#define BOTE_IDENTITY_H_
+#pragma once
+#ifndef PBOTED_SRC_IDENTITY_H
+#define PBOTED_SRC_IDENTITY_H
 
-#include <algorithm>
-#include <openssl/sha.h>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -20,11 +20,15 @@
 #include "FileSystem.h"
 #include "Logging.h"
 
+// libi2pd
 #include "Signature.h"
 #include "Tag.h"
 
 namespace pbote
 {
+
+const size_t MAX_IDENTITY_SIZE = 2048;
+
 /// Identity types
 const uint8_t KEY_TYPE_ELG2048_DSA1024_SHA256_AES256CBC = 1; /// UNSUPPORTED
 const uint8_t KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC = 2;
@@ -35,7 +39,7 @@ const uint8_t KEY_TYPE_X25519_ED25519_SHA512_AES256CBC = 5;
 const std::string ADDRESS_B32_PREFIX = "b32.";
 const std::string ADDRESS_B64_PREFIX = "b64.";
 
-const uint8_t ADDRES_FORMAT_V1 = 0x01;
+const uint8_t ADDRESS_FORMAT_V1 = 0x01;
 
 // Crypto key ID's
 const uint8_t CRYP_TYPE_ECDH256 = 0x02;
@@ -421,14 +425,16 @@ class BoteIdentityPublic
 {
  public:
   BoteIdentityPublic(KeyType type = KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
-  BoteIdentityPublic(const uint8_t *cryptoPublicKey, const uint8_t *signingPublicKey,
+  BoteIdentityPublic(const uint8_t *cryptoPublicKey,
+                     const uint8_t *signingPublicKey,
                      KeyType type = KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC);
   BoteIdentityPublic(const uint8_t *buf, size_t len) { FromBuffer(buf, len); };
   BoteIdentityPublic(const BoteIdentityPublic &other) { *this = other; };
+
   ~BoteIdentityPublic() { delete m_Verifier; };
 
-  BoteIdentityPublic &operator=(const BoteIdentityPublic &other);
-  bool operator==(const BoteIdentityPublic &other) const { return GetIdentHash() == other.GetIdentHash(); }
+  BoteIdentityPublic &operator= (const BoteIdentityPublic &other);
+  bool operator== (const BoteIdentityPublic &other) const;
 
   size_t FromBuffer(const uint8_t *buf, size_t len);
   size_t ToBuffer(uint8_t *buf, size_t len) const;
@@ -476,7 +482,8 @@ class BoteIdentityPrivate
   BoteIdentityPrivate(const BoteIdentityPrivate &other) { *this = other; };
   ~BoteIdentityPrivate() = default;
 
-  BoteIdentityPrivate &operator=(const BoteIdentityPrivate &other);
+  BoteIdentityPrivate &operator= (const BoteIdentityPrivate &other);
+  bool operator== (const BoteIdentityPrivate &other) const;
 
   size_t FromBuffer(const uint8_t *buf, size_t len);
   size_t ToBuffer(uint8_t *buf, size_t len) const;
@@ -536,66 +543,6 @@ class BoteIdentityPrivate
   mutable std::unique_ptr<i2p::crypto::Signer> m_Signer;
 };
 
-const std::string DEFAULT_IDENTITY_FILE_NAME = "identities.txt";
-
-const std::string IDENTITY_PREFIX = "identity";
-const std::string IDENTITY_PREFIX_KEY = "key";
-const std::string IDENTITY_PREFIX_PUBLIC_NAME = "publicName";
-const std::string IDENTITY_PREFIX_DESCRIPTION = "description";
-const std::string IDENTITY_PREFIX_SALT = "salt";
-const std::string IDENTITY_PREFIX_PICTURE = "picture";
-const std::string IDENTITY_PREFIX_TEXT = "text";
-const std::string IDENTITY_PREFIX_PUBLISHED = "published";
-const std::string IDENTITY_PREFIX_DEFAULT = "default";
-const std::string CONFIGURATION_PREFIX = "configuration.";
-
-struct BoteIdentityFull
-{
-  uint16_t id;
-  std::string salt;
-  std::string publicName;
-  std::string full_key;
-  std::string description;
-  std::string picture;
-  std::string text;
-  KeyType type;
-  bool isPublished;
-  bool isEncrypted;
-  bool isDefault;
-  BoteIdentityPrivate identity;
-};
-
-class identitiesStorage
-{
- public:
-  identitiesStorage() = default;
-
-  void init();
-  long loadIdentities(const std::string &path);
-  //void saveIdentities();
-  //void importIdentities();
-  //void exportIdentities();
-  void addIdentityToStorage(const BoteIdentityFull& ident)
-  {
-    identities_.push_back(std::make_shared<BoteIdentityFull>(ident));
-  }
-
-  //BoteIdentityFull createIdentity();
-  std::vector<std::shared_ptr<BoteIdentityFull>> getIdentities() { return identities_; };
-  //BoteIdentityFull getIdentityByName(std::string name);
-  //BoteIdentityFull getIdentityByKey(std::string key);
-  //BoteIdentityFull getDefaultIdentity();
-
-  static std::string getParam(std::string line, const std::string &prefix0, const std::string& prefix1);
-
- private:
-  bool parse_identity_v0(BoteIdentityFull *identity);
-  bool parse_identity_v1(BoteIdentityFull *identity);
-
-  std::vector<std::shared_ptr<BoteIdentityFull>> identities_;
-  std::string default_identity_;
-};
-
 } // namespace pbote
 
-#endif // BOTE_IDENTITY_H_
+#endif // PBOTED_SRC_IDENTITY_H

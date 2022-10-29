@@ -274,7 +274,6 @@ void
 BoteControl::run ()
 {
   LogPrint (eLogInfo, "Control: run: Started");
-  sin_size = sizeof (client_addr);
 
   int rc = 0, current_sc = 0;
   bool compress_array = false;
@@ -555,7 +554,7 @@ void
 BoteControl::insert_param (std::ostringstream &ss, const std::string &name,
                            double value) const
 {
-  ss << "\"" << name << "\": " << std::fixed << std::setprecision (2) << value;
+  ss << "\"" << name << "\": " << std::fixed << std::setprecision (6) << value;
 }
 
 void
@@ -591,9 +590,9 @@ BoteControl::daemon (const std::string &cmd_id, std::ostringstream &results)
   insert_param (results, "uptime", (int)pbote::context.get_uptime ());
   results << ", ";
   results << "\"bytes\": {";
-  insert_param (results, "recived", (int)pbote::context.get_bytes_recv ());
+  insert_param (results, "recived", (int)pbote::network::network_worker.bytes_recv ());
   results << ", ";
-  insert_param (results, "sent", (int)pbote::context.get_bytes_sent ());
+  insert_param (results, "sent", (int)pbote::network::network_worker.bytes_sent ());
   results << "}}";
 }
 

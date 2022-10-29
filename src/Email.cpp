@@ -1344,7 +1344,7 @@ Email::parse_address_v1(std::string address)
       return nullptr;
     }
 
-  if (identity_bytes[0] != ADDRES_FORMAT_V1)
+  if (identity_bytes[0] != ADDRESS_FORMAT_V1)
     {
       LogPrint (eLogError, "identitiesStorage: parse_identity_v1: Unsupported address format");
       return nullptr;
