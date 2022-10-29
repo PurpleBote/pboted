@@ -19,12 +19,12 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <netinet/in.h> /* for ntohs, ntohl, etc. */
 #include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
+#include "compat.h"
 #include "Logging.h"
 
 // libi2pd
