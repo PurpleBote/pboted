@@ -8,7 +8,8 @@
 
 #include <utility>
 
-#include "compat.h"
+#include "ConfigParser.h"
+#include "NetworkWorker.h"
 #include "Packet.h"
 #include "RelayWorker.h"
 
@@ -86,7 +87,7 @@ RelayWorker::addPeer (const sp_i2p_ident &identity, int samples)
   if (findPeer (identity->GetIdentHash ()))
     return false;
 
-  auto local_destination = context.getLocalDestination ();
+  auto local_destination = pbote::network::network_worker.get_local_destination ();
   if (local_destination->GetIdentHash () == identity->GetIdentHash ())
     {
       LogPrint (eLogDebug, "Relay: addPeer: Local destination skipped");
@@ -378,7 +379,7 @@ RelayWorker::peerListRequestV4 (const sp_comm_pkt &packet)
   response.length = response.data.size ();
   auto data = response.toByte ();
 
-  context.send (PacketForQueue (packet->from, data.data (), data.size ()));
+  pbote::network::network_worker.send (PacketForQueue (packet->from, data.data (), data.size ()));
   LogPrint (eLogInfo, "Relay: peerListRequestV4: Send response with ",
             peer_list.count, " peer(s)");
 }
@@ -413,7 +414,7 @@ RelayWorker::peerListRequestV5 (const sp_comm_pkt &packet)
   response.length = response.data.size ();
   auto data = response.toByte ();
 
-  context.send (PacketForQueue (packet->from, data.data (), data.size ()));
+  pbote::network::network_worker.send (PacketForQueue (packet->from, data.data (), data.size ()));
   LogPrint (eLogInfo, "Relay: peerListRequestV5: Send response with ",
             peer_list.count, " peer(s)");
 }
@@ -490,9 +491,9 @@ RelayWorker::check_peers ()
     }
 
   LogPrint (eLogDebug, "Relay: Batch size: ", batch->packetCount ());
-  context.send (batch);
+  pbote::network::network_worker.send (batch);
   batch->waitLast (RELAY_CHECK_TIMEOUT);
-  context.removeBatch (batch);
+  pbote::network::network_worker.remove_batch (batch);
 
   auto responses = batch->getResponses ();
 
@@ -581,7 +582,7 @@ RelayWorker::check_peers ()
 
   LogPrint (eLogDebug, "Relay: Reachable peers: ", reachable_peers);
 
-  context.removeBatch (batch);
+  pbote::network::network_worker.remove_batch (batch);
 
   {
     uint16_t days;

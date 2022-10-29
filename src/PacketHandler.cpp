@@ -1,14 +1,17 @@
 /**
  * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#include <random>
+#include <string>
 
+#include "BoteContext.h"
 #include "DHTworker.h"
+#include "Logging.h"
 #include "PacketHandler.h"
 #include "RelayWorker.h"
 
@@ -24,7 +27,7 @@ IncomingRequest::IncomingRequest (RequestHandler &owner) : m_owner (owner)
   // ToDo: re-make with std::function?
   i_handlers[type::CommR] = &IncomingRequest::receiveRelayRequest;
   i_handlers[type::CommK] = &IncomingRequest::receiveRelayReturnRequest;
-  // i_handlers[type::CommF] = &IncomingRequest::receiveFetchRequest;
+  i_handlers[type::CommG] = &IncomingRequest::receiveFetchRequest;
   i_handlers[type::CommN] = &IncomingRequest::receiveResponsePkt;
   i_handlers[type::CommA] = &IncomingRequest::receivePeerListRequest;
   ///
@@ -49,7 +52,7 @@ IncomingRequest::handleNewPacket (const sp_queue_pkt &queuePacket)
   /// First we need to check if ResponsePacket and CID in batches
   if (packet->type == type::CommN)
     {
-      if (context.receive (packet))
+      if (pbote::network::network_worker.receive (packet))
         {
           LogPrint (eLogDebug, "Packet: Pass packet ", packet->type,
                     " to batch");
@@ -325,9 +328,7 @@ IncomingRequest::receiveFindClosePeersRequest (const sp_comm_pkt &packet)
 RequestHandler::RequestHandler ()
     : m_running (false),
       m_main_thread (nullptr),
-      m_request_thread (nullptr),
-      m_recv_queue (nullptr),
-      m_send_queue (nullptr)
+      m_request_thread (nullptr)
 {
 }
 
@@ -351,8 +352,6 @@ RequestHandler::~RequestHandler ()
 void
 RequestHandler::start ()
 {
-  m_recv_queue = context.getRecvQueue ();
-  m_send_queue = context.getSendQueue ();
   m_running = true;
 
   if (m_main_thread)
@@ -362,12 +361,14 @@ RequestHandler::start ()
     m_request_thread = nullptr;
 
   m_main_thread.reset (
-      new std::thread (std::bind (&RequestHandler::run, this)));
+      new std::thread (std::bind (&RequestHandler::run, this)));  
 }
 
 void
 RequestHandler::stop ()
 {
+  LogPrint (eLogInfo, "PacketHandler: Stopping");
+
   m_running = false;
 
   if (m_main_thread)
@@ -381,9 +382,6 @@ RequestHandler::stop ()
       m_request_thread->join ();
       m_request_thread = nullptr;
     }
-
-  m_recv_queue = nullptr;
-  m_send_queue = nullptr;
 
   LogPrint (eLogInfo, "PacketHandler: Stopped");
 }
@@ -407,7 +405,7 @@ RequestHandler::run ()
 
   while (m_running)
     {
-      auto packet = m_recv_queue->GetNextWithTimeout (PACKET_RECEIVE_TIMEOUT);
+      auto packet = pbote::network::network_worker.get_pkt_with_timeout (PACKET_RECEIVE_TIMEOUT);
 
       if (!packet)
         continue;
@@ -426,9 +424,10 @@ RequestHandler::run ()
       response.length = 0;
       auto data = response.toByte ();
 
-      m_send_queue->Put (std::make_shared<PacketForQueue> (
-          packet->destination, data.data (), data.size ()));
+      pbote::network::network_worker.send (PacketForQueue (packet->destination,
+                                           data.data (), data.size ()));
     }
+  LogPrint (eLogInfo, "PacketHandler: Finished");
 }
 
 } // namespace packet

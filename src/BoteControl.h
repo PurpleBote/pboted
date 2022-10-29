@@ -7,6 +7,7 @@
  * See full license text in LICENSE file at top of project tree
  */
 
+#pragma once
 #ifndef PBOTED_SRC_BOTECONTROL_H
 #define PBOTED_SRC_BOTECONTROL_H
 
@@ -110,8 +111,6 @@ private:
 #endif
   std::string m_address;
   uint16_t m_port = 0;
-  socklen_t sin_size; /* for client addr */
-  struct sockaddr_in tcp_addr, client_addr;
 
   /* For both */
   int nfds = 1;
