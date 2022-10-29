@@ -18,8 +18,8 @@
 #include <unistd.h>
 
 #include "BoteContext.h"
-#include "ConfigParser.h"
 #include "BoteDaemon.h"
+#include "ConfigParser.h"
 #include "DHTworker.h"
 #include "FileSystem.h"
 #include "Logging.h"
