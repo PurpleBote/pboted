@@ -15,6 +15,7 @@
 #include <signal.h>
 #include <thread>
 
+#include "BoteContext.h"
 #include "BoteDaemon.h"
 #include "DHTworker.h"
 #include "Logging.h"
