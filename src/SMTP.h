@@ -7,8 +7,9 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef BOTE_SRC_SMTP_H
-#define BOTE_SRC_SMTP_H
+#pragma once
+#ifndef PBOTED_SRC_SMTP_H
+#define PBOTED_SRC_SMTP_H
 
 #include <string>
 #include <sys/types.h>
@@ -131,21 +132,21 @@ const char reply_5XX[][100] = {
 /* SMTP session state */
 enum smtp_state
 {
-  STATE_QUIT = 0,  // Only after quit
-  STATE_INIT = 1,  // After TCP connection
-  STATE_HELO = 2,  // After HELO command
-  STATE_MAIL = 3,  // After MAIL command
-  STATE_RCPT = 4,  // After RCPT command
-  STATE_DATA = 5,  // After DATA command
+  SMTP_STATE_QUIT = 0,  // Only after quit
+  SMTP_STATE_INIT = 1,  // After TCP connection
+  SMTP_STATE_HELO = 2,  // After HELO command
+  SMTP_STATE_MAIL = 3,  // After MAIL command
+  SMTP_STATE_RCPT = 4,  // After RCPT command
+  SMTP_STATE_DATA = 5,  // After DATA command
 /* For extensions */
-  STATE_EHLO = 10, // After HELO command
-  STATE_STLS = 11, // After STARTTLS command
-  STATE_AUTH = 12, // After AUTH command
+  SMTP_STATE_EHLO = 10, // After HELO command
+  SMTP_STATE_STLS = 11, // After STARTTLS command
+  SMTP_STATE_AUTH = 12, // After AUTH command
 };
 
 struct smtp_session
 {
-  smtp_state state = STATE_QUIT;
+  smtp_state state = SMTP_STATE_QUIT;
   bool need_clean = false;
   char *buf;
   int nrcpt = 0; /* number of filed RCPT users */
@@ -211,4 +212,4 @@ private:
 } // namespace smtp
 } // namespace bote
 
-#endif /* BOTE_SRC_SMTP_H*/
+#endif /* PBOTED_SRC_SMTP_H */

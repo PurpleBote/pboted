@@ -1,14 +1,16 @@
 /**
  * Copyright (C) 2013-2016, The PurpleI2P Project
  * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted project and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef LOG_H__
-#define LOG_H__
+#pragma once
+#ifndef PBOTED_SRC_LOGGING_H
+#define PBOTED_SRC_LOGGING_H
 
 #include <chrono>
 #include <ctime>
@@ -52,35 +54,6 @@ struct LogMsg; /* forward declaration */
 
 class Logging
 {
- private:
-  enum LogType m_Destination;
-  enum LogLevel m_MinLevel;
-  std::shared_ptr<std::ostream> m_LogStream;
-  std::string m_Logfile;
-  std::time_t m_LastTimestamp;
-  char m_LastDateTime[64];
-  pbote::util::Queue<std::shared_ptr<LogMsg>> m_Queue;
-  bool m_HasColors;
-  std::string m_TimeFormat;
-  volatile bool m_IsRunning;
-  std::thread *m_Thread;
-
- private:
-  /** prevent making copies */
-  Logging (const Logging &);
-  const Logging &operator= (const Logging &);
-
-  void Run ();
-  void Process (std::shared_ptr<LogMsg> msg);
-
-  /**
-   * @brief Makes formatted string from unix timestamp
-   * @param ts  Second since epoch
-   *
-   * This function internally caches the result for last provided value
-   */
-  const char *TimeAsString (std::time_t ts);
-
  public:
   Logging ();
   ~Logging ();
@@ -132,6 +105,34 @@ class Logging
 
   /** @brief  Reopen log file */
   void Reopen ();
+
+ private:
+  /** prevent making copies */
+  Logging (const Logging &);
+  const Logging &operator= (const Logging &);
+
+  void Run ();
+  void Process (std::shared_ptr<LogMsg> msg);
+
+  /**
+   * @brief Makes formatted string from unix timestamp
+   * @param ts  Second since epoch
+   *
+   * This function internally caches the result for last provided value
+   */
+  const char *TimeAsString (std::time_t ts);
+
+  enum LogType m_Destination;
+  enum LogLevel m_MinLevel;
+  std::shared_ptr<std::ostream> m_LogStream;
+  std::string m_Logfile;
+  std::time_t m_LastTimestamp;
+  char m_LastDateTime[64];
+  pbote::util::Queue<std::shared_ptr<LogMsg>> m_Queue;
+  bool m_HasColors;
+  std::string m_TimeFormat;
+  volatile bool m_IsRunning;
+  std::thread *m_Thread;
 };
 
 /**
@@ -159,22 +160,27 @@ struct LogMsg
 Logging &Logger ();
 
 typedef std::function<void (const std::string&)>  ThrowFunction;
+
 ThrowFunction GetThrowFunction ();
-void SetThrowFunction (ThrowFunction f);
+
+void
+SetThrowFunction (ThrowFunction f);
 
 } // namespace log
 } // namespace pbote
 
 /** internal usage only -- folding args array to single string */
 template<typename TValue>
-void LogPrint (std::stringstream &s, TValue &&arg) noexcept
+void
+LogPrint (std::stringstream &s, TValue &&arg) noexcept
 {
   s << std::forward<TValue> (arg);
 }
 
 /** internal usage only -- folding args array to single string */
 template<typename TValue, typename... TArgs>
-void LogPrint (std::stringstream &s, TValue &&arg, TArgs &&... args) noexcept
+void
+LogPrint (std::stringstream &s, TValue &&arg, TArgs &&... args) noexcept
 {
   LogPrint (s, std::forward<TValue> (arg));
   LogPrint (s, std::forward<TArgs> (args)...);
@@ -186,7 +192,8 @@ void LogPrint (std::stringstream &s, TValue &&arg, TArgs &&... args) noexcept
  * @param args Array of message parts
  */
 template<typename... TArgs>
-void LogPrint (LogLevel level, TArgs &&... args) noexcept
+void
+LogPrint (LogLevel level, TArgs &&... args) noexcept
 {
   pbote::log::Logging &log = pbote::log::Logger ();
   if (level > log.GetLogLevel ())
@@ -207,7 +214,8 @@ void LogPrint (LogLevel level, TArgs &&... args) noexcept
  * @param args Array of message parts
  */
 template<typename... TArgs>
-void ThrowFatal (TArgs&&... args) noexcept
+void
+ThrowFatal (TArgs&&... args) noexcept
 {
   auto f = pbote::log::GetThrowFunction ();
   if (!f) return;
@@ -221,4 +229,4 @@ void ThrowFatal (TArgs&&... args) noexcept
   f (ss.str ());
 }
 
-#endif // LOG_H__
+#endif // PBOTED_SRC_LOGGING_H

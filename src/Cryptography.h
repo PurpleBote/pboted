@@ -7,6 +7,7 @@
  * See full license text in LICENSE file at top of project tree
  */
 
+#pragma once
 #ifndef PBOTE_SRC_CRYPTOGRAPHY_H
 #define PBOTE_SRC_CRYPTOGRAPHY_H
 

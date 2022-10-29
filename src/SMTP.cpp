@@ -277,7 +277,7 @@ SMTP::run ()
                   fds[nfds].fd = client_sockfd;
                   fds[nfds].events = POLLIN;
 
-                  session.state = STATE_QUIT;
+                  session.state = SMTP_STATE_QUIT;
 
                   nfds++;
                 } while (client_sockfd != PB_SOCKET_INVALID);
@@ -293,10 +293,10 @@ SMTP::run ()
 
           if (fds[sid].fd != server_sockfd)
             {
-              if (session.state == STATE_QUIT)
+              if (session.state == SMTP_STATE_QUIT)
                 {
                   reply (sid, reply_2XX[CODE_220]);
-                  session.state = STATE_INIT;
+                  session.state = SMTP_STATE_INIT;
                 }
 
               LogPrint (eLogDebug, "SMTPsession: New data ", sid, ": ");
@@ -483,7 +483,7 @@ SMTP::reply (int sid, const char *data)
 void
 SMTP::HELO (int sid)
 {
-  if (session.state != STATE_INIT)
+  if (session.state != SMTP_STATE_INIT)
     {
       reply (sid, reply_5XX[CODE_503]);
       return;
@@ -492,7 +492,7 @@ SMTP::HELO (int sid)
   session.nrcpt = 0;
   memset (session.rcpt, 0, sizeof (session.rcpt));
 
-  session.state = STATE_HELO;
+  session.state = SMTP_STATE_HELO;
 
   reply (sid, reply_2XX[CODE_250]);
 }
@@ -500,7 +500,7 @@ SMTP::HELO (int sid)
 void
 SMTP::EHLO (int sid)
 {
-  if (session.state != STATE_INIT)
+  if (session.state != SMTP_STATE_INIT)
     {
       reply (sid, reply_5XX[CODE_501]);
       return;
@@ -515,7 +515,7 @@ SMTP::EHLO (int sid)
     reply_str.append(line);
 
   reply (sid, reply_str.c_str());
-  session.state = STATE_EHLO;
+  session.state = SMTP_STATE_EHLO;
   */
 
   reply (sid, reply_5XX[CODE_502]);
@@ -531,14 +531,14 @@ SMTP::MAIL (int sid)
       return;
     }
 
-  if (session.state == STATE_EHLO)
+  if (session.state == SMTP_STATE_EHLO)
     {
       reply (sid, reply_5XX[CODE_553]);
       return;
     }
 
-  if (session.state != STATE_HELO &&
-      session.state != STATE_AUTH)
+  if (session.state != SMTP_STATE_HELO &&
+      session.state != SMTP_STATE_AUTH)
     {
       reply (sid, reply_5XX[CODE_503_2]);
       return;
@@ -571,7 +571,7 @@ SMTP::MAIL (int sid)
   if (check_identity (alias))
     {
       reply (sid, reply_2XX[CODE_250]);
-      session.state = STATE_MAIL;
+      session.state = SMTP_STATE_MAIL;
     }
   else
     {
@@ -590,8 +590,8 @@ SMTP::RCPT (int sid)
       return;
     }
 
-  if ((session.state != STATE_MAIL &&
-       session.state != STATE_RCPT)
+  if ((session.state != SMTP_STATE_MAIL &&
+       session.state != SMTP_STATE_RCPT)
       && session.nrcpt > SMTP_MAX_RCPT_USR)
     {
       reply (sid, reply_5XX[CODE_503]);
@@ -633,13 +633,13 @@ SMTP::RCPT (int sid)
       reply (sid, reply_5XX[CODE_551]);
     }
 
-  session.state = STATE_RCPT;
+  session.state = SMTP_STATE_RCPT;
 }
 
 void
 SMTP::DATA (int sid)
 {
-  if (session.state != STATE_RCPT)
+  if (session.state != SMTP_STATE_RCPT)
     {
       reply (sid, reply_5XX[CODE_503]);
       return;
@@ -667,7 +667,7 @@ SMTP::DATA (int sid)
   mail.fromMIME (mail_data);
   mail.save ("outbox");
 
-  session.state = STATE_DATA;
+  session.state = SMTP_STATE_DATA;
 
   reply (sid, reply_2XX[CODE_250]);
 }
@@ -675,7 +675,7 @@ SMTP::DATA (int sid)
 void
 SMTP::RSET (int sid)
 {
-  session.state = STATE_INIT;
+  session.state = SMTP_STATE_INIT;
   reply (sid, reply_2XX[CODE_250]);
 }
 
@@ -694,7 +694,7 @@ SMTP::NOOP (int sid)
 void
 SMTP::QUIT (int sid)
 {
-  session.state = STATE_QUIT;
+  session.state = SMTP_STATE_QUIT;
   reply (sid, reply_2XX[CODE_221]);
 
   fds[sid].revents = POLLHUP;
@@ -718,13 +718,13 @@ SMTP::AUTH (int sid)
   if (strncmp (session.buf, "AUTH LOGIN", 10) == 0)
     {
       LogPrint (eLogDebug, "SMTPsession: AUTH: Auth login OK");
-      session.state = STATE_AUTH;
+      session.state = SMTP_STATE_AUTH;
       reply (sid, reply_2XX[CODE_235]);
     }
   else if (strncmp (session.buf, "AUTH PLAIN", 10) == 0)
     {
       LogPrint (eLogDebug, "SMTPsession: AUTH: Auth plain OK");
-      session.state = STATE_AUTH;
+      session.state = SMTP_STATE_AUTH;
       reply (sid, reply_2XX[CODE_235]);
     }
   else

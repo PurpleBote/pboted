@@ -7,8 +7,9 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef BOTE_SRC_POP3_H
-#define BOTE_SRC_POP3_H
+#pragma once
+#ifndef PBOTED_SRC_POP3_H
+#define PBOTED_SRC_POP3_H
 
 #include <string>
 #include <sys/types.h>
@@ -112,16 +113,16 @@ const char templates[][100] = {
 /* POP3 session states */
 enum pop3_state
 {
-  STATE_QUIT = 0,        // Only after quit
-  STATE_USER = 1,        // After TCP connection
-  STATE_PASS = 2,        // After successful USER
-  STATE_TRANSACTION = 3, // After successful PASS
-  STATE_UPDATE = 4      // After disconnect from TRANSACTION
+  POP3_STATE_QUIT = 0,        // Only after quit
+  POP3_STATE_USER = 1,        // After TCP connection
+  POP3_STATE_PASS = 2,        // After successful USER
+  POP3_STATE_TRANSACTION = 3, // After successful PASS
+  POP3_STATE_UPDATE = 4       // After disconnect from TRANSACTION
 };
 
 struct pop3_session
 {
-  pop3_state state = STATE_QUIT;
+  pop3_state state = POP3_STATE_QUIT;
   bool need_clean = false;
   char *buf;
   std::vector<std::shared_ptr<pbote::Email> > emails;

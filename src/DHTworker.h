@@ -7,8 +7,9 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTE_DHT_WORKER_H_
-#define PBOTE_DHT_WORKER_H_
+#pragma once
+#ifndef PBOTED_SRC_DHT_WORKER_H
+#define PBOTED_SRC_DHT_WORKER_H
 
 #include <chrono>
 #include <iostream>
@@ -32,8 +33,6 @@ namespace pbote
 {
 namespace kademlia
 {
-
-#define BIT_SIZE 256
 
 /// Number of redundant storage nodes
 // ToDo: change to 20 on release 0.9.0
@@ -307,4 +306,4 @@ extern DHTworker DHT_worker;
 } // kademlia
 } // pbote
 
-#endif // PBOTE_DHT_WORKER_H_
+#endif // PBOTED_SRC_DHT_WORKER_H

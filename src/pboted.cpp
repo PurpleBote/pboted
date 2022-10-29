@@ -1,5 +1,6 @@
 /**
- * Copyright (c) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -58,6 +59,5 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, PSTR, INT nCmdShow)
     Daemon.stop ();
   }
   return EXIT_SUCCESS;
-
 }
 #endif

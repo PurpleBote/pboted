@@ -7,8 +7,9 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTE_SRC_DHTSTORAGE_H_
-#define PBOTE_SRC_DHTSTORAGE_H_
+#pragma once
+#ifndef PBOTED_SRC_DHTSTORAGE_H
+#define PBOTED_SRC_DHTSTORAGE_H
 
 #include <mutex>
 
@@ -19,6 +20,9 @@ namespace pbote
 {
 namespace kademlia
 {
+
+// 10 MiB
+#define DHT_MIN_FREE_SPACE 10485760
 
 #define STORE_SUCCESS 0
 #define STORE_FILE_EXIST (-1)

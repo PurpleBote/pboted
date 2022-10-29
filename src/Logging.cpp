@@ -1,6 +1,7 @@
 /**
  * Copyright (C) 2013-2016, The PurpleI2P Project
  * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted project and licensed under BSD3
  *
@@ -138,7 +139,8 @@ str_tolower (std::string s)
   return s;
 }
 
-void Logging::SetLogLevel (const std::string &level_)
+void
+Logging::SetLogLevel (const std::string &level_)
 {
   std::string level = str_tolower (level_);
   if (level == "none")
@@ -244,7 +246,8 @@ Logging::Append (std::shared_ptr<pbote::log::LogMsg> &msg)
   m_Queue.Put (msg);
 }
 
-void Logging::SendTo (const std::string &path)
+void
+Logging::SendTo (const std::string &path)
 {
   if (m_LogStream)
     m_LogStream = nullptr; // close previous
@@ -294,13 +297,24 @@ Logging::Reopen ()
     SendTo (m_Logfile);
 }
 
-Logging &Logger () { return logger; }
+Logging &Logger ()
+{
+  return logger;
+}
 
 static ThrowFunction g_ThrowFunction;
 
-ThrowFunction GetThrowFunction () { return g_ThrowFunction; }
+ThrowFunction
+GetThrowFunction ()
+{
+  return g_ThrowFunction;
+}
 
-void SetThrowFunction (ThrowFunction f) { g_ThrowFunction = f; }
+void
+SetThrowFunction (ThrowFunction f)
+{
+  g_ThrowFunction = f;
+}
 
 } // namespace log
 } // namespace pbote

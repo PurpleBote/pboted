@@ -7,6 +7,7 @@
  * See full license text in LICENSE file at top of project tree
  */
 
+#pragma once
 #ifndef BOTE_VERSION_H
 #define BOTE_VERSION_H
 

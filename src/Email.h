@@ -1,13 +1,15 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTED_SRC_EMAIL_H_
-#define PBOTED_SRC_EMAIL_H_
+#pragma once
+#ifndef PBOTED_SRC_EMAIL_H
+#define PBOTED_SRC_EMAIL_H
 
 #include <map>
 #include <mimetic/mimetic.h>
@@ -21,7 +23,8 @@
 #include "BoteIdentity.h"
 #include "Packet.h"
 
-namespace pbote {
+namespace pbote
+{
 
 #define MAX_HEADER_LENGTH 998
 
@@ -356,4 +359,4 @@ class Email
 
 } // pbote
 
-#endif //PBOTED_SRC_EMAIL_H_
+#endif // PBOTED_SRC_EMAIL_H

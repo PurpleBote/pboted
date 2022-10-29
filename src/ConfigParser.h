@@ -7,8 +7,9 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef BOTE_CONFIG_PARSER_H
-#define BOTE_CONFIG_PARSER_H
+#pragma once
+#ifndef PBOTED_CONFIG_PARSER_H
+#define PBOTED_CONFIG_PARSER_H
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/variables_map.hpp>
@@ -150,4 +151,4 @@ bool IsDefault(const char *name);
 } // namespace config
 } // namespace pbote
 
-#endif // BOTE_CONFIG_PARSER_H
+#endif // PBOTED_CONFIG_PARSER_H

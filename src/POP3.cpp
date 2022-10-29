@@ -277,7 +277,7 @@ POP3::run ()
                   fds[nfds].fd = client_sockfd;
                   fds[nfds].events = POLLIN;
 
-                  session.state = STATE_QUIT;
+                  session.state = POP3_STATE_QUIT;
 
                   nfds++;
                 } while (client_sockfd != PB_SOCKET_INVALID);
@@ -293,10 +293,10 @@ POP3::run ()
 
           if (fds[sid].fd != server_sockfd)
             {
-              if (session.state == STATE_QUIT)
+              if (session.state == POP3_STATE_QUIT)
                 {
                   reply (sid, reply_ok[OK_HELO]);
-                  session.state = STATE_USER;
+                  session.state = POP3_STATE_USER;
                 }
 
               LogPrint (eLogDebug, "POP3session: New data ", sid, ": ");
@@ -482,7 +482,7 @@ POP3::reply (int sid, const char *data)
 void
 POP3::USER (int sid)
 {
-  if (session.state != STATE_USER)
+  if (session.state != POP3_STATE_USER)
     {
       reply (sid, reply_err[ERR_DENIED]);
       return;
@@ -502,7 +502,7 @@ POP3::USER (int sid)
 
   if (check_user (user))
     {
-      session.state = STATE_PASS;
+      session.state = POP3_STATE_PASS;
       auto res = format_response (reply_ok[OK_USER], user.c_str ());
       reply (sid, res.c_str ());
     }
@@ -516,7 +516,7 @@ POP3::USER (int sid)
 void
 POP3::PASS (int sid)
 {
-  if (session.state != STATE_PASS)
+  if (session.state != POP3_STATE_PASS)
     {
       reply (sid, reply_err[ERR_DENIED]);
       return;
@@ -529,14 +529,14 @@ POP3::PASS (int sid)
   if (check_pass (str_req.substr (5, str_req.size () - 5)))
     {
       // ToDo: lock mail directory
-      session.state = STATE_TRANSACTION;
+      session.state = POP3_STATE_TRANSACTION;
       /* ToDo: pass username */
       session.emails = pbote::kademlia::email_worker.check_inbox ();
       reply (sid, reply_ok[OK_LOCK]);
     }
   else
     {
-      session.state = STATE_USER;
+      session.state = POP3_STATE_USER;
       reply (sid, reply_err[ERR_PASS]);
     }
 }
@@ -544,7 +544,7 @@ POP3::PASS (int sid)
 void
 POP3::STAT (int sid)
 {
-  if (session.state != STATE_TRANSACTION)
+  if (session.state != POP3_STATE_TRANSACTION)
     {
       reply (sid, reply_err[ERR_DENIED]);
       return;
@@ -562,7 +562,7 @@ POP3::STAT (int sid)
 void
 POP3::LIST (int sid)
 {
-  if (session.state != STATE_TRANSACTION)
+  if (session.state != POP3_STATE_TRANSACTION)
     {
       reply (sid, reply_err[ERR_DENIED]);
       return;
@@ -595,7 +595,7 @@ POP3::LIST (int sid)
 void
 POP3::RETR (int sid)
 {
-  if (session.state != STATE_TRANSACTION)
+  if (session.state != POP3_STATE_TRANSACTION)
     {
       reply (sid, reply_err[ERR_DENIED]);
       return;
@@ -637,7 +637,7 @@ POP3::RETR (int sid)
 void
 POP3::DELE (int sid)
 {
-  if (session.state != STATE_TRANSACTION)
+  if (session.state != POP3_STATE_TRANSACTION)
     {
       reply (sid, reply_err[ERR_DENIED]);
       return;
@@ -676,7 +676,7 @@ POP3::DELE (int sid)
 void
 POP3::NOOP (int sid)
 {
-  if (session.state != STATE_TRANSACTION)
+  if (session.state != POP3_STATE_TRANSACTION)
   {
     reply (sid, reply_err[ERR_DENIED]);
     return;
@@ -688,7 +688,7 @@ POP3::NOOP (int sid)
 void
 POP3::RSET (int sid)
 {
-  if (session.state != STATE_TRANSACTION)
+  if (session.state != POP3_STATE_TRANSACTION)
     {
       reply (sid, reply_err[ERR_DENIED]);
       return;
@@ -702,7 +702,7 @@ POP3::RSET (int sid)
 void
 POP3::QUIT (int sid)
 {
-  if (session.state == STATE_TRANSACTION)
+  if (session.state == POP3_STATE_TRANSACTION)
     {
       /// Now we can remove marked emails
       /// https://datatracker.ietf.org/doc/html/rfc1939#section-6
@@ -713,7 +713,7 @@ POP3::QUIT (int sid)
         }
     }
 
-  session.state = STATE_QUIT;
+  session.state = POP3_STATE_QUIT;
   reply (sid, reply_ok[OK_QUIT]);
 
   PB_SOCKET_CLOSE (fds[sid].fd);
@@ -752,7 +752,7 @@ POP3::APOP (int sid)
   // ToDo
   LogPrint (eLogDebug, "POP3session: APOP: Login successfully");
 
-  session.state = STATE_TRANSACTION;
+  session.state = POP3_STATE_TRANSACTION;
 
   reply (sid, reply_ok[OK_LOCK]);
 }
@@ -760,7 +760,7 @@ POP3::APOP (int sid)
 void
 POP3::TOP (int sid)
 {
-  if (session.state != STATE_TRANSACTION)
+  if (session.state != POP3_STATE_TRANSACTION)
     {
       reply (sid, reply_err[ERR_DENIED]);
       return;
@@ -773,7 +773,7 @@ POP3::TOP (int sid)
 void
 POP3::UIDL (int sid)
 {
-  if (session.state != STATE_TRANSACTION)
+  if (session.state != POP3_STATE_TRANSACTION)
     {
       reply (sid, reply_err[ERR_DENIED]);
       return;
