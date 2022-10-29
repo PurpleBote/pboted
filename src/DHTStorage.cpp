@@ -32,8 +32,8 @@ DHTStorage::update ()
   {
     update_counter = 0;
 
-    /// Only in case if we have less than 10 MiB of free space
-    if (limit_reached (10485760))
+    /// Only in case if we have less than min free space left
+    if (limit_reached (DHT_MIN_FREE_SPACE))
       {
         LogPrint (eLogDebug, "DHTStorage: update: Cleanup started");
 

@@ -25,27 +25,32 @@
 #include "Logging.h"
 #include "RelayWorker.h"
 
+namespace pbote
+{
+namespace util
+{
+
 void handle_signal(int sig)
 {
   switch (sig)
     {
       case SIGHUP:
         LogPrint(eLogInfo, "Daemon: Got SIGHUP, reload configuration...");
-        // ToDo: pbote::context.ReloadConfig();
+        // ToDo: reload_config ();
         break;
       case SIGUSR1:
         LogPrint(eLogInfo, "Daemon: Got SIGUSR1, reopening logs...");
         pbote::log::Logger().Reopen();
         break;
       case SIGINT:
-      case SIGABRT:
-      case SIGTERM:
         if (sig == SIGINT)
-          LogPrint(eLogInfo, "Daemon: Got SIGINT, stopping");
-        else if (sig == SIGABRT)
-          LogPrint(eLogInfo, "Daemon: Got SIGABRT, stopping");
-        else if (sig == SIGTERM)
-          LogPrint(eLogInfo, "Daemon: Got SIGTERM, stopping");
+          LogPrint (eLogInfo, "Daemon: Got SIGINT, stopping");
+      case SIGABRT:
+        if (sig == SIGABRT)
+          LogPrint (eLogInfo, "Daemon: Got SIGABRT, stopping");
+      case SIGTERM:        
+        if (sig == SIGTERM)
+          LogPrint (eLogInfo, "Daemon: Got SIGTERM, stopping");
         else
           LogPrint(eLogError, "Daemon: Got unknown signal: ", sig);
         Daemon.stop ();
@@ -59,19 +64,16 @@ void handle_signal(int sig)
     }
 }
 
-namespace pbote
-{
-namespace util
-{
-
 int DaemonLinux::start ()
 {
+  /* Demonization */
   if (isDaemon)
   {
     LogPrint(eLogDebug, "Daemon: Run as daemon");
 
     if (daemon(true, false) == -1)
       {
+        LogPrint (eLogError, "Daemon: Daemonization failed");
         return EXIT_FAILURE;
       }
 
@@ -86,7 +88,7 @@ int DaemonLinux::start ()
   /* Set proc limits */
   struct rlimit limit = {};
   uint16_t nfiles = 0;
-  pbote::config::GetOption("limits.openfiles", nfiles);
+  pbote::config::GetOption("openfiles", nfiles);
   getrlimit(RLIMIT_NOFILE, &limit);
   if (nfiles == 0)
     {
@@ -113,9 +115,10 @@ int DaemonLinux::start ()
                limit.rlim_max);
     }
 
+  /* Set core file size */
   uint32_t cfsize = 0;
-  pbote::config::GetOption("limits.coresize", cfsize);
-  if (cfsize) // core file size set
+  pbote::config::GetOption("coresize", cfsize);
+  if (cfsize)
   {
     cfsize *= 1024;
     getrlimit(RLIMIT_CORE, &limit);
@@ -148,6 +151,7 @@ int DaemonLinux::start ()
     {
       pidfile = pbote::fs::DataDirPath("pboted.pid");
     }
+
   if (!pidfile.empty())
     {
       pidFH = open(pidfile.c_str(), O_RDWR | O_CREAT, 0600);
@@ -201,9 +205,12 @@ bool DaemonLinux::stop ()
 
   m_check_cv.notify_one ();
 
+  bool rc = Daemon_Singleton::stop ();
+
+  close (pidFH);
   pbote::fs::Remove (pidfile);
 
-  return Daemon_Singleton::stop ();
+  return rc;
 }
 
 void DaemonLinux::run ()
@@ -215,8 +222,10 @@ void DaemonLinux::run ()
       {
         std::unique_lock<std::mutex> lk (m_cv_mutex);
         auto rc = m_check_cv.wait_for (lk, check_timeout);
+
         if (rc == std::cv_status::no_timeout)
           LogPrint (eLogDebug, "Daemon: Got notification");
+
         lk.unlock ();
       }
 
@@ -235,4 +244,4 @@ void DaemonLinux::run ()
 } // namespace util
 } // namespace pbote
 
-#endif // _WIN32
+#endif /* _WIN32 */

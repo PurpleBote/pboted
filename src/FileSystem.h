@@ -8,8 +8,9 @@
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef BOTE_FS_H__
-#define BOTE_FS_H__
+#pragma once
+#ifndef PBOTED_FS_H
+#define PBOTED_FS_H
 
 #define DEFAULT_FILE_EXTENSION ".dat"
 #define DELETED_FILE_EXTENSION ".del"
@@ -53,33 +54,37 @@ class HashedStorage
   std::string suffix;  /**< suffix of file in storage (extension) */
 
  public:
-  typedef std::function<void(const std::string &)> FilenameVisitor;
-  HashedStorage(const char *n, const char *p1, const char *p2, const char *s)
-      : name(n), prefix1(p1), prefix2(p2), suffix(s) {};
+  typedef std::function<void (const std::string &)> FilenameVisitor;
+  HashedStorage (const char *n, const char *p1, const char *p2, const char *s)
+    : name(n),
+      prefix1(p1),
+      prefix2(p2),
+      suffix(s)
+  {};
 
   /** create subdirs in storage */
-  bool Init(const char *chars, size_t cnt);
-  const std::string &GetRoot() const { return root; }
-  const std::string &GetName() const { return name; }
+  bool Init (const char *chars, size_t cnt);
+  const std::string &GetRoot () const { return root; }
+  const std::string &GetName () const { return name; }
   /** set directory where to place storage directory */
-  void SetPlace(const std::string &path);
+  void SetPlace (const std::string &path);
   /** path to file with given ident */
-  std::string Path(const std::string &ident) const;
+  std::string Path (const std::string &ident) const;
   /** remove file by ident */
-  void Remove(const std::string &ident);
+  void Remove (const std::string &ident);
   /** find all files in storage and store list in provided vector */
-  void Traverse(std::vector<std::string> &files);
+  void Traverse (std::vector<std::string> &files);
   /** visit every file in this storage with a visitor */
-  void Iterate(FilenameVisitor v);
+  void Iterate (FilenameVisitor v);
 };
 
 /** @brief Returns current application name, default 'pboted' */
-const std::string &GetAppName();
+const std::string &GetAppName ();
 /** @brief Set application name, affects autodetection of datadir */
-void SetAppName(const std::string &name);
+void SetAppName (const std::string &name);
 
 /** @brief Returns datadir path */
-const std::string &GetDataDir();
+const std::string &GetDataDir ();
 
 /**
  * @brief Set datadir either from cmdline option or using autodetection
@@ -93,12 +98,12 @@ const std::string &GetDataDir();
  *   Mac: /Library/Application Support/pboted/ or ~/Library/Application
  * Support/pboted/ Unix: /var/lib/pboted/ (system=1) >> ~/.pboted/ or /tmp/pboted/
  */
-void DetectDataDir(const std::string &cmdline_datadir, bool isService = false);
+void DetectDataDir (const std::string &cmdline_datadir, bool isService = false);
 
 /**
  * @brief Create subdirectories inside datadir
  */
-bool Init();
+bool Init ();
 
 /**
  * @brief Get list of files in directory
@@ -106,34 +111,34 @@ bool Init();
  * @param files Vector to store found files
  * @return true on success and false if directory not exists
  */
-bool ReadDir(const std::string &path, std::vector<std::string> &files);
+bool ReadDir (const std::string &path, std::vector<std::string> &files);
 
 /**
  * @brief Remove file with given path
  * @param path Absolute path to file
  * @return true on success, false if file not exists, throws exception on error
  */
-bool Remove(const std::string &path);
+bool Remove (const std::string &path);
 
 /**
  * @brief Check existence of file
  * @param path Absolute path to file
  * @return true if file exists, false otherwise
  */
-bool Exists(const std::string &path);
+bool Exists (const std::string &path);
 
-uint32_t GetLastUpdateTime(const std::string &path); // seconds since epoch
+uint32_t GetLastUpdateTime (const std::string &path); // seconds since epoch
 
-bool CreateDirectory(const std::string &path);
+bool CreateDirectory (const std::string &path);
 
 template<typename T>
-void _ExpandPath(std::stringstream &path, T c)
+void _ExpandPath (std::stringstream &path, T c)
 {
   path << pbote::fs::dirSep << c;
 }
 
 template<typename T, typename... Other>
-void _ExpandPath(std::stringstream &path, T c, Other... other)
+void _ExpandPath (std::stringstream &path, T c, Other... other)
 {
   _ExpandPath(path, c);
   _ExpandPath(path, other...);
@@ -148,7 +153,7 @@ void _ExpandPath(std::stringstream &path, T c, Other... other)
  * pbote::fs::Path("test", "file.txt") -> '/tmp/pbote/test/file.txt'
  */
 template<typename... Other>
-std::string DataDirPath(Other... components)
+std::string DataDirPath (Other... components)
 {
   std::stringstream s("");
   s << pbote::fs::GetDataDir();
@@ -158,7 +163,7 @@ std::string DataDirPath(Other... components)
 }
 
 template<typename Storage, typename... Filename>
-std::string StorageRootPath(const Storage &storage, Filename... filenames)
+std::string StorageRootPath (const Storage &storage, Filename... filenames)
 {
   std::stringstream s("");
   s << storage.GetRoot();
@@ -170,4 +175,4 @@ std::string StorageRootPath(const Storage &storage, Filename... filenames)
 } // namespace fs
 } // namespace pbote
 
-#endif // BOTE_FS_H__
+#endif // PBOTED_FS_H

@@ -1,13 +1,15 @@
 /**
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTED_SRC_ADDRESS_BOOK_H_
-#define PBOTED_SRC_ADDRESS_BOOK_H_
+#pragma once
+#ifndef PBOTED_SRC_ADDRESS_BOOK_H
+#define PBOTED_SRC_ADDRESS_BOOK_H
 
 #include <map>
 #include <string>
@@ -61,26 +63,22 @@ public:
   std::string address_for_alias (const std::string &alias);
   void remove (const std::string &name);
 
-  size_t
-  size ()
-  {
-    return contacts.size ();
-  }
+  size_t size () { return m_contacts.size (); }
 
-  // void setPassword();
-  // void changePassword();
+  // void set_password();
+  // void change_password();
   // void encrypt();
   // void decrypt();
 
 private:
   std::vector<std::string> read ();
 
-  std::string filePath_;
-  std::string passwordHolder_;
+  std::string m_addressbook_path;
+  std::string m_password_holder;
 
-  std::vector<Contact> contacts;
+  std::vector<Contact> m_contacts;
 };
 
 } // namespace pbote
 
-#endif // PBOTED_SRC_ADDRESS_BOOK_H_
+#endif // PBOTED_SRC_ADDRESS_BOOK_H

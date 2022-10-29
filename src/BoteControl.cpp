@@ -20,6 +20,8 @@
 
 namespace bote
 {
+namespace module
+{
 
 BoteControl::BoteControl ()
   : m_is_running (false),
@@ -54,6 +56,7 @@ BoteControl::BoteControl ()
 
   /* Fill handlers */
   handlers["all"] = &BoteControl::all;
+  handlers["addressbook"] = &BoteControl::addressbook;
   handlers["daemon"] = &BoteControl::daemon;
   handlers["identity"] = &BoteControl::identity;
   handlers["storage"] = &BoteControl::storage;
@@ -359,7 +362,7 @@ BoteControl::run ()
                   fds[nfds].fd = client_sockfd;
                   fds[nfds].events = POLLIN;
 
-                  session.state = STATE_INIT;
+                  session.state = CONTROL_STATE_INIT;
 
                   nfds++;
                 } while (client_sockfd != PB_SOCKET_INVALID);
@@ -380,10 +383,10 @@ BoteControl::run ()
           if (fds[sid].fd != tcp_fd)
 #endif
             {
-              if (session.state == STATE_INIT)
+              if (session.state == CONTROL_STATE_INIT)
                 {
                   //reply (sid, reply_ok[OK_HELO]);
-                  session.state = STATE_AUTH;
+                  session.state = CONTROL_STATE_AUTH;
                 }
 
               LogPrint (eLogDebug, "ControlSession: run: FD #", sid,
@@ -571,81 +574,142 @@ BoteControl::insert_param (std::ostringstream &ss, const std::string &name,
 void
 BoteControl::all (const std::string &cmd_id, std::ostringstream &results)
 {
-  std::string empty;
-  daemon (empty, results);
-  results << ", ";
-  identity (empty, results);
-  results << ", ";
-  storage (empty, results);
-  results << ", ";
-  peer (empty, results);
-  results << ", ";
-  node (empty, results);
+  LogPrint (eLogDebug, "Control: all: cmd_id: ", cmd_id);
+
+  if (0 == cmd_id.compare ("show"))
+    {
+      daemon (cmd_id, results);
+      results << ", ";
+      addressbook (cmd_id, results);
+      results << ", ";
+      identity (cmd_id, results);
+      results << ", ";
+      storage (cmd_id, results);
+      results << ", ";
+      peer (cmd_id, results);
+      results << ", ";
+      node (cmd_id, results);
+    }
+  else
+    unknown_cmd (cmd_id, results);
+}
+
+void
+BoteControl::addressbook (const std::string &cmd_id, std::ostringstream &results)
+{
+  LogPrint (eLogDebug, "Control: addressbook: cmd_id: ", cmd_id);
+
+  if (0 == cmd_id.compare ("show"))
+    {
+      results << "\"addressbook\": {";
+      insert_param (results, "size", (int)pbote::context.contacts_size ());
+      results << "}";
+    }
+  else
+    unknown_cmd (cmd_id, results);
 }
 
 void
 BoteControl::daemon (const std::string &cmd_id, std::ostringstream &results)
 {
-  results << "\"daemon\": {";
-  insert_param (results, "uptime", (int)pbote::context.get_uptime ());
-  results << ", ";
-  results << "\"bytes\": {";
-  insert_param (results, "recived", (int)pbote::network::network_worker.bytes_recv ());
-  results << ", ";
-  insert_param (results, "sent", (int)pbote::network::network_worker.bytes_sent ());
-  results << "}}";
+  LogPrint (eLogDebug, "Control: daemon: cmd_id: ", cmd_id);
+
+  if (0 == cmd_id.compare ("show"))
+    {
+      results << "\"daemon\": {";
+      insert_param (results, "uptime", (int)pbote::context.get_uptime ());
+      results << ", ";
+      results << "\"bytes\": {";
+      insert_param (results, "recived", (int)pbote::network::network_worker.bytes_recv ());
+      results << ", ";
+      insert_param (results, "sent", (int)pbote::network::network_worker.bytes_sent ());
+      results << "}}";
+    }
+  else
+    unknown_cmd (cmd_id, results);
 }
 
 void
 BoteControl::identity (const std::string &cmd_id, std::ostringstream &results)
 {
-  results << "\"identity\": {";
-  insert_param (results, "count", (int)pbote::context.get_identities_count ());
-  results << "}";
+  LogPrint (eLogDebug, "Control: daemon: cmd_id: ", cmd_id);
+
+  if (0 == cmd_id.compare ("show"))
+    {
+      results << "\"identity\": {";
+      insert_param (results, "count", (int)pbote::context.get_identities_count ());
+      results << "}";
+    }
+  else
+    unknown_cmd (cmd_id, results);
 }
 
 void
 BoteControl::storage (const std::string &cmd_id, std::ostringstream &results)
 {
-  results << "\"storage\": {";
-  insert_param (results, "used",
-                (double)pbote::kademlia::DHT_worker.get_storage_usage ());
-  results << "}";
+  LogPrint (eLogDebug, "Control: storage: cmd_id: ", cmd_id);
+
+  if (0 == cmd_id.compare ("show"))
+    {
+      results << "\"storage\": {";
+      insert_param (results, "used",
+                    (double)pbote::kademlia::DHT_worker.get_storage_usage ());
+      results << "}";
+    }
+  else
+    unknown_cmd (cmd_id, results);
 }
 
 void
 BoteControl::peer (const std::string &cmd_id, std::ostringstream &results)
 {
-  results << "\"peers\": {";
-  results << "\"count\": {";
-  insert_param (results, "total",
-                (int)pbote::relay::relay_worker.getPeersCount ());
-  results << ", ";
-  insert_param (results, "good",
-                (int)pbote::relay::relay_worker.get_good_peer_count ());
-  results << "}}";
+  LogPrint (eLogDebug, "Control: peer: cmd_id: ", cmd_id);
+
+  if (0 == cmd_id.compare ("show"))
+    {
+      results << "\"peers\": {";
+      results << "\"count\": {";
+      insert_param (results, "total",
+                    (int)pbote::relay::relay_worker.getPeersCount ());
+      results << ", ";
+      insert_param (results, "good",
+                    (int)pbote::relay::relay_worker.get_good_peer_count ());
+      results << "}}";
+    }
+  else
+    unknown_cmd (cmd_id, results);
 }
 
 void
 BoteControl::node (const std::string &cmd_id, std::ostringstream &results)
 {
-  results << "\"nodes\": {";
-  results << "\"count\": {";
-  insert_param (results, "total",
-                (int)pbote::kademlia::DHT_worker.getNodesCount ());
-  results << ", ";
-  insert_param (results, "unlocked",
-                (int)pbote::kademlia::DHT_worker.get_unlocked_nodes_count ());
-  results << "}}";
+  LogPrint (eLogDebug, "Control: node: cmd_id: ", cmd_id);
+
+  if (0 == cmd_id.compare ("show"))
+    {
+      results << "\"nodes\": {";
+      results << "\"count\": {";
+      insert_param (results, "total",
+                    (int)pbote::kademlia::DHT_worker.getNodesCount ());
+      results << ", ";
+      insert_param (results, "unlocked",
+                    (int)pbote::kademlia::DHT_worker.get_unlocked_nodes_count ());
+      results << "}}";
+    }
+  else
+    unknown_cmd (cmd_id, results);
 }
 
 void
 BoteControl::unknown_cmd (const std::string &cmd, std::ostringstream &results)
 {
+  LogPrint (eLogWarning, "Control: node: unknown_cmd: ", cmd);
+
   results << "{\"id\": null, \"error\": ";
   results << "{\"code\": 404,";
   results << "\"message\": \"Command not found: " << cmd << "\"},";
   results << "\"jsonrpc\": 2.0}";
 }
 
-} // bote
+} /* namespace module */
+} /* namespace bote */

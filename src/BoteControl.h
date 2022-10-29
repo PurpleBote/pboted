@@ -24,6 +24,8 @@
 
 namespace bote
 {
+namespace module
+{
 
 #define CONTROL_MAX_CLIENTS 3
 #define CONTROL_BUFF_SIZE 8192
@@ -35,14 +37,14 @@ const std::string DEFAULT_SOCKET_NAME = "pboted.sock";
 
 enum control_state
 {
-  STATE_QUIT = 0,  // Only after quit
-  STATE_INIT = 1,  // After TCP connection
-  STATE_AUTH = 2,  // ToDo
+  CONTROL_STATE_QUIT = 0,  // Only after quit
+  CONTROL_STATE_INIT = 1,  // After TCP connection
+  CONTROL_STATE_AUTH = 2,  // ToDo
 };
 
 struct control_session
 {
-  control_state state = STATE_QUIT;
+  control_state state = CONTROL_STATE_QUIT;
   bool need_clean = false;
   char *buf;
 };
@@ -67,7 +69,6 @@ private:
   void run ();
 
   void handle_request (int sid);
-
   void reply (int sid, const std::string &msg);
 
   void insert_param (std::ostringstream &ss, const std::string &name,
@@ -79,14 +80,18 @@ private:
 
   /// Handlers
   void all (const std::string &cmd_id, std::ostringstream &results);
+  ///
+  void addressbook (const std::string &cmd_id, std::ostringstream &results);
   void daemon (const std::string &cmd_id, std::ostringstream &results);
   void identity (const std::string &cmd_id, std::ostringstream &results);
   void storage (const std::string &cmd_id, std::ostringstream &results);
   void peer (const std::string &cmd_id, std::ostringstream &results);
   void node (const std::string &cmd_id, std::ostringstream &results);
+
   /// For unknown
   void unknown_cmd (const std::string &cmd, std::ostringstream &results);
 
+  ///
   bool m_is_running = false;
   std::thread *m_control_thread;
 
@@ -101,7 +106,7 @@ private:
 #endif
   std::string socket_path;
   struct sockaddr_un file_addr;
-#endif
+#endif /* DISABLE_SOCKET */
 
   /* TCP stuff */
 #ifndef _WIN32
@@ -127,6 +132,7 @@ private:
   std::map<std::string, Handler> handlers;
 };
 
-} // bote
+} /* module */
+} /* bote */
 
 #endif // PBOTED_SRC_BOTECONTROL_H

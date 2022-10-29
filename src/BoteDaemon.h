@@ -7,6 +7,7 @@
  * See full license text in LICENSE file at top of project tree
  */
 
+#pragma once
 #ifndef PBOTED_SRC_BOTEDAEMON_H
 #define PBOTED_SRC_BOTEDAEMON_H
 

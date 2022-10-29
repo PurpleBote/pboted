@@ -35,9 +35,9 @@ class Daemon_Singleton::Daemon_Singleton_Private
   Daemon_Singleton_Private() {};
   ~Daemon_Singleton_Private() {};
 
-  std::unique_ptr<bote::smtp::SMTP> SMTPserver;
-  std::unique_ptr<bote::pop3::POP3> POP3server;
-  std::unique_ptr<bote::BoteControl> control_server;
+  std::unique_ptr<bote::smtp::SMTP> SMTP_server;
+  std::unique_ptr<bote::pop3::POP3> POP3_server;
+  std::unique_ptr<bote::module::BoteControl> control_server;
 };
 
 Daemon_Singleton::Daemon_Singleton()
@@ -142,11 +142,11 @@ Daemon_Singleton::init(int argc, char *argv[],
   LogPrint(eLogDebug, "FS: Data directory: ", datadir);
   LogPrint(eLogDebug, "FS: Main config file: ", config);
 
-  LogPrint(eLogInfo, "Daemon: Init context");
-  pbote::context.init();
-
   LogPrint(eLogInfo, "Daemon: Init network");
   pbote::network::network_worker.init();
+
+  LogPrint(eLogInfo, "Daemon: Init context");
+  pbote::context.init();
 
   LogPrint(eLogDebug, "Daemon: Init done");
   return true;
@@ -158,7 +158,7 @@ Daemon_Singleton::start()
   LogPrint(eLogDebug, "Daemon: Start services");
   pbote::log::Logger().Start();
 
-  LogPrint(eLogInfo, "Daemon: Starting network worker");
+  LogPrint(eLogInfo, "Daemon: Starting network");
   pbote::network::network_worker.start();
 
   LogPrint(eLogInfo, "Daemon: Starting relay");
@@ -173,18 +173,18 @@ Daemon_Singleton::start()
   LogPrint(eLogInfo, "Daemon: Starting Email");
   pbote::kademlia::email_worker.start();
 
-  bool control = false;
-  pbote::config::GetOption("control.enabled", control);
-  if (control)
+  bool control_enabled = false;
+  pbote::config::GetOption("control.enabled", control_enabled);
+  if (control_enabled)
     {
       LogPrint(eLogInfo, "Daemon: Starting control socket");
-      d.control_server = std::make_unique<bote::BoteControl>();
+      d.control_server = std::make_unique<bote::module::BoteControl>();
       d.control_server->start();
     }
 
-  bool smtp = false;
-  pbote::config::GetOption("smtp.enabled", smtp);
-  if (smtp)
+  bool smtp_enabled = false;
+  pbote::config::GetOption("smtp.enabled", smtp_enabled);
+  if (smtp_enabled)
     {
       std::string SMTPaddr;
       uint16_t SMTPport;
@@ -195,8 +195,8 @@ Daemon_Singleton::start()
 
       try
         {
-          d.SMTPserver = std::make_unique<bote::smtp::SMTP>(SMTPaddr, SMTPport);
-          d.SMTPserver->start();
+          d.SMTP_server = std::make_unique<bote::smtp::SMTP>(SMTPaddr, SMTPport);
+          d.SMTP_server->start();
         }
       catch (std::exception &ex)
         {
@@ -207,9 +207,9 @@ Daemon_Singleton::start()
         }
     }
 
-  bool pop3 = false;
-  pbote::config::GetOption("pop3.enabled", pop3);
-  if (pop3)
+  bool pop3_enabled = false;
+  pbote::config::GetOption("pop3.enabled", pop3_enabled);
+  if (pop3_enabled)
     {
       std::string POP3addr;
       uint16_t POP3port;
@@ -220,8 +220,8 @@ Daemon_Singleton::start()
 
       try
         {
-          d.POP3server = std::make_unique<bote::pop3::POP3>(POP3addr, POP3port);
-          d.POP3server->start();
+          d.POP3_server = std::make_unique<bote::pop3::POP3>(POP3addr, POP3port);
+          d.POP3_server->start();
         }
       catch (std::exception &ex)
         {
@@ -243,19 +243,19 @@ Daemon_Singleton::stop()
   LogPrint(eLogInfo, "Daemon: Start shutting down");
 
   /* First we need to stop easy stopable stuff */
-  if (d.SMTPserver)
+  if (d.SMTP_server)
     {
       LogPrint(eLogInfo, "Daemon: Stopping SMTP server");
-      d.SMTPserver->stop();
-      d.SMTPserver = nullptr;
+      d.SMTP_server->stop();
+      d.SMTP_server = nullptr;
       LogPrint(eLogInfo, "Daemon: SMTP server stopped");
     }
 
-  if (d.POP3server)
+  if (d.POP3_server)
     {
       LogPrint(eLogInfo, "Daemon: Stopping POP3 server");
-      d.POP3server->stop();
-      d.POP3server = nullptr;
+      d.POP3_server->stop();
+      d.POP3_server = nullptr;
       LogPrint(eLogInfo, "Daemon: POP3 server stopped");
     }
 

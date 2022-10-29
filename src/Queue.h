@@ -1,14 +1,16 @@
 /**
  * Copyright (C) 2013-2016, The PurpleI2P Project
- * Copyright (C) 2019-2022 polistern
+ * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted project and licensed under BSD3
  *
  * See full license text in LICENSE file at top of project tree
  */
 
-#ifndef PBOTED_SRC_QUEUE_H__
-#define PBOTED_SRC_QUEUE_H__
+#pragma once
+#ifndef PBOTED_SRC_QUEUE_H
+#define PBOTED_SRC_QUEUE_H
 
 #include <condition_variable>
 #include <cstring>
@@ -19,8 +21,10 @@
 #include <utility>
 #include <vector>
 
-namespace pbote {
-namespace util {
+namespace pbote
+{
+namespace util
+{
 
 template<typename Element>
 class Queue {
@@ -115,4 +119,4 @@ class Queue {
 } // namespace util
 } // namespace pbote
 
-#endif // PBOTED_SRC_QUEUE_H__
+#endif // PBOTED_SRC_QUEUE_H

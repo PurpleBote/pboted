@@ -161,11 +161,10 @@ GetLastUpdateTime (const std::string &path)
 
 #ifdef BOOST_FILESYSTEM_FILESYSTEM_HPP
   boost::system::error_code ec;
-  (void)boost::filesystem::last_write_time (path, ec);
 #else
   std::error_code ec;
-  (void)nsfs::last_write_time(path, ec);
 #endif
+  (void)nsfs::last_write_time(path, ec);
   return ec.value () ? 0 : 1;
 }
 
