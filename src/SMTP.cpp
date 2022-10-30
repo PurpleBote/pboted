@@ -648,9 +648,7 @@ SMTP::DATA (int sid)
 
   memset (session.buf, 0, SMTP_BUF_SIZE);
 
-  ssize_t recv_len = recv (fds[nfds].fd,
-                           session.buf,
-                           SMTP_BUF_SIZE - 1, 0);
+  ssize_t recv_len = recv (fds[sid].fd, session.buf, SMTP_BUF_SIZE - 1, 0);
   if (recv_len == RECV_ERROR)
     {
       LogPrint (eLogError, "SMTPsession: DATA: Receive: ", strerror (errno));

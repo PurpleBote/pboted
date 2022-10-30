@@ -482,6 +482,16 @@ Email::set_message_id ()
   std::string mail_mid = field ("Message-ID");
   if (!mail_mid.empty ())
     {
+      char chars[] = "<>";
+
+      for (size_t i = 0; i < strlen(chars); ++i)
+        {
+          mail_mid.erase (std::remove(mail_mid.begin(),
+                                      mail_mid.end(),
+                                      chars[i]),
+                          mail_mid.end());
+        }
+
       m_metadata->message_id (mail_mid);
       LogPrint (eLogDebug, "Email: set_message_id: Mail Message-ID: ", mail_mid);
       return;
