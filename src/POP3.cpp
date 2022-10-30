@@ -28,7 +28,8 @@ POP3::POP3 (const std::string &address, int port)
     pop3_thread (nullptr),
     m_address (address),
     m_port (port)
-{}
+{
+}
 
 POP3::~POP3 ()
 {
@@ -531,7 +532,7 @@ POP3::PASS (int sid)
       // ToDo: lock mail directory
       session.state = POP3_STATE_TRANSACTION;
       /* ToDo: pass username */
-      session.emails = pbote::kademlia::email_worker.check_inbox ();
+      session.emails = bote::email_worker.check_inbox ();
       reply (sid, reply_ok[OK_LOCK]);
     }
   else
@@ -709,7 +710,7 @@ POP3::QUIT (int sid)
       for (const auto &email : session.emails)
         {
           if (email->deleted ())
-            pbote::fs::Remove (email->filename ());
+            bote::fs::Remove (email->filename ());
         }
     }
 
@@ -802,7 +803,7 @@ POP3::check_user (const std::string &user)
 {
   LogPrint (eLogDebug, "POP3session: check_user: user: ", user);
 
-  if (pbote::context.identityByName (user))
+  if (bote::context.identityByName (user))
     return true;
 
   return false;
@@ -814,7 +815,7 @@ POP3::check_pass (const std::string &pass)
   auto clean_pass = pass.substr (0, pass.size () - 2);
   LogPrint (eLogDebug, "POP3session: check_pass: pass: ", clean_pass);
   // ToDo
-  // if (pbote::context.recipient_exist(pass))
+  // if (bote::context.recipient_exist(pass))
   return true;
   // return false;
 }

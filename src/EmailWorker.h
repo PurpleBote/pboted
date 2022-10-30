@@ -21,9 +21,7 @@
 
 #include "Email.h"
 
-namespace pbote
-{
-namespace kademlia
+namespace bote
 {
 
 #ifdef NDEBUG
@@ -108,7 +106,6 @@ private:
 
 extern EmailWorker email_worker;
 
-} // namespace kademlia
-} // namespace pbote
+} // namespace bote
 
 #endif // PBOTED_SRC_EMAIL_WORKER_H

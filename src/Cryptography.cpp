@@ -16,7 +16,7 @@
 
 #include "Cryptography.h"
 
-namespace pbote
+namespace bote
 {
 
 ECDHP256Encryptor::ECDHP256Encryptor (const byte *pubkey)
@@ -692,4 +692,4 @@ aes_decrypt(const byte key[AES_KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
   pdata.resize(out_len1 + out_len2);
 }
 
-} // namespace pbote
+} // namespace bote

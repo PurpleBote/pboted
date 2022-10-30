@@ -20,7 +20,7 @@
 #include "FileSystem.h"
 #include "Logging.h"
 
-namespace pbote
+namespace bote
 {
 namespace fs
 {
@@ -188,7 +188,7 @@ CreateDirectory (const std::string &path)
 void
 HashedStorage::SetPlace (const std::string &path)
 {
-  root = path + pbote::fs::dirSep + name;
+  root = path + bote::fs::dirSep + name;
 }
 
 bool
@@ -199,7 +199,7 @@ HashedStorage::Init (const char *chars, size_t count)
 
   for (size_t i = 0; i < count; i++)
     {
-      auto p = root + pbote::fs::dirSep + prefix1 + chars[i];
+      auto p = root + bote::fs::dirSep + prefix1 + chars[i];
       if (nsfs::exists(p))
         continue;
       if (nsfs::create_directory(p))
@@ -218,8 +218,8 @@ HashedStorage::Path (const std::string &ident) const
   std::replace(safe_ident.begin(), safe_ident.end(), '\\', '-');
 
   std::stringstream t("");
-  t << this->root << pbote::fs::dirSep;
-  t << prefix1 << safe_ident[0] << pbote::fs::dirSep;
+  t << this->root << bote::fs::dirSep;
+  t << prefix1 << safe_ident[0] << bote::fs::dirSep;
   t << prefix2 << safe_ident << "." << suffix;
 
   return t.str();
@@ -259,4 +259,4 @@ HashedStorage::Iterate(FilenameVisitor v)
 }
 
 } // namespace fs
-} // namespace pbote
+} // namespace bote

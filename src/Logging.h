@@ -45,7 +45,7 @@ enum LogType
   eLogSyslog,
 };
 
-namespace pbote
+namespace bote
 {
 namespace log
 {
@@ -101,7 +101,7 @@ class Logging
    * @brief  Format log message and write to output stream/syslog
    * @param  msg  Pointer to processed message
    */
-  void Append (std::shared_ptr<pbote::log::LogMsg> &);
+  void Append (std::shared_ptr<bote::log::LogMsg> &);
 
   /** @brief  Reopen log file */
   void Reopen ();
@@ -128,7 +128,7 @@ class Logging
   std::string m_Logfile;
   std::time_t m_LastTimestamp;
   char m_LastDateTime[64];
-  pbote::util::Queue<std::shared_ptr<LogMsg>> m_Queue;
+  bote::Queue<std::shared_ptr<LogMsg>> m_Queue;
   bool m_HasColors;
   std::string m_TimeFormat;
   volatile bool m_IsRunning;
@@ -167,7 +167,7 @@ void
 SetThrowFunction (ThrowFunction f);
 
 } // namespace log
-} // namespace pbote
+} // namespace bote
 
 /** internal usage only -- folding args array to single string */
 template<typename TValue>
@@ -195,7 +195,7 @@ template<typename... TArgs>
 void
 LogPrint (LogLevel level, TArgs &&... args) noexcept
 {
-  pbote::log::Logging &log = pbote::log::Logger ();
+  bote::log::Logging &log = bote::log::Logger ();
   if (level > log.GetLogLevel ())
     return;
 
@@ -204,7 +204,7 @@ LogPrint (LogLevel level, TArgs &&... args) noexcept
 
   LogPrint (ss, std::forward<TArgs> (args)...);
 
-  auto msg = std::make_shared<pbote::log::LogMsg> (level, std::time(nullptr), ss.str ());
+  auto msg = std::make_shared<bote::log::LogMsg> (level, std::time(nullptr), ss.str ());
   msg->tid = std::this_thread::get_id ();
   log.Append (msg);
 }
@@ -217,7 +217,7 @@ template<typename... TArgs>
 void
 ThrowFatal (TArgs&&... args) noexcept
 {
-  auto f = pbote::log::GetThrowFunction ();
+  auto f = bote::log::GetThrowFunction ();
   if (!f) return;
   // fold message to single string
   std::stringstream ss ("");

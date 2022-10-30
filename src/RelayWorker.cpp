@@ -1,5 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
+ * Copyright (C) 2022, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -13,16 +14,14 @@
 #include "Packet.h"
 #include "RelayWorker.h"
 
-namespace pbote
-{
-namespace relay
+namespace bote
 {
 
 RelayWorker relay_worker;
 
 RelayWorker::RelayWorker ()
-    : started_ (false),
-      m_worker_thread_ (nullptr),
+    : m_started (false),
+      m_worker_thread (nullptr),
       exec_start_t (0),
       exec_finish_t ()
 {
@@ -31,31 +30,37 @@ RelayWorker::RelayWorker ()
 RelayWorker::~RelayWorker ()
 {
   stop ();
+
+  if (m_worker_thread)
+    {
+      m_worker_thread->join ();
+      delete m_worker_thread;
+      m_worker_thread = nullptr;
+    }
 }
 
 void
 RelayWorker::start ()
 {
-  started_ = true;
+
+  auto local_destination = network_worker.get_local_destination ();
+  m_local_peer = std::make_shared<RelayPeer> (local_destination->ToBase64 ());
+
+  m_started = true;
   if (!loadPeers ())
     LogPrint (eLogError, "Relay: No peers for start");
 
-  m_worker_thread_ = new std::thread (std::bind (&RelayWorker::run, this));
+  m_worker_thread = new std::thread (std::bind (&RelayWorker::run, this));
 }
 
 void
 RelayWorker::stop ()
 {
   LogPrint (eLogDebug, "Relay: Stopping");
-  started_ = false;
+
+  m_started = false;
   m_check_round.notify_one ();
 
-  if (m_worker_thread_)
-    {
-      m_worker_thread_->join ();
-      delete m_worker_thread_;
-      m_worker_thread_ = nullptr;
-    }
   LogPrint (eLogDebug, "Relay: Stopped");
 }
 
@@ -87,8 +92,7 @@ RelayWorker::addPeer (const sp_i2p_ident &identity, int samples)
   if (findPeer (identity->GetIdentHash ()))
     return false;
 
-  auto local_destination = pbote::network::network_worker.get_local_destination ();
-  if (local_destination->GetIdentHash () == identity->GetIdentHash ())
+  if (m_local_peer->GetIdentHash () == identity->GetIdentHash ())
     {
       LogPrint (eLogDebug, "Relay: addPeer: Local destination skipped");
       return false;
@@ -102,8 +106,8 @@ RelayWorker::addPeer (const sp_i2p_ident &identity, int samples)
 
   peer->last_seen (context.ts_now ());
 
-  std::unique_lock<std::mutex> l (m_peers_mutex_);
-  return m_peers_
+  std::unique_lock<std::mutex> l (m_peers_mutex);
+  return m_peers
       .insert (std::pair<hash_key, sp_peer> (peer->GetIdentHash (), peer))
       .second;
 }
@@ -148,11 +152,11 @@ RelayWorker::addPeers (const PeerListPacketV5 &peer_list)
 sp_peer
 RelayWorker::findPeer (const hash_key &ident) const
 {
-  std::unique_lock<std::mutex> l (m_peers_mutex_);
+  std::unique_lock<std::mutex> l (m_peers_mutex);
 
-  auto it = m_peers_.find (ident);
+  auto it = m_peers.find (ident);
 
-  if (it != m_peers_.end ())
+  if (it != m_peers.end ())
     return it->second;
 
   return nullptr;
@@ -161,7 +165,7 @@ RelayWorker::findPeer (const hash_key &ident) const
 std::vector<std::string>
 RelayWorker::readPeers ()
 {
-  std::string peer_file_path = pbote::fs::DataDirPath (PEER_FILE_NAME);
+  std::string peer_file_path = bote::fs::DataDirPath (PEER_FILE_NAME);
   LogPrint (eLogInfo, "Relay: Read peers from ", peer_file_path);
   std::ifstream peer_file (peer_file_path);
 
@@ -191,26 +195,32 @@ RelayWorker::loadPeers ()
   std::vector<sp_peer> peers;
   std::vector<std::string> peers_list = readPeers ();
 
-  // std::unique_lock<std::mutex> l(m_peers_mutex_);
+  // std::unique_lock<std::mutex> l(m_peers_mutex);
   if (!peers_list.empty ())
     {
       for (auto peer_str : peers_list)
         {
           size_t pos;
-          std::string peer_s;
+          std::string peer_b64;
           while ((pos = peer_str.find (value_delimiter)) != std::string::npos)
             {
-              peer_s = peer_str.substr (0, pos);
+              peer_b64 = peer_str.substr (0, pos);
               peer_str.erase (0, pos + value_delimiter.length ());
             }
           std::string token
               = peer_str.substr (0, peer_str.find (value_delimiter));
           RelayPeer peer;
 
-          if (peer_s.empty ())
+          if (peer_b64.empty ())
             continue;
 
-          if (!peer.FromBase64 (peer_s))
+          if (0 == m_local_peer->ToBase64 ().compare (peer_b64) )
+            {
+              LogPrint (eLogWarning, "Relay: load: Self skipped");
+              continue;
+            }
+
+          if (!peer.FromBase64 (peer_b64))
             continue;
 
           peer.samples ((size_t)std::stoi (peer_str));
@@ -225,7 +235,7 @@ RelayWorker::loadPeers ()
       addPeers (peers);
       LogPrint (eLogInfo, "Relay: Peers loaded: ", peers.size ());
 
-      for (auto peer : m_peers_)
+      for (auto peer : m_peers)
         peer.second->last_seen (context.ts_now ());
 
       return true;
@@ -233,9 +243,9 @@ RelayWorker::loadPeers ()
 
   // Only if we have no peers in storage
   std::vector<std::string> bootstrap_addresses;
-  pbote::config::GetOption ("bootstrap.address", bootstrap_addresses);
+  bote::config::GetOption ("bootstrap.address", bootstrap_addresses);
 
-  if (!bootstrap_addresses.empty () && m_peers_.empty ())
+  if (!bootstrap_addresses.empty () && m_peers.empty ())
     {
       size_t peers_added = 0;
       for (const auto &bootstrap_address : bootstrap_addresses)
@@ -252,7 +262,7 @@ RelayWorker::loadPeers ()
         }
       LogPrint (eLogInfo, "Relay: Added peers: ", peers_added);
 
-      for (auto peer : m_peers_)
+      for (auto peer : m_peers)
         peer.second->last_seen (context.ts_now ());
 
       return true;
@@ -265,7 +275,7 @@ void
 RelayWorker::writePeers ()
 {
   LogPrint (eLogInfo, "Relay: Save peers to FS");
-  std::string peer_file_path = pbote::fs::DataDirPath (PEER_FILE_NAME);
+  std::string peer_file_path = bote::fs::DataDirPath (PEER_FILE_NAME);
   std::ofstream peer_file (peer_file_path);
 
   if (!peer_file.is_open ())
@@ -273,7 +283,7 @@ RelayWorker::writePeers ()
       LogPrint (eLogError, "Relay: Can't open file ", peer_file_path);
       return;
     }
-  std::unique_lock<std::mutex> l (m_peers_mutex_);
+  std::unique_lock<std::mutex> l (m_peers_mutex);
 
   peer_file << "# Each line is in the format: <dest> <samp>\n";
   peer_file << "#   dest = the I2P destination\n";
@@ -285,7 +295,7 @@ RelayWorker::writePeers ()
                "overwritten.\n\n";
 
   size_t saved = 0;
-  for (const auto &peer : m_peers_)
+  for (const auto &peer : m_peers)
     {
       peer_file << peer.second->str ();
       peer_file << "\n";
@@ -307,10 +317,10 @@ RelayWorker::getGoodPeers ()
 {
   std::vector<sp_peer> result;
 
-  for (const auto &m_peer : m_peers_)
+  for (const auto &peer : m_peers)
     {
-      if (m_peer.second->reachable ())
-        result.push_back (m_peer.second);
+      if (peer.second->reachable ())
+        result.push_back (peer.second);
     }
 
   return result;
@@ -332,8 +342,8 @@ RelayWorker::getAllPeers ()
 {
   std::vector<sp_peer> result;
 
-  for (const auto &m_peer : m_peers_)
-    result.push_back (m_peer.second);
+  for (const auto &peer : m_peers)
+    result.push_back (peer.second);
 
   return result;
 }
@@ -341,7 +351,7 @@ RelayWorker::getAllPeers ()
 size_t
 RelayWorker::getPeersCount ()
 {
-  return m_peers_.size ();
+  return m_peers.size ();
 }
 
 size_t
@@ -355,11 +365,15 @@ RelayWorker::peerListRequestV4 (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Relay: peerListRequestV4: request from: ",
             packet->from.substr (0, 15), "...");
-  if (addPeer (packet->from))
+
+  if (packet->from == m_local_peer->ToBase64 ())
     {
-      LogPrint (eLogDebug,
-                "Relay: peerListRequestV4: Requester added to peers list");
+      LogPrint (eLogWarning, "Relay: peerListRequestV4: Self request, skipped");
+      return;
     }
+
+  if (addPeer (packet->from))
+    LogPrint (eLogDebug, "Relay: peerListRequestV4: Sender added to list");
 
   auto good_peers = getGoodPeers (MAX_PEERS_TO_SEND);
   PeerListPacketV4 peer_list;
@@ -379,7 +393,7 @@ RelayWorker::peerListRequestV4 (const sp_comm_pkt &packet)
   response.length = response.data.size ();
   auto data = response.toByte ();
 
-  pbote::network::network_worker.send (PacketForQueue (packet->from, data.data (), data.size ()));
+  network_worker.send (PacketForQueue (packet->from, data.data (), data.size ()));
   LogPrint (eLogInfo, "Relay: peerListRequestV4: Send response with ",
             peer_list.count, " peer(s)");
 }
@@ -390,11 +404,14 @@ RelayWorker::peerListRequestV5 (const sp_comm_pkt &packet)
   LogPrint (eLogDebug, "Relay: peerListRequestV5: Request from: ",
             packet->from.substr (0, 15), "...");
 
-  if (addPeer (packet->from))
+  if (packet->from == m_local_peer->ToBase64 ())
     {
-      LogPrint (eLogDebug,
-                "Relay: peerListRequestV5: Requester added to peers list");
+      LogPrint (eLogWarning, "Relay: peerListRequestV5: Self request, skipped");
+      return;
     }
+
+  if (addPeer (packet->from))
+    LogPrint (eLogDebug, "Relay: peerListRequestV5: Sender added to list");
 
   auto good_peers = getGoodPeers (MAX_PEERS_TO_SEND);
   PeerListPacketV5 peer_list;
@@ -414,23 +431,89 @@ RelayWorker::peerListRequestV5 (const sp_comm_pkt &packet)
   response.length = response.data.size ();
   auto data = response.toByte ();
 
-  pbote::network::network_worker.send (PacketForQueue (packet->from, data.data (), data.size ()));
+  network_worker.send (PacketForQueue (packet->from, data.data (), data.size ()));
   LogPrint (eLogInfo, "Relay: peerListRequestV5: Send response with ",
             peer_list.count, " peer(s)");
 }
 
-PeerListRequestPacket
-RelayWorker::peerListRequestPacket ()
+void
+RelayWorker::relayRequestV5 (const sp_comm_pkt &packet)
 {
-  /// don't reuse request packets because PacketBatch will not
-  /// add the same one more than once
-  PeerListRequestPacket packet;
+  // ToDo
+  LogPrint (eLogDebug, "Relay: relayRequestV5: Request from: ",
+            packet->from.substr (0, 15), "...");
 
-  /// Java will be answer with v4, pboted - with v5,
-  /// so we can determine who is who
-  packet.ver = 5;
-  context.random_cid (packet.cid, 32);
-  return packet;
+  if (packet->from == m_local_peer->ToBase64 ())
+    {
+      LogPrint (eLogWarning, "Relay: relayRequestV5: Self request, skipped");
+      return;
+    }
+
+  if (addPeer (packet->from))
+    LogPrint (eLogDebug, "Relay: relayRequestV5: Sender added to list");
+
+  bote::ResponsePacket response;
+  memcpy (response.cid, packet->cid, 32);
+  response.length = 0;
+  response.status = StatusCode::GENERAL_ERROR;
+  response.length = response.data.size ();
+  auto data = response.toByte ();
+
+  network_worker.send (PacketForQueue (packet->from,
+                                       data.data (), data.size ()));
+}
+
+void
+RelayWorker::relayReturnRequestV5 (const sp_comm_pkt &packet)
+{
+  // ToDo
+  LogPrint (eLogDebug, "Relay: relayReturnRequestV5: Request from: ",
+            packet->from.substr (0, 15), "...");
+
+  if (packet->from == m_local_peer->ToBase64 ())
+    {
+      LogPrint (eLogWarning,
+                "Relay: relayReturnRequestV5: Self request, skipped");
+      return;
+    }
+
+  if (addPeer (packet->from))
+    LogPrint (eLogDebug, "Relay: relayReturnRequestV5: Sender added to list");
+
+  bote::ResponsePacket response;
+  memcpy (response.cid, packet->cid, 32);
+  response.length = 0;
+  response.status = StatusCode::GENERAL_ERROR;
+  auto data = response.toByte ();
+
+  network_worker.send (PacketForQueue (packet->from,
+                                       data.data (), data.size ()));
+}
+
+void
+RelayWorker::fetchRequestV5 (const sp_comm_pkt &packet)
+{
+  // ToDo
+  LogPrint (eLogDebug, "Relay: fetchRequestV5: Request from: ",
+            packet->from.substr (0, 15), "...");
+
+  if (packet->from == m_local_peer->ToBase64 ())
+    {
+      LogPrint (eLogWarning, "Relay: fetchRequestV5: Self request, skipped");
+      return;
+    }
+
+  if (addPeer (packet->from))
+    LogPrint (eLogDebug, "Relay: fetchRequestV5: Sender added to list");
+
+  bote::ResponsePacket response;
+  memcpy (response.cid, packet->cid, 32);
+  response.length = 0;
+  response.status = StatusCode::GENERAL_ERROR;
+  auto data = response.toByte ();
+
+  network_worker.send (PacketForQueue (packet->from,
+                                       data.data (), data.size ()));
 }
 
 void
@@ -440,11 +523,11 @@ RelayWorker::run ()
   std::this_thread::sleep_for (std::chrono::seconds(15));
   bool task_status = false;
 
-  while (started_)
+  while (m_started)
     {
       set_start_time ();
 
-      if (!m_peers_.empty ())
+      if (!m_peers.empty ())
         task_status = check_peers ();
       else
         LogPrint (eLogError, "Relay: No peers for start");
@@ -454,7 +537,7 @@ RelayWorker::run ()
       auto delay = get_delay (task_status);
       LogPrint (eLogDebug, "Relay: Wait for ", (delay.count () / 60), " min.");
 
-      std::unique_lock<std::mutex> lk (m_check_mutex_);
+      std::unique_lock<std::mutex> lk (m_check_mutex);
       auto status = m_check_round.wait_for (lk, std::chrono::seconds(delay));
 
       if (status == std::cv_status::no_timeout)
@@ -491,9 +574,9 @@ RelayWorker::check_peers ()
     }
 
   LogPrint (eLogDebug, "Relay: Batch size: ", batch->packetCount ());
-  pbote::network::network_worker.send (batch);
+  network_worker.send (batch);
   batch->waitLast (RELAY_CHECK_TIMEOUT);
-  pbote::network::network_worker.remove_batch (batch);
+  network_worker.remove_batch (batch);
 
   auto responses = batch->getResponses ();
 
@@ -502,7 +585,7 @@ RelayWorker::check_peers ()
       LogPrint (eLogWarning, "Relay: No responses");
       /// Rollback samples, if have no responses at all
       /// Usually in network error case
-      for (const auto &peer : m_peers_)
+      for (const auto &peer : m_peers)
         peer.second->rollback ();
 
       return false;
@@ -530,12 +613,12 @@ RelayWorker::check_peers ()
         }
 
       /// Increment peer metric back, if we have valid Response Packet
-      for (const auto &m_peer : m_peers_)
+      for (const auto &peer : m_peers)
         {
-          if (m_peer.second->ToBase64 () == response->from)
+          if (peer.second->ToBase64 () == response->from)
             {
               LogPrint (eLogDebug, "Relay: Got response, mark reachable");
-              m_peer.second->reachable (true);
+              peer.second->reachable (true);
               reachable_peers++;
             }
         }
@@ -582,11 +665,11 @@ RelayWorker::check_peers ()
 
   LogPrint (eLogDebug, "Relay: Reachable peers: ", reachable_peers);
 
-  pbote::network::network_worker.remove_batch (batch);
+  network_worker.remove_batch (batch);
 
   {
     uint16_t days;
-    pbote::config::GetOption ("cleaninterval", days);
+    bote::config::GetOption ("cleaninterval", days);
     LogPrint (eLogDebug, "Relay: Silent interval days: ", days);
     LogPrint (eLogDebug, "Relay: Silent interval sec.: ", (ONE_DAY_SECONDS * days));
 
@@ -594,8 +677,8 @@ RelayWorker::check_peers ()
     long sec_now = context.ts_now ();
     LogPrint (eLogDebug, "Relay: Current time: ", sec_now);
 
-    auto peer_itr = m_peers_.begin ();
-    while (peer_itr != m_peers_.end ())
+    auto peer_itr = m_peers.begin ();
+    while (peer_itr != m_peers.end ())
       {
         long peer_ls = (*peer_itr).second->last_seen ();
         long diff = sec_now - peer_ls;
@@ -607,7 +690,7 @@ RelayWorker::check_peers ()
             removed++;
             LogPrint (eLogDebug, "Relay: Remove silent peer: ",
                       (*peer_itr).second->short_str ());
-            peer_itr = m_peers_.erase (peer_itr);
+            peer_itr = m_peers.erase (peer_itr);
             continue;
           }
         ++peer_itr;
@@ -619,6 +702,20 @@ RelayWorker::check_peers ()
   writePeers ();
 
   return true;
+}
+
+PeerListRequestPacket
+RelayWorker::peerListRequestPacket ()
+{
+  /// don't reuse request packets because PacketBatch will not
+  /// add the same one more than once
+  PeerListRequestPacket packet;
+
+  /// Java will be answer with v4, pboted - with v5,
+  /// so we can determine who is who
+  packet.ver = 5;
+  context.random_cid (packet.cid, 32);
+  return packet;
 }
 
 void
@@ -657,5 +754,4 @@ RelayWorker::get_delay (bool exec_status)
   return std::chrono::seconds(1);
 }
 
-} // relay
-} // pbote
+} // bote

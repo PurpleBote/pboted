@@ -16,7 +16,7 @@
 #include "AddressBook.h"
 #include "BoteIdentity.h"
 
-namespace pbote
+namespace bote
 {
 
 const std::string DEFAULT_IDENTITY_FILE_NAME = "identities.txt";
@@ -89,8 +89,8 @@ class BoteContext
 
   /// Identities
   size_t get_identities_count() { return getEmailIdentities().size(); }
-  std::shared_ptr<pbote::BoteIdentityFull> identityByName(const std::string &name);
-  std::vector<std::shared_ptr<pbote::BoteIdentityFull>> getEmailIdentities();
+  std::shared_ptr<bote::BoteIdentityFull> identityByName(const std::string &name);
+  std::vector<std::shared_ptr<bote::BoteIdentityFull>> getEmailIdentities();
 
   /// Adressbook
   size_t contacts_size () { return m_address_book.size (); }
@@ -110,13 +110,13 @@ class BoteContext
   uint64_t m_start_time;
 
   std::shared_ptr<identityStorage> m_identities_storage;
-  pbote::AddressBook m_address_book;
+  bote::AddressBook m_address_book;
 
   std::independent_bits_engine<std::default_random_engine, CHAR_BIT, uint8_t> rbe;
 };
 
 extern BoteContext context;
 
-} // namespace pbote
+} // namespace bote
 
 #endif /* PBOTED_SRC_CONTEXT_H */

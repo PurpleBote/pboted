@@ -27,7 +27,7 @@
 
 #include "Logging.h"
 
-namespace pbote
+namespace bote
 {
 
 /// AES
@@ -230,6 +230,6 @@ void aes_encrypt (const byte key[AES_KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
 void aes_decrypt (const byte key[AES_KEY_SIZE], const byte iv[AES_BLOCK_SIZE],
                   const std::vector<byte>& cdata, std::vector<byte>& pdata);
 
-} // namespace pbote
+} // namespace bote
 
 #endif //PBOTE_SRC_CRYPTOGRAPHY_H

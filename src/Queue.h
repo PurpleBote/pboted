@@ -21,9 +21,7 @@
 #include <utility>
 #include <vector>
 
-namespace pbote
-{
-namespace util
+namespace bote
 {
 
 template<typename Element>
@@ -116,7 +114,6 @@ class Queue {
   std::condition_variable m_NonEmpty;
 };
 
-} // namespace util
-} // namespace pbote
+} // namespace bote
 
 #endif // PBOTED_SRC_QUEUE_H

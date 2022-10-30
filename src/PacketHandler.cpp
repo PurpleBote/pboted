@@ -15,9 +15,7 @@
 #include "PacketHandler.h"
 #include "RelayWorker.h"
 
-namespace pbote
-{
-namespace packet
+namespace bote
 {
 
 RequestHandler packet_handler;
@@ -42,7 +40,7 @@ IncomingRequest::IncomingRequest (RequestHandler &owner) : m_owner (owner)
 bool
 IncomingRequest::handleNewPacket (const sp_queue_pkt &queuePacket)
 {
-  sp_comm_pkt packet = pbote::parseCommPacket (queuePacket);
+  sp_comm_pkt packet = bote::parseCommPacket (queuePacket);
   if (!packet)
     {
       LogPrint (eLogWarning, "Packet: Can't parse packet");
@@ -52,7 +50,7 @@ IncomingRequest::handleNewPacket (const sp_queue_pkt &queuePacket)
   /// First we need to check if ResponsePacket and CID in batches
   if (packet->type == type::CommN)
     {
-      if (pbote::network::network_worker.receive (packet))
+      if (network_worker.receive (packet))
         {
           LogPrint (eLogDebug, "Packet: Pass packet ", packet->type,
                     " to batch");
@@ -71,31 +69,73 @@ IncomingRequest::handleNewPacket (const sp_queue_pkt &queuePacket)
     }
 }
 
-/// not implemented
 bool
 IncomingRequest::receiveRelayRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: RelayRequest");
-  // ToDo
-  return true;
+  if (packet->ver >= 5)
+    {
+      auto req_thread = m_owner.get_request_thread ();
+      req_thread = std::make_shared<std::thread> (std::bind (
+          &bote::RelayWorker::relayRequestV5,
+          &bote::relay_worker, packet));
+      req_thread->join ();
+
+      return true;
+    }
+  else
+    {
+      LogPrint (eLogWarning, "Packet: RelayRequest: Unknown, ver: ",
+                unsigned (packet->ver), ", type: ", packet->type);
+      return false;
+    }
+  return false;
 }
 
-/// not implemented
 bool
 IncomingRequest::receiveRelayReturnRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: RelayReturnRequest");
-  // ToDo
-  return true;
+  if (packet->ver >= 5)
+    {
+      auto req_thread = m_owner.get_request_thread ();
+      req_thread = std::make_shared<std::thread> (std::bind (
+          &bote::RelayWorker::relayReturnRequestV5,
+          &bote::relay_worker, packet));
+      req_thread->join ();
+
+      return true;
+    }
+  else
+    {
+      LogPrint (eLogWarning, "Packet: RelayReturnRequest: Unknown, ver: ",
+                unsigned (packet->ver), ", type: ", packet->type);
+      return false;
+    }
+  return false;
 }
 
-/// not implemented
 bool
 IncomingRequest::receiveFetchRequest (const sp_comm_pkt &packet)
 {
   LogPrint (eLogDebug, "Packet: FetchRequest");
-  // ToDo
-  return true;
+  if (packet->ver >= 5)
+    {
+      auto req_thread = m_owner.get_request_thread ();
+      req_thread = std::make_shared<std::thread> (std::bind (
+          &bote::RelayWorker::fetchRequestV5,
+          &bote::relay_worker, packet));
+      req_thread->join ();
+
+      return true;
+    }
+  else
+    {
+      LogPrint (eLogWarning, "Packet: FetchRequest: Unknown, ver: ",
+                unsigned (packet->ver), ", type: ", packet->type);
+      return false;
+    }
+  return false;
 }
 
 bool
@@ -114,7 +154,7 @@ IncomingRequest::receiveResponsePkt (const sp_comm_pkt &packet)
 
   LogPrint (eLogWarning,
             "Packet: Response: Status: ", unsigned (response.status),
-            ", message: ", pbote::statusToString (response.status));
+            ", message: ", bote::statusToString (response.status));
 
   if (response.length == 0)
     {
@@ -173,20 +213,20 @@ IncomingRequest::receivePeerListRequest (const sp_comm_pkt &packet)
   if (packet->ver == 4)
     {
       auto req_thread = m_owner.get_request_thread ();
-      //req_thread = new std::thread ([pbote::relay::relay_worker](sp_comm_pkt packet) { peerListRequestV4 (packet); });
+      //req_thread = new std::thread ([bote::relay_worker](sp_comm_pkt packet) { peerListRequestV4 (packet); });
       req_thread = std::make_shared<std::thread> (std::bind (
-          &pbote::relay::RelayWorker::peerListRequestV4,
-          &pbote::relay::relay_worker, packet));
+          &bote::RelayWorker::peerListRequestV4,
+          &bote::relay_worker, packet));
       req_thread->join ();
 
       return true;
     }
-  else if (packet->ver == 5)
+  else if (packet->ver >= 5)
     {
       auto req_thread = m_owner.get_request_thread ();
       req_thread = std::make_shared<std::thread> (std::bind (
-          &pbote::relay::RelayWorker::peerListRequestV5,
-          &pbote::relay::relay_worker, packet));
+          &bote::RelayWorker::peerListRequestV5,
+          &bote::relay_worker, packet));
       req_thread->join ();
 
       return true;
@@ -209,8 +249,8 @@ IncomingRequest::receiveRetrieveRequest (const sp_comm_pkt &packet)
     {
       auto req_thread = m_owner.get_request_thread ();
       req_thread = std::make_shared<std::thread> (std::bind (
-          &pbote::kademlia::DHTworker::receiveRetrieveRequest,
-          &pbote::kademlia::DHT_worker, packet));
+          &bote::DHTworker::receiveRetrieveRequest,
+          &bote::DHT_worker, packet));
       req_thread->join ();
 
       return true;
@@ -230,8 +270,8 @@ IncomingRequest::receiveDeletionQueryRequest (const sp_comm_pkt &packet)
     {
       auto req_thread = m_owner.get_request_thread ();
       req_thread = std::make_shared<std::thread> (std::bind (
-          &pbote::kademlia::DHTworker::receiveDeletionQuery,
-          &pbote::kademlia::DHT_worker, packet));
+          &bote::DHTworker::receiveDeletionQuery,
+          &bote::DHT_worker, packet));
       req_thread->join ();
 
       return true;
@@ -250,8 +290,8 @@ IncomingRequest::receiveStoreRequest (const sp_comm_pkt &packet)
     {
       auto req_thread = m_owner.get_request_thread ();
       req_thread = std::make_shared<std::thread> (std::bind (
-          &pbote::kademlia::DHTworker::receiveStoreRequest,
-          &pbote::kademlia::DHT_worker, packet));
+          &bote::DHTworker::receiveStoreRequest,
+          &bote::DHT_worker, packet));
       req_thread->join ();
 
       return true;
@@ -270,8 +310,8 @@ IncomingRequest::receiveEmailPacketDeleteRequest (const sp_comm_pkt &packet)
     {
       auto req_thread = m_owner.get_request_thread ();
       req_thread = std::make_shared<std::thread> (std::bind (
-          &pbote::kademlia::DHTworker::receiveEmailPacketDeleteRequest,
-          &pbote::kademlia::DHT_worker, packet));
+          &bote::DHTworker::receiveEmailPacketDeleteRequest,
+          &bote::DHT_worker, packet));
       req_thread->join ();
 
       return true;
@@ -291,8 +331,8 @@ IncomingRequest::receiveIndexPacketDeleteRequest (const sp_comm_pkt &packet)
     {
       auto req_thread = m_owner.get_request_thread ();
       req_thread = std::make_shared<std::thread> (std::bind (
-          &pbote::kademlia::DHTworker::receiveIndexPacketDeleteRequest,
-          &pbote::kademlia::DHT_worker, packet));
+          &bote::DHTworker::receiveIndexPacketDeleteRequest,
+          &bote::DHT_worker, packet));
       req_thread->join ();
 
       return true;
@@ -312,8 +352,8 @@ IncomingRequest::receiveFindClosePeersRequest (const sp_comm_pkt &packet)
     {
       auto req_thread = m_owner.get_request_thread ();
       req_thread = std::make_shared<std::thread> (std::bind (
-          &pbote::kademlia::DHTworker::receiveFindClosePeers,
-          &pbote::kademlia::DHT_worker, packet));
+          &bote::DHTworker::receiveFindClosePeers,
+          &bote::DHT_worker, packet));
       req_thread->join ();
 
       return true;
@@ -361,7 +401,7 @@ RequestHandler::start ()
     m_request_thread = nullptr;
 
   m_main_thread.reset (
-      new std::thread (std::bind (&RequestHandler::run, this)));  
+      new std::thread (std::bind (&RequestHandler::run, this)));
 }
 
 void
@@ -405,7 +445,7 @@ RequestHandler::run ()
 
   while (m_running)
     {
-      auto packet = pbote::network::network_worker.get_pkt_with_timeout (PACKET_RECEIVE_TIMEOUT);
+      auto packet = network_worker.get_pkt_with_timeout (PACKET_RECEIVE_TIMEOUT);
 
       if (!packet)
         continue;
@@ -419,16 +459,15 @@ RequestHandler::run ()
 
       LogPrint (eLogWarning, "PacketHandler: Parsing failed, skipped");
 
-      pbote::ResponsePacket response;
-      response.status = pbote::StatusCode::INVALID_PACKET;
+      bote::ResponsePacket response;
+      response.status = bote::StatusCode::INVALID_PACKET;
       response.length = 0;
       auto data = response.toByte ();
 
-      pbote::network::network_worker.send (PacketForQueue (packet->destination,
+      network_worker.send (PacketForQueue (packet->destination,
                                            data.data (), data.size ()));
     }
   LogPrint (eLogInfo, "PacketHandler: Finished");
 }
 
-} // namespace packet
-} // namespace pbote
+} // namespace bote

@@ -29,9 +29,7 @@
 // libi2pd
 #include "Identity.h"
 
-namespace pbote
-{
-namespace kademlia
+namespace bote
 {
 
 /// Number of redundant storage nodes
@@ -297,13 +295,12 @@ private:
 
   //ToDo: K-bucket/routing table and S-bucket (NEED MORE DISCUSSION)
 
-  //pbote::fs::HashedStorage m_storage_;
-  kademlia::DHTStorage m_dht_storage;
+  //bote::fs::HashedStorage m_storage_;
+  bote::DHTStorage m_dht_storage;
 };
 
 extern DHTworker DHT_worker;
 
-} // kademlia
-} // pbote
+} // bote
 
-#endif // PBOTED_SRC_DHT_WORKER_H
+#endif /* PBOTED_SRC_DHT_WORKER_H */

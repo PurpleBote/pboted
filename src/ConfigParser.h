@@ -26,7 +26,7 @@
  *   GetOption()    -- may be called after Finalize()
  */
 
-namespace pbote
+namespace bote
 {
 namespace config
 {
@@ -149,6 +149,6 @@ SetOption(const char *name, const T &value)
 bool IsDefault(const char *name);
 
 } // namespace config
-} // namespace pbote
+} // namespace bote
 
 #endif // PBOTED_CONFIG_PARSER_H

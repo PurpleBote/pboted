@@ -28,17 +28,17 @@ BoteControl::BoteControl ()
     m_control_thread (nullptr)
 {
 #if !defined(DISABLE_SOCKET)
-  pbote::config::GetOption("control.socket", socket_path);
+  bote::config::GetOption("control.socket", socket_path);
   if (socket_path.empty ())
     {
-      socket_path = pbote::fs::DataDirPath (DEFAULT_SOCKET_NAME);
+      socket_path = bote::fs::DataDirPath (CONTROL_DEFAULT_SOCKET_NAME);
     }
 
   m_socket_enabled = (socket_path.compare ("false") != 0);
 
   if (m_socket_enabled)
     {
-      if (!pbote::fs::Exists (socket_path))
+      if (!bote::fs::Exists (socket_path))
         {
           LogPrint (eLogInfo, "Control: Control file socket ", socket_path);
         }
@@ -49,8 +49,8 @@ BoteControl::BoteControl ()
         }
     }
 #endif
-  pbote::config::GetOption("control.address", m_address);
-  pbote::config::GetOption("control.port", m_port);
+  bote::config::GetOption("control.address", m_address);
+  bote::config::GetOption("control.port", m_port);
 
   LogPrint (eLogInfo, "Control: Control TCP socket ", m_address, ":", m_port);
 
@@ -602,7 +602,7 @@ BoteControl::addressbook (const std::string &cmd_id, std::ostringstream &results
   if (0 == cmd_id.compare ("show"))
     {
       results << "\"addressbook\": {";
-      insert_param (results, "size", (int)pbote::context.contacts_size ());
+      insert_param (results, "size", (int)bote::context.contacts_size ());
       results << "}";
     }
   else
@@ -617,12 +617,12 @@ BoteControl::daemon (const std::string &cmd_id, std::ostringstream &results)
   if (0 == cmd_id.compare ("show"))
     {
       results << "\"daemon\": {";
-      insert_param (results, "uptime", (int)pbote::context.get_uptime ());
+      insert_param (results, "uptime", (int)bote::context.get_uptime ());
       results << ", ";
       results << "\"bytes\": {";
-      insert_param (results, "recived", (int)pbote::network::network_worker.bytes_recv ());
+      insert_param (results, "recived", (int)bote::network_worker.bytes_recv ());
       results << ", ";
-      insert_param (results, "sent", (int)pbote::network::network_worker.bytes_sent ());
+      insert_param (results, "sent", (int)bote::network_worker.bytes_sent ());
       results << "}}";
     }
   else
@@ -637,7 +637,7 @@ BoteControl::identity (const std::string &cmd_id, std::ostringstream &results)
   if (0 == cmd_id.compare ("show"))
     {
       results << "\"identity\": {";
-      insert_param (results, "count", (int)pbote::context.get_identities_count ());
+      insert_param (results, "count", (int)bote::context.get_identities_count ());
       results << "}";
     }
   else
@@ -653,7 +653,7 @@ BoteControl::storage (const std::string &cmd_id, std::ostringstream &results)
     {
       results << "\"storage\": {";
       insert_param (results, "used",
-                    (double)pbote::kademlia::DHT_worker.get_storage_usage ());
+                    (double)bote::DHT_worker.get_storage_usage ());
       results << "}";
     }
   else
@@ -670,10 +670,10 @@ BoteControl::peer (const std::string &cmd_id, std::ostringstream &results)
       results << "\"peers\": {";
       results << "\"count\": {";
       insert_param (results, "total",
-                    (int)pbote::relay::relay_worker.getPeersCount ());
+                    (int)bote::relay_worker.getPeersCount ());
       results << ", ";
       insert_param (results, "good",
-                    (int)pbote::relay::relay_worker.get_good_peer_count ());
+                    (int)bote::relay_worker.get_good_peer_count ());
       results << "}}";
     }
   else
@@ -690,10 +690,10 @@ BoteControl::node (const std::string &cmd_id, std::ostringstream &results)
       results << "\"nodes\": {";
       results << "\"count\": {";
       insert_param (results, "total",
-                    (int)pbote::kademlia::DHT_worker.getNodesCount ());
+                    (int)bote::DHT_worker.getNodesCount ());
       results << ", ";
       insert_param (results, "unlocked",
-                    (int)pbote::kademlia::DHT_worker.get_unlocked_nodes_count ());
+                    (int)bote::DHT_worker.get_unlocked_nodes_count ());
       results << "}}";
     }
   else

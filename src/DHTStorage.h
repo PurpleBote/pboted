@@ -16,9 +16,7 @@
 #include "FileSystem.h"
 #include "Packet.h"
 
-namespace pbote
-{
-namespace kademlia
+namespace bote
 {
 
 // 10 MiB
@@ -53,9 +51,9 @@ class DHTStorage
 
   void update ();
   int safe (const std::vector<uint8_t>& data);
-  int safe_deleted (pbote::type type, const i2p::data::Tag<32>& key,
+  int safe_deleted (bote::type type, const i2p::data::Tag<32>& key,
                     const std::vector<uint8_t>& data);
-  bool Delete (pbote::type type, const i2p::data::Tag<32>& key,
+  bool Delete (bote::type type, const i2p::data::Tag<32>& key,
                const char *ext = DEFAULT_FILE_EXTENSION);
   bool remove_index (const i2p::data::Tag<32>& index_dht_key,
                      const i2p::data::Tag<32>& email_dht_key,
@@ -67,7 +65,7 @@ class DHTStorage
   std::vector<uint8_t> getEmail (i2p::data::Tag<32> key);
   std::vector<uint8_t> getContact (i2p::data::Tag<32> key);
 
-  std::vector<uint8_t> getPacket (pbote::type type, i2p::data::Tag<32> key,
+  std::vector<uint8_t> getPacket (bote::type type, i2p::data::Tag<32> key,
                                   const char *ext = DEFAULT_FILE_EXTENSION);
 
   std::set<std::string> getIndexList () {return local_index_packets;}
@@ -79,7 +77,7 @@ class DHTStorage
   double limit_used () {return (double)((100 / (double)limit) * (double)used);}
 
  private:
-  bool exist (pbote::type type, i2p::data::Tag<32> key);
+  bool exist (bote::type type, i2p::data::Tag<32> key);
 
   int safeIndex (i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
   int safeEmail (i2p::data::Tag<32> key, const std::vector<uint8_t>& data);
@@ -93,9 +91,9 @@ class DHTStorage
   int safe_deleted_email (i2p::data::Tag<32> key,
                           const std::vector<uint8_t>& data);
 
-  int update_deletion_info (pbote::type type, i2p::data::Tag<32> key,
+  int update_deletion_info (bote::type type, i2p::data::Tag<32> key,
                             const std::vector<uint8_t>& data);
-  int clean_deletion_info (pbote::type type, i2p::data::Tag<32> key,
+  int clean_deletion_info (bote::type type, i2p::data::Tag<32> key,
                            int32_t current_timestamp);
 
   void loadLocalIndexPackets ();
@@ -118,7 +116,6 @@ class DHTStorage
   std::set<std::string> local_contact_packets;
 };
 
-} // kademlia
-} // pbote
+} // bote
 
-#endif //PBOTE_SRC_DHTSTORAGE_H_
+#endif /* PBOTED_SRC_DHTSTORAGE_H */

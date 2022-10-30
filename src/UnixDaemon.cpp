@@ -25,9 +25,7 @@
 #include "Logging.h"
 #include "RelayWorker.h"
 
-namespace pbote
-{
-namespace util
+namespace bote
 {
 
 void handle_signal(int sig)
@@ -40,7 +38,7 @@ void handle_signal(int sig)
         break;
       case SIGUSR1:
         LogPrint(eLogInfo, "Daemon: Got SIGUSR1, reopening logs...");
-        pbote::log::Logger().Reopen();
+        bote::log::Logger().Reopen();
         break;
       case SIGINT:
         if (sig == SIGINT)
@@ -77,7 +75,7 @@ int DaemonLinux::start ()
         return EXIT_FAILURE;
       }
 
-    const std::string& d = pbote::fs::GetDataDir();
+    const std::string& d = bote::fs::GetDataDir();
     if (chdir(d.c_str()) != 0)
       {
         LogPrint(eLogError, "Daemon: Could not chdir: ", strerror(errno));
@@ -88,7 +86,7 @@ int DaemonLinux::start ()
   /* Set proc limits */
   struct rlimit limit = {};
   uint16_t nfiles = 0;
-  pbote::config::GetOption("openfiles", nfiles);
+  bote::config::GetOption("openfiles", nfiles);
   getrlimit(RLIMIT_NOFILE, &limit);
   if (nfiles == 0)
     {
@@ -117,7 +115,7 @@ int DaemonLinux::start ()
 
   /* Set core file size */
   uint32_t cfsize = 0;
-  pbote::config::GetOption("coresize", cfsize);
+  bote::config::GetOption("coresize", cfsize);
   if (cfsize)
   {
     cfsize *= 1024;
@@ -146,10 +144,10 @@ int DaemonLinux::start ()
   }
 
   /* Pidfile */
-  pbote::config::GetOption("pidfile", pidfile);
+  bote::config::GetOption("pidfile", pidfile);
   if (pidfile.empty())
     {
-      pidfile = pbote::fs::DataDirPath("pboted.pid");
+      pidfile = bote::fs::DataDirPath("pboted.pid");
     }
 
   if (!pidfile.empty())
@@ -208,7 +206,7 @@ bool DaemonLinux::stop ()
   bool rc = Daemon_Singleton::stop ();
 
   close (pidFH);
-  pbote::fs::Remove (pidfile);
+  bote::fs::Remove (pidfile);
 
   return rc;
 }
@@ -232,16 +230,15 @@ void DaemonLinux::run ()
       /* ToDo: check status of network, DHT, relay, etc. */
       /* and try restart on error */
 
-      if (pbote::network::network_worker.is_sick ())
+      if (bote::network_worker.is_sick ())
         {
           LogPrint(eLogError, "Daemon: SAM session is sick, try to re-connect");
-          pbote::network::network_worker.init ();
-          pbote::network::network_worker.start ();
+          bote::network_worker.init ();
+          bote::network_worker.start ();
         }
     }
 }
 
-} // namespace util
-} // namespace pbote
+} // namespace bote
 
 #endif /* _WIN32 */

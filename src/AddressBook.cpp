@@ -13,7 +13,7 @@
 #include "FileSystem.h"
 #include "Logging.h"
 
-namespace pbote
+namespace bote
 {
 
 AddressBook::AddressBook () {}
@@ -72,7 +72,7 @@ AddressBook::save ()
 {
   LogPrint (eLogInfo, "AddressBook: save: Save contacts to FS");
   std::string addressbook_file_path
-      = pbote::fs::DataDirPath (ADDRESS_BOOK_FILE_NAME);
+      = bote::fs::DataDirPath (ADDRESS_BOOK_FILE_NAME);
   std::ofstream addressbook_file (addressbook_file_path);
 
   if (!addressbook_file.is_open ())
@@ -227,7 +227,7 @@ std::vector<std::string>
 AddressBook::read ()
 {
   if (m_addressbook_path.empty ())
-    m_addressbook_path = pbote::fs::DataDirPath (ADDRESS_BOOK_FILE_NAME);
+    m_addressbook_path = bote::fs::DataDirPath (ADDRESS_BOOK_FILE_NAME);
 
   LogPrint (eLogInfo, "AddressBook: read: Try to load from ",
             m_addressbook_path);
@@ -252,4 +252,4 @@ AddressBook::read ()
   return address_list;
 }
 
-} // namespace pbote
+} // namespace bote

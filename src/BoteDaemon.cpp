@@ -24,9 +24,7 @@
 #include "SMTP.h"
 #include "version.h"
 
-namespace pbote
-{
-namespace util
+namespace bote
 {
 
 class Daemon_Singleton::Daemon_Singleton_Private
@@ -55,7 +53,7 @@ bool
 Daemon_Singleton::IsService() const
 {
   bool service = false;
-  pbote::config::GetOption("service", service);
+  bote::config::GetOption("service", service);
   return service;
 }
 
@@ -69,63 +67,63 @@ bool
 Daemon_Singleton::init(int argc, char *argv[],
                        std::shared_ptr<std::ostream> logstream)
 {
-  pbote::config::Init();
-  pbote::config::ParseCmdline(argc, argv);
+  bote::config::Init();
+  bote::config::ParseCmdline(argc, argv);
 
   std::string config;
-  pbote::config::GetOption("conf", config);
+  bote::config::GetOption("conf", config);
   std::string datadir;
-  pbote::config::GetOption("datadir", datadir);
-  pbote::fs::DetectDataDir(datadir, IsService());
-  pbote::fs::Init();
+  bote::config::GetOption("datadir", datadir);
+  bote::fs::DetectDataDir(datadir, IsService());
+  bote::fs::Init();
 
-  datadir = pbote::fs::GetDataDir();
+  datadir = bote::fs::GetDataDir();
   if (config.empty())
     {
-      config = pbote::fs::DataDirPath("pboted.conf");
-      if (!pbote::fs::Exists(config))
+      config = bote::fs::DataDirPath("pboted.conf");
+      if (!bote::fs::Exists(config))
         config = "";
     }
 
-  pbote::config::ParseConfig(config);
-  pbote::config::Finalize();
+  bote::config::ParseConfig(config);
+  bote::config::Finalize();
 
-  pbote::config::GetOption("daemon", isDaemon);
+  bote::config::GetOption("daemon", isDaemon);
 
   std::string logs;
-  pbote::config::GetOption("log", logs);
+  bote::config::GetOption("log", logs);
   std::string logfile;
-  pbote::config::GetOption("logfile", logfile);
+  bote::config::GetOption("logfile", logfile);
   std::string loglevel;
-  pbote::config::GetOption("loglevel", loglevel);
+  bote::config::GetOption("loglevel", loglevel);
   bool logclftime;
-  pbote::config::GetOption("logclftime", logclftime);
+  bote::config::GetOption("logclftime", logclftime);
 
   // Setup logging
   if (logclftime)
-    pbote::log::Logger().SetTimeFormat("[%d/%b/%Y:%H:%M:%S %z]");
+    bote::log::Logger().SetTimeFormat("[%d/%b/%Y:%H:%M:%S %z]");
 
   if (isDaemon && (logs.empty() || logs == "stdout"))
     logs = "file";
 
-  pbote::log::Logger().SetLogLevel(loglevel);
+  bote::log::Logger().SetLogLevel(loglevel);
   if (logstream)
     {
       LogPrint(eLogInfo, "Log: Will send messages to std::ostream");
-      pbote::log::Logger().SendTo(logstream);
+      bote::log::Logger().SendTo(logstream);
     }
   else if (logs == "file")
     {
       if (logfile.empty())
-        logfile = pbote::fs::DataDirPath("pboted.log");
+        logfile = bote::fs::DataDirPath("pboted.log");
       LogPrint(eLogInfo, "Log: Will send messages to ", logfile);
-      pbote::log::Logger().SendTo(logfile);
+      bote::log::Logger().SendTo(logfile);
     }
 #ifndef _WIN32
   else if (logs == "syslog")
     {
       LogPrint(eLogInfo, "Log: Will send messages to syslog");
-      pbote::log::Logger().SendTo("pboted", LOG_DAEMON);
+      bote::log::Logger().SendTo("pboted", LOG_DAEMON);
     }
 #endif
   else
@@ -143,10 +141,10 @@ Daemon_Singleton::init(int argc, char *argv[],
   LogPrint(eLogDebug, "FS: Main config file: ", config);
 
   LogPrint(eLogInfo, "Daemon: Init network");
-  pbote::network::network_worker.init();
+  bote::network_worker.init();
 
   LogPrint(eLogInfo, "Daemon: Init context");
-  pbote::context.init();
+  bote::context.init();
 
   LogPrint(eLogDebug, "Daemon: Init done");
   return true;
@@ -156,25 +154,25 @@ int
 Daemon_Singleton::start()
 {
   LogPrint(eLogDebug, "Daemon: Start services");
-  pbote::log::Logger().Start();
+  bote::log::Logger().Start();
 
   LogPrint(eLogInfo, "Daemon: Starting network");
-  pbote::network::network_worker.start();
+  bote::network_worker.start();
 
   LogPrint(eLogInfo, "Daemon: Starting relay");
-  pbote::relay::relay_worker.start();
+  bote::relay_worker.start();
 
   LogPrint(eLogInfo, "Daemon: Starting DHT");
-  pbote::kademlia::DHT_worker.start();
+  bote::DHT_worker.start();
 
   LogPrint(eLogInfo, "Daemon: Starting packet handler");
-  pbote::packet::packet_handler.start();
+  bote::packet_handler.start();
 
   LogPrint(eLogInfo, "Daemon: Starting Email");
-  pbote::kademlia::email_worker.start();
+  bote::email_worker.start();
 
   bool control_enabled = false;
-  pbote::config::GetOption("control.enabled", control_enabled);
+  bote::config::GetOption("control.enabled", control_enabled);
   if (control_enabled)
     {
       LogPrint(eLogInfo, "Daemon: Starting control socket");
@@ -183,13 +181,13 @@ Daemon_Singleton::start()
     }
 
   bool smtp_enabled = false;
-  pbote::config::GetOption("smtp.enabled", smtp_enabled);
+  bote::config::GetOption("smtp.enabled", smtp_enabled);
   if (smtp_enabled)
     {
       std::string SMTPaddr;
       uint16_t SMTPport;
-      pbote::config::GetOption("smtp.address", SMTPaddr);
-      pbote::config::GetOption("smtp.port", SMTPport);
+      bote::config::GetOption("smtp.address", SMTPaddr);
+      bote::config::GetOption("smtp.port", SMTPport);
       LogPrint(eLogInfo, "Daemon: Starting SMTP server at ",
                SMTPaddr, ":", SMTPport);
 
@@ -208,13 +206,13 @@ Daemon_Singleton::start()
     }
 
   bool pop3_enabled = false;
-  pbote::config::GetOption("pop3.enabled", pop3_enabled);
+  bote::config::GetOption("pop3.enabled", pop3_enabled);
   if (pop3_enabled)
     {
       std::string POP3addr;
       uint16_t POP3port;
-      pbote::config::GetOption("pop3.address", POP3addr);
-      pbote::config::GetOption("pop3.port", POP3port);
+      bote::config::GetOption("pop3.address", POP3addr);
+      bote::config::GetOption("pop3.port", POP3port);
       LogPrint(eLogInfo, "Daemon: Starting POP3 server at ",
                POP3addr, ":", POP3port);
 
@@ -269,32 +267,31 @@ Daemon_Singleton::stop()
 
   /* Next we need to stop main network stuff */
   LogPrint(eLogInfo, "Daemon: Stopping packet handler");
-  pbote::packet::packet_handler.stop();
+  bote::packet_handler.stop();
   LogPrint(eLogInfo, "Daemon: Packet handler stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopping network worker");
-  pbote::network::network_worker.stop();
+  bote::network_worker.stop();
   LogPrint(eLogInfo, "Daemon: Network worker stopped");
 
   /* And last we stop bote stuff */
   LogPrint(eLogInfo, "Daemon: Stopping DHT worker");
-  pbote::kademlia::DHT_worker.stop();
+  bote::DHT_worker.stop();
   LogPrint(eLogInfo, "Daemon: DHT worker stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopping relay worker");
-  pbote::relay::relay_worker.stop();
+  bote::relay_worker.stop();
   LogPrint(eLogInfo, "Daemon: Relay worker stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopping Email worker");
-  pbote::kademlia::email_worker.stop();
+  bote::email_worker.stop();
   LogPrint(eLogInfo, "Daemon: Email worker stopped");
 
   LogPrint(eLogInfo, "Daemon: Stopped");
 
-  pbote::log::Logger().Stop();
+  bote::log::Logger().Stop();
 
   return true;
 }
 
-} // namespace util
-} // namespace pbote
+} // namespace bote
