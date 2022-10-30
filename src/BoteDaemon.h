@@ -80,7 +80,7 @@ private:
 };
 
 #else // _WIN32
-#define Daemon pbote::util::DaemonWin32::Instance()
+#define Daemon bote::DaemonWin32::Instance()
 class DaemonWin32 : public Daemon_Singleton
 {
 public:
