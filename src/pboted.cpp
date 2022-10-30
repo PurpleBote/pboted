@@ -16,22 +16,22 @@ int
 main (int argc, char *argv[])
 {
   if (Daemon.init (argc, argv))
+  {
+    int res = Daemon.start ();
+    if (res == 0)
     {
-      int res = Daemon.start ();
-      if (res == 0)
-        {
-          Daemon.run ();
-        }
-      else if (res > 0)
-        {
-          return EXIT_SUCCESS;
-        }
-      else
-        {
-          return EXIT_FAILURE;
-        }
-      Daemon.stop ();
+      Daemon.run ();
     }
+    else if (res > 0)
+    {
+      return EXIT_SUCCESS;
+    }
+    else
+    {
+      return EXIT_FAILURE;
+    }
+    Daemon.stop ();
+  }
   return EXIT_SUCCESS;
 }
 
@@ -45,17 +45,17 @@ INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, PSTR, INT nCmdShow)
   {
     int res = Daemon.start ();
     if (res == EXIT_SUCCESS)
-      {
-        Daemon.run ();
-      }
+    {
+      Daemon.run ();
+    }
     else if (res != EXIT_SUCCESS)
-      {
-        return EXIT_SUCCESS;
-      }
+    {
+      return EXIT_SUCCESS;
+    }
     else
-      {
-        return EXIT_FAILURE;
-      }
+    {
+      return EXIT_FAILURE;
+    }
     Daemon.stop ();
   }
   return EXIT_SUCCESS;

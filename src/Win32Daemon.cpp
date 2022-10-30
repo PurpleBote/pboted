@@ -38,9 +38,13 @@ protected:
   {
     Daemon.start();
   }
-  virtual void on_stop()
+  virtual void on_shutdown()
   {
     Daemon.stop();
+  }
+  virtual void on_stop()
+  {
+    Daemon.running = false;
   }
 };
 
@@ -51,7 +55,7 @@ void SignalHandler(int sig)
       case SIGINT:
       case SIGABRT:
       case SIGTERM:
-        LogPrint(eLogWarning, "Daemon: signal received");
+        LogPrint(eLogWarning, "Daemon: received signal ", sig);
         Daemon.running = false;
         break;
       default:
@@ -101,10 +105,8 @@ int DaemonWin32::start()
 
 bool DaemonWin32::stop()
 {
-  if (!running)
-    return true;
-
-  running = false;
+  if (running)
+    running = false;
 
   m_check_cv.notify_one ();
 
@@ -113,7 +115,7 @@ bool DaemonWin32::stop()
 
 void DaemonWin32::run()
 {
-  auto check_timeout = std::chrono::seconds (1);
+  auto check_timeout = std::chrono::seconds (3);
 
   while (running)
   {

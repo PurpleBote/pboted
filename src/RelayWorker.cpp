@@ -56,12 +56,12 @@ RelayWorker::start ()
 void
 RelayWorker::stop ()
 {
-  LogPrint (eLogDebug, "Relay: Stopping");
+  LogPrint (eLogInfo, "Relay: Stopping");
 
   m_started = false;
   m_check_round.notify_one ();
 
-  LogPrint (eLogDebug, "Relay: Stopped");
+  LogPrint (eLogInfo, "Relay: Stopped");
 }
 
 bool
