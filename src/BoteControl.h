@@ -33,7 +33,7 @@ namespace module
 #define CONTROL_POLL_TIMEOUT 10000
 
 /// Default socket filename
-const std::string DEFAULT_SOCKET_NAME = "pboted.sock";
+const std::string CONTROL_DEFAULT_SOCKET_NAME = "pboted.sock";
 
 enum control_state
 {

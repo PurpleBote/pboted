@@ -62,9 +62,7 @@ void SignalHandler(int sig)
 
 /// Windows Daemon block
 
-namespace pbote
-{
-namespace util
+namespace bote
 {
 
 bool DaemonWin32::init(int argc, char* argv[])
@@ -79,7 +77,7 @@ bool DaemonWin32::init(int argc, char* argv[])
   }
   else if (ret)
   {
-    pbote::log::SetThrowFunction ([](const std::string& s)
+    bote::log::SetThrowFunction ([](const std::string& s)
     {
       std::wstring ws = std::wstring(s.begin(), s.end());
       const wchar_t* str = ws.c_str();
@@ -130,16 +128,15 @@ void DaemonWin32::run()
     /* ToDo: check status of network, DHT, relay, etc. */
     /* and try restart on error */
 
-    if (pbote::network::network_worker.is_sick ())
+    if (bote::network_worker.is_sick ())
     {
       LogPrint(eLogError, "Daemon: SAM session is sick, try to re-connect");
-      pbote::network::network_worker.init ();
-      pbote::network::network_worker.start ();
+      bote::network_worker.init ();
+      bote::network_worker.start ();
     }
   }
 }
 
-} // namespace util
-} // namespace pbote
+} // namespace bote
 
 #endif // _WIN32

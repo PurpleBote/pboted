@@ -23,7 +23,7 @@
 #include "BoteIdentity.h"
 #include "Packet.h"
 
-namespace pbote
+namespace bote
 {
 
 #define MAX_HEADER_LENGTH 998
@@ -41,10 +41,10 @@ const uint8_t zero_array[32] = {0};
 const bool MESSAGE_ID_TEMPLATE[]
     = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
-using sp_id_full = std::shared_ptr<pbote::BoteIdentityFull>;
-using sp_id_private = std::shared_ptr<pbote::BoteIdentityPrivate>;
-using sp_id_public = std::shared_ptr<pbote::BoteIdentityPublic>;
-using v_sp_plain_email = std::vector<std::shared_ptr<pbote::EmailUnencryptedPacket> >;
+using sp_id_full = std::shared_ptr<bote::BoteIdentityFull>;
+using sp_id_private = std::shared_ptr<bote::BoteIdentityPrivate>;
+using sp_id_public = std::shared_ptr<bote::BoteIdentityPublic>;
+using v_sp_plain_email = std::vector<std::shared_ptr<bote::EmailUnencryptedPacket> >;
 
 // contains the sender's base64-encoded signature
 const std::string SIGNATURE_HEADER = "X-I2PBote-Signature";
@@ -140,7 +140,7 @@ class EmailMetadata
     return m_parts;
   }
 
-  size_t fill (std::shared_ptr<pbote::DeletionInfoPacket> packet);
+  size_t fill (std::shared_ptr<bote::DeletionInfoPacket> packet);
 
  private:
   std::string m_path;
@@ -190,7 +190,7 @@ class Email
   Email ();
   ~Email () = default;
 
-  //void fromUnencryptedPacket(const pbote::EmailUnencryptedPacket &email_packet);
+  //void fromUnencryptedPacket(const bote::EmailUnencryptedPacket &email_packet);
   //bool from_buffer (const std::vector<uint8_t> &data, bool from_net);
   void fromMIME (const std::vector<uint8_t> &email);
 
@@ -300,12 +300,12 @@ class Email
   void set_recipient_identity(std::string to_address);
   sp_id_private get_sender () { return sender; };
   sp_id_public get_recipient () { return recipient; };
-  pbote::IndexPacket get_index () { return m_index; }
-  pbote::StoreRequestPacket get_storable_index () { return m_storable_index; }
+  bote::IndexPacket get_index () { return m_index; }
+  bote::StoreRequestPacket get_storable_index () { return m_storable_index; }
 
   std::shared_ptr<EmailMetadata> get_metadata() { return m_metadata; }
 
-  std::map<i2p::data::Tag<32>, pbote::StoreRequestPacket>
+  std::map<i2p::data::Tag<32>, bote::StoreRequestPacket>
   get_storable ()
   {
     return m_storable_parts;
@@ -313,7 +313,7 @@ class Email
 
   v_sp_plain_email decrypted () { return m_plain_parts;};
 
-  std::vector<std::shared_ptr<pbote::EmailEncryptedPacket>>
+  std::vector<std::shared_ptr<bote::EmailEncryptedPacket>>
   encrypted ()
   {
     return m_enc_parts;
@@ -349,14 +349,14 @@ class Email
 
   std::vector<uint8_t> full_bytes;
 
-  pbote::IndexPacket m_index;
-  pbote::StoreRequestPacket m_storable_index;
+  bote::IndexPacket m_index;
+  bote::StoreRequestPacket m_storable_index;
 
   v_sp_plain_email m_plain_parts;
-  std::vector<std::shared_ptr<pbote::EmailEncryptedPacket>> m_enc_parts;
-  std::map<i2p::data::Tag<32>, pbote::StoreRequestPacket> m_storable_parts;
+  std::vector<std::shared_ptr<bote::EmailEncryptedPacket>> m_enc_parts;
+  std::map<i2p::data::Tag<32>, bote::StoreRequestPacket> m_storable_parts;
 };
 
-} // pbote
+} // bote
 
 #endif // PBOTED_SRC_EMAIL_H

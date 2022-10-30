@@ -17,9 +17,7 @@
 #include "ConfigParser.h"
 #include "NetworkWorker.h"
 
-namespace pbote
-{
-namespace network
+namespace bote
 {
 
 NetworkWorker network_worker;
@@ -431,8 +429,8 @@ NetworkWorker::NetworkWorker ()
     m_send_queue (nullptr),
     m_local_destination (nullptr)
 {
-  m_recv_queue = std::make_shared<pbote::util::Queue<sp_queue_pkt>>();
-  m_send_queue = std::make_shared<pbote::util::Queue<sp_queue_pkt>>();
+  m_recv_queue = std::make_shared<bote::Queue<sp_queue_pkt>>();
+  m_send_queue = std::make_shared<bote::Queue<sp_queue_pkt>>();
 
   m_local_keys = std::make_shared<i2p::data::PrivateKeys>();
 }
@@ -461,22 +459,22 @@ NetworkWorker::~NetworkWorker ()
 void
 NetworkWorker::init ()
 {
-  pbote::config::GetOption("host", m_listen_address);
-  pbote::config::GetOption("port", m_listen_port_udp);
+  bote::config::GetOption("host", m_listen_address);
+  bote::config::GetOption("port", m_listen_port_udp);
 
-  pbote::config::GetOption("sam.name", m_nickname);
+  bote::config::GetOption("sam.name", m_nickname);
 
-  pbote::config::GetOption("sam.address", m_router_address);
-  pbote::config::GetOption("sam.tcp", m_router_port_tcp);
-  pbote::config::GetOption("sam.udp", m_router_port_udp);
+  bote::config::GetOption("sam.address", m_router_address);
+  bote::config::GetOption("sam.tcp", m_router_port_tcp);
+  bote::config::GetOption("sam.udp", m_router_port_udp);
 
-  pbote::config::GetOption("sam.key", m_destination_key_path);
+  bote::config::GetOption("sam.key", m_destination_key_path);
 
   LogPrint(eLogInfo, "Network: Config loaded");
 
   if (m_destination_key_path.empty ())
     {
-      m_destination_key_path = pbote::fs::DataDirPath (DEFAULT_KEY_FILE_NAME);
+      m_destination_key_path = bote::fs::DataDirPath (DEFAULT_KEY_FILE_NAME);
       LogPrint(eLogDebug,
         "Network: init: Destination key path empty, try default path: ",
         m_destination_key_path);
@@ -792,7 +790,7 @@ void
 NetworkWorker::save_keys()
 {
   if (m_destination_key_path.empty ())
-    m_destination_key_path = pbote::fs::DataDirPath(DEFAULT_KEY_FILE_NAME);
+    m_destination_key_path = bote::fs::DataDirPath(DEFAULT_KEY_FILE_NAME);
 
   LogPrint (eLogDebug, "Network: save_keys: Save destination to ",
             m_destination_key_path);
@@ -839,5 +837,4 @@ NetworkWorker::create_send_handler ()
   m_sender->queue (m_send_queue);
 }
 
-} // namespace network
-} // namespace pbote
+} // namespace bote

@@ -19,7 +19,7 @@
 // libi2pd
 #include "Gzip.h"
 
-namespace pbote
+namespace bote
 {
 
 void *
@@ -56,7 +56,7 @@ EmailMetadata::EmailMetadata ()
 bool
 EmailMetadata::load (const std::string &path)
 {
-  if (!pbote::fs::Exists (path))
+  if (!bote::fs::Exists (path))
   {
     LogPrint (eLogWarning, "EmailMetadata: load: Have no file ", path);
     return false;
@@ -219,7 +219,7 @@ EmailMetadata::save (const std::string& dir)
   // If metadata not loaded from file system, and we need to save it first time
   if (!dir.empty () && filename ().empty ())
     {
-      meta_path = pbote::fs::DataDirPath (dir, message_id () + ".meta");
+      meta_path = bote::fs::DataDirPath (dir, message_id () + ".meta");
     }
   else
     meta_path = filename ();
@@ -285,8 +285,7 @@ EmailMetadata::save (const std::string& dir)
 bool
 EmailMetadata::move (const std::string& dir)
 {
-  std::string new_path
-      = pbote::fs::DataDirPath (dir, message_id () + ".meta");
+  std::string new_path = bote::fs::DataDirPath (dir, message_id () + ".meta");
 
   LogPrint (eLogDebug, "EmailMetadata: move: old path: ", filename ());
   LogPrint (eLogDebug, "EmailMetadata: move: new path: ", new_path);
@@ -409,7 +408,7 @@ EmailMetadata::add_part (EmailMetadata::Part p)
 }
 
 size_t
-EmailMetadata::fill (std::shared_ptr<pbote::DeletionInfoPacket> packet)
+EmailMetadata::fill (std::shared_ptr<bote::DeletionInfoPacket> packet)
 {
   size_t valid = 0;
   for (uint16_t id = 0; id < m_parts->size (); id++)
@@ -684,25 +683,25 @@ Email::split ()
 
   while ((offset + remainder_parts) < full_size)
     {
-      pbote::EmailUnencryptedPacket packet;
+      bote::EmailUnencryptedPacket packet;
       memcpy (packet.mes_id, m_metadata->message_id_bytes ().data (), 32);
       packet.data = std::vector<uint8_t>(full_bytes.begin () + offset,
                                          full_bytes.begin () + offset + part_max_size);
       packet.length = packet.data.size ();
 
-      m_plain_parts.push_back (std::make_shared<pbote::EmailUnencryptedPacket>(packet));
+      m_plain_parts.push_back (std::make_shared<bote::EmailUnencryptedPacket>(packet));
 
       offset += part_max_size;
     }
 
   /// Remain part
-  pbote::EmailUnencryptedPacket packet;
+  bote::EmailUnencryptedPacket packet;
   memcpy (packet.mes_id, m_metadata->message_id_bytes ().data (), 32);
   packet.data = std::vector<uint8_t>(full_bytes.begin () + offset,
                                      full_bytes.begin () + offset + remainder_parts);
   packet.length = packet.data.size ();
 
-  m_plain_parts.push_back (std::make_shared<pbote::EmailUnencryptedPacket>(packet));
+  m_plain_parts.push_back (std::make_shared<bote::EmailUnencryptedPacket>(packet));
 
   if (offset + remainder_parts < full_size)
     {
@@ -745,7 +744,7 @@ Email::split ()
           new_part.id = id;
           new_part.DA = m_plain_parts[id]->DA;
 
-          meta_parts->insert (std::pair<uint16_t, pbote::EmailMetadata::Part>(id, new_part));
+          meta_parts->insert (std::pair<uint16_t, bote::EmailMetadata::Part>(id, new_part));
         }
 
       m_plain_parts[id]->fr_id = id;
@@ -842,10 +841,10 @@ Email::restore ()
       i2p::data::Tag<32> part_dht_key((*meta_part).second.key);
 
       std::string plain_part_path
-          = pbote::fs::DataDirPath ("incomplete",
-                                    part_dht_key.ToBase64 () + ".pkt");
+          = bote::fs::DataDirPath ("incomplete",
+                                   part_dht_key.ToBase64 () + ".pkt");
 
-      if (!pbote::fs::Exists(plain_part_path))
+      if (!bote::fs::Exists(plain_part_path))
         {
           LogPrint(eLogWarning, "Email: restore: Have no file ", plain_part_path);
           return false;
@@ -884,9 +883,9 @@ Email::save (const std::string &dir)
   // If email not loaded from file system, and we need to save it first time
   if (!dir.empty () && filename ().empty ())
     {
-      emailPacketPath = pbote::fs::DataDirPath (dir, get_message_id () + ".mail");
+      emailPacketPath = bote::fs::DataDirPath (dir, get_message_id () + ".mail");
 
-      if (pbote::fs::Exists (emailPacketPath))
+      if (bote::fs::Exists (emailPacketPath))
         {
           return false;
         }
@@ -912,7 +911,7 @@ Email::save (const std::string &dir)
 
   nsfs::path p = emailPacketPath;
   std::string p_dir = p.parent_path ().string ();
-  std::string subdir = p_dir.substr (pbote::fs::GetDataDir ().size () + 1);
+  std::string subdir = p_dir.substr (bote::fs::GetDataDir ().size () + 1);
   LogPrint (eLogDebug, "Email: save: Subdir: ", subdir);
   m_metadata->save (subdir);
 
@@ -926,7 +925,7 @@ Email::move (const std::string &dir)
     return false;
 
   std::string new_path
-      = pbote::fs::DataDirPath (dir, m_metadata->message_id () + ".mail");
+      = bote::fs::DataDirPath (dir, m_metadata->message_id () + ".mail");
 
   LogPrint (eLogDebug, "Email: move: old path: ", filename ());
   LogPrint (eLogDebug, "Email: move: new path: ", new_path);
@@ -963,7 +962,7 @@ Email::encrypt ()
 
   for (uint16_t id = 0; id < m_metadata->fr_count (); id++)
     {
-      pbote::EmailEncryptedPacket encrypted;
+      bote::EmailEncryptedPacket encrypted;
 
       SHA256 (m_plain_parts[id]->DA, 32, encrypted.delete_hash);
 
@@ -1023,7 +1022,7 @@ Email::encrypt ()
       LogPrint (eLogDebug, "Email: encrypt: ", id,
                 ": encrypted.length : ", encrypted.length);
 
-      m_enc_parts.push_back (std::make_shared<pbote::EmailEncryptedPacket>(encrypted));
+      m_enc_parts.push_back (std::make_shared<bote::EmailEncryptedPacket>(encrypted));
 
       /// Set DHT key to metadata
       auto meta_parts = m_metadata->get_parts ();
@@ -1385,4 +1384,4 @@ Email::parse_address_v1(std::string address)
   return std::make_shared<BoteIdentityPublic>(identity);
 }
 
-} // pbote
+} // bote

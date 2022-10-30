@@ -8,8 +8,8 @@
  */
 
 #pragma once
-#ifndef PBOTED_SRC_RELAY_WORKER_H_
-#define PBOTED_SRC_RELAY_WORKER_H_
+#ifndef PBOTED_SRC_RELAY_WORKER_H
+#define PBOTED_SRC_RELAY_WORKER_H
 
 #include <iostream>
 #include <random>
@@ -18,9 +18,7 @@
 
 #include "BoteContext.h"
 
-namespace pbote
-{
-namespace relay
+namespace bote
 {
 
 /// Maximum number of peers to keep track of
@@ -182,29 +180,33 @@ public:
 
   void peerListRequestV4 (const sp_comm_pkt &packet);
   void peerListRequestV5 (const sp_comm_pkt &packet);
-  static PeerListRequestPacket peerListRequestPacket ();
+  void relayRequestV5 (const sp_comm_pkt &packet);
+  void relayReturnRequestV5 (const sp_comm_pkt &packet);
+  void fetchRequestV5 (const sp_comm_pkt &packet);
 
 private:
   void run ();
   bool check_peers ();
 
+  static PeerListRequestPacket peerListRequestPacket ();
+
   void set_start_time ();
   void set_finish_time ();
   std::chrono::seconds get_delay (bool exec_status);
 
-  bool started_;
-  std::thread *m_worker_thread_;
+  bool m_started;
+  std::thread *m_worker_thread;
+  sp_peer m_local_peer;
 
-  mutable std::mutex m_peers_mutex_, m_check_mutex_;
+  mutable std::mutex m_peers_mutex, m_check_mutex;
   std::condition_variable m_check_round;
-  std::map<hash_key, sp_peer> m_peers_;
+  std::map<hash_key, sp_peer> m_peers;
 
   unsigned long exec_start_t, exec_finish_t;
 };
 
 extern RelayWorker relay_worker;
 
-} // relay
-} // pbote
+} // bote
 
-#endif // PBOTED_SRC_RELAY_WORKER_H_
+#endif // PBOTED_SRC_RELAY_WORKER_H

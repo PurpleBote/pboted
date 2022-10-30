@@ -6,6 +6,7 @@
  * See full license text in LICENSE file at top of project tree
  */
 
+#pragma once
 #ifndef BOTE_SRC_COMPATH_H
 #define BOTE_SRC_COMPATH_H
 

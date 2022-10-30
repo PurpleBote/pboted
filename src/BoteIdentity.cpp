@@ -11,7 +11,7 @@
 
 #include "BoteIdentity.h"
 
-namespace pbote
+namespace bote
 {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -260,7 +260,7 @@ BoteIdentityPublic::Encrypt (const uint8_t *data, int len, const uint8_t *pubKey
   return {};
 }
 
-std::shared_ptr<pbote::CryptoKeyEncryptor>
+std::shared_ptr<bote::CryptoKeyEncryptor>
 BoteIdentityPublic::CreateEncryptor (const uint8_t *key) const
 {
   if (!key)
@@ -268,7 +268,7 @@ BoteIdentityPublic::CreateEncryptor (const uint8_t *key) const
   return CreateEncryptor (GetKeyType (), key);
 }
 
-std::shared_ptr<pbote::CryptoKeyEncryptor>
+std::shared_ptr<bote::CryptoKeyEncryptor>
 BoteIdentityPublic::CreateEncryptor (const KeyType keyType, const uint8_t *key)
 {
   LogPrint (eLogDebug, "BoteIdentityPublic: CreateEncryptor: Crypto key type: ",
@@ -276,11 +276,11 @@ BoteIdentityPublic::CreateEncryptor (const KeyType keyType, const uint8_t *key)
   switch (keyType)
     {
       case KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC:
-        return std::make_shared<pbote::ECDHP256Encryptor>(key);
+        return std::make_shared<bote::ECDHP256Encryptor>(key);
       case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
-        return std::make_shared<pbote::ECDHP521Encryptor>(key);
+        return std::make_shared<bote::ECDHP521Encryptor>(key);
       case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
-        return std::make_shared<pbote::X25519Encryptor>(key);
+        return std::make_shared<bote::X25519Encryptor>(key);
       default:
         LogPrint (eLogError, "BoteIdentityPublic: CreateEncryptor: Unsupported crypto key type ",
                   keyTypeToString (keyType));
@@ -546,17 +546,17 @@ BoteIdentityPrivate::Decrypt (const uint8_t * encrypted, size_t len)
   return {};
 }
 
-std::shared_ptr<pbote::CryptoKeyDecryptor>
+std::shared_ptr<bote::CryptoKeyDecryptor>
 BoteIdentityPrivate::CreateDecryptor () const
 {
   switch (GetKeyType ())
     {
       case KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC:
-        return std::make_shared<pbote::ECDHP256Decryptor>(GetCryptoPrivateKey());
+        return std::make_shared<bote::ECDHP256Decryptor>(GetCryptoPrivateKey());
       case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
-        return std::make_shared<pbote::ECDHP521Decryptor>(GetCryptoPrivateKey());
+        return std::make_shared<bote::ECDHP521Decryptor>(GetCryptoPrivateKey());
       case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
-        return std::make_shared<pbote::X25519Decryptor>(GetCryptoPrivateKey());
+        return std::make_shared<bote::X25519Decryptor>(GetCryptoPrivateKey());
       default:
         LogPrint(eLogError, "BoteIdentityPrivate: CreateDecryptor: Unsupported crypto key type ",
                  keyTypeToString (GetKeyType ()));
@@ -575,4 +575,4 @@ BoteIdentityPrivate::CreateSigner (KeyType keyType) const
     m_Signer.reset (signer);
 }
 
-} // namespace pbote
+} // namespace bote

@@ -26,9 +26,7 @@
 #include <windows.h>
 #endif
 
-namespace pbote
-{
-namespace util
+namespace bote
 {
 
 class Daemon_Singleton_Private;
@@ -58,7 +56,7 @@ protected:
 };
 
 #ifndef _WIN32
-#define Daemon pbote::util::DaemonLinux::Instance ()
+#define Daemon bote::DaemonLinux::Instance ()
 class DaemonLinux : public Daemon_Singleton
 {
 public:
@@ -107,7 +105,6 @@ private:
 };
 #endif // _WIN32
 
-} // namespace util
-} // namespace pbote
+} // namespace bote
 
 #endif // PBOTED_SRC_BOTEDAEMON_H

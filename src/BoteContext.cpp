@@ -14,14 +14,14 @@
 #include "BoteContext.h"
 #include "Logging.h"
 
-namespace pbote
+namespace bote
 {
 
 void
 identityStorage::init ()
 {
   //ToDo: Add file encryption/decryption
-  std::string identitiesPath = pbote::fs::DataDirPath (DEFAULT_IDENTITY_FILE_NAME);
+  std::string identitiesPath = bote::fs::DataDirPath (DEFAULT_IDENTITY_FILE_NAME);
 
   LogPrint(eLogInfo, "identityStorage: init: Try load identities from file: ",
            identitiesPath);
@@ -347,7 +347,7 @@ BoteContext::BoteContext()
 {
   m_start_time = ts_now ();
 
-  m_identities_storage = std::make_shared<pbote::identityStorage>();
+  m_identities_storage = std::make_shared<bote::identityStorage>();
 
   rbe.seed(time (NULL));
 }
@@ -375,7 +375,7 @@ BoteContext::identityByName(const std::string &name)
   // ToDo: well is it really better?
   //return std::find_if(email_identities.begin(),
   //                    email_identities.end(),
-  //                    [&name](std::shared_ptr<pbote::EmailIdentityFull> i){
+  //                    [&name](std::shared_ptr<bote::EmailIdentityFull> i){
   //                      return i->publicName == name;
   //                    }).operator*();
 
@@ -390,7 +390,7 @@ BoteContext::identityByName(const std::string &name)
   return nullptr;
 }
 
-std::vector<std::shared_ptr<pbote::BoteIdentityFull>>
+std::vector<std::shared_ptr<bote::BoteIdentityFull>>
 BoteContext::getEmailIdentities()
 {
   return m_identities_storage->get_identities();
@@ -451,4 +451,4 @@ BoteContext::ts_64_now ()
       std::chrono::system_clock::now().time_since_epoch()).count ();
 }
 
-} // namespace pbote
+} // namespace bote

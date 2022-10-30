@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-namespace pbote
+namespace bote
 {
 namespace fs
 {
@@ -134,7 +134,7 @@ bool CreateDirectory (const std::string &path);
 template<typename T>
 void _ExpandPath (std::stringstream &path, T c)
 {
-  path << pbote::fs::dirSep << c;
+  path << bote::fs::dirSep << c;
 }
 
 template<typename T, typename... Other>
@@ -149,14 +149,14 @@ void _ExpandPath (std::stringstream &path, T c, Other... other)
  *
  * Examples (with datadir = "/tmp/pbote"):
  *
- * pbote::fs::Path("test")             -> '/tmp/pbote/test'
- * pbote::fs::Path("test", "file.txt") -> '/tmp/pbote/test/file.txt'
+ * bote::fs::Path("test")             -> '/tmp/pbote/test'
+ * bote::fs::Path("test", "file.txt") -> '/tmp/pbote/test/file.txt'
  */
 template<typename... Other>
 std::string DataDirPath (Other... components)
 {
   std::stringstream s("");
-  s << pbote::fs::GetDataDir();
+  s << bote::fs::GetDataDir();
   _ExpandPath(s, components...);
 
   return s.str();
@@ -173,6 +173,6 @@ std::string StorageRootPath (const Storage &storage, Filename... filenames)
 }
 
 } // namespace fs
-} // namespace pbote
+} // namespace bote
 
 #endif // PBOTED_FS_H

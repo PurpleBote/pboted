@@ -16,9 +16,7 @@
 #include "NetworkWorker.h"
 #include "Packet.h"
 
-namespace pbote
-{
-namespace packet
+namespace bote
 {
 
 /// Timeout in msec
@@ -84,7 +82,6 @@ private:
 
 extern RequestHandler packet_handler;
 
-} // namespace packet
-} // namespace pbote
+} // namespace bote
 
 #endif // PBOTED_SRC_PACKET_HANDLER_H

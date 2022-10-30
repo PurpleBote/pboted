@@ -125,7 +125,7 @@ struct pop3_session
   pop3_state state = POP3_STATE_QUIT;
   bool need_clean = false;
   char *buf;
-  std::vector<std::shared_ptr<pbote::Email> > emails;
+  std::vector<std::shared_ptr<bote::Email> > emails;
 };
 
 class POP3

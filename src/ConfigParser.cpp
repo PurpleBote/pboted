@@ -23,7 +23,7 @@
 
 using namespace boost::program_options;
 
-namespace pbote
+namespace bote
 {
 namespace config
 {
@@ -243,4 +243,4 @@ GetOptionAsAny (const std::string &name, boost::any &value)
 }
 
 } // namespace config
-} // namespace pbote
+} // namespace bote

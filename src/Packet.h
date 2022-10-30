@@ -31,7 +31,7 @@
 #include "Identity.h"
 #include "Tag.h"
 
-namespace pbote
+namespace bote
 {
 
 /// prefix[4] + type[1] + ver[1] + cid[32] = 38
@@ -1928,6 +1928,6 @@ parseCommPacket (const sp_queue_pkt &packet)
   return std::make_shared<CommunicationPacket> (data);
 }
 
-} // namespace pbote
+} // namespace bote
 
 #endif /* PBOTED_SRC_PACKET_H */

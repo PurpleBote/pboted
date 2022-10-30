@@ -17,9 +17,7 @@
 #include "DHTworker.h"
 #include "EmailWorker.h"
 
-namespace pbote
-{
-namespace kademlia
+namespace bote
 {
 
 EmailWorker email_worker;
@@ -458,15 +456,15 @@ EmailWorker::incomplete_email_task ()
 
           for (auto meta_part : (*meta_parts))
             {
-              std::string packet_path = pbote::fs::DataDirPath ("incomplete",
+              std::string packet_path = bote::fs::DataDirPath ("incomplete",
                                           meta_part.second.key.ToBase64 () + ".pkt");
-              if (pbote::fs::Exists (packet_path))
+              if (bote::fs::Exists (packet_path))
                 {
 
                   LogPrint (eLogInfo,
                             "EmailWorker: Incomplete: Removing restored ",
                             packet_path);
-                  pbote::fs::Remove (packet_path);
+                  bote::fs::Remove (packet_path);
                 }
 
               EmailDeleteRequestPacket delete_email_packet;
@@ -972,9 +970,9 @@ EmailWorker::check_outbox (v_sp_email &emails)
   LogPrint (eLogDebug, "EmailWorker: check_outbox: Updating");
   /// outbox contain plain text packets
   // ToDo: encrypt all local stored emails with master password
-  std::string outboxPath = pbote::fs::DataDirPath ("outbox");
+  std::string outboxPath = bote::fs::DataDirPath ("outbox");
   std::vector<std::string> mails_path;
-  auto result = pbote::fs::ReadDir (outboxPath, mails_path);
+  auto result = bote::fs::ReadDir (outboxPath, mails_path);
 
   if (!result)
     {
@@ -1156,9 +1154,9 @@ EmailWorker::check_sentbox (v_sp_email_meta &metas)
   LogPrint (eLogDebug, "EmailWorker: check_sentbox: Updating");
   /// sent contain plain MIME's
   // ToDo: encrypt with master password
-  std::string sentbox_path = pbote::fs::DataDirPath ("sent");
+  std::string sentbox_path = bote::fs::DataDirPath ("sent");
   std::vector<std::string> metas_path;
-  auto result = pbote::fs::ReadDir (sentbox_path, metas_path);
+  auto result = bote::fs::ReadDir (sentbox_path, metas_path);
 
   if (!result)
     {
@@ -1214,9 +1212,9 @@ EmailWorker::get_incomplete ()
   LogPrint (eLogDebug, "EmailWorker: get_incomplete: Updating");
   /// incomplete contain plain text packets
   // ToDo: encrypt all local stored emails with master password
-  std::string incomplete_path = pbote::fs::DataDirPath ("incomplete");
+  std::string incomplete_path = bote::fs::DataDirPath ("incomplete");
   std::vector<std::string> packets_path;
-  auto result = pbote::fs::ReadDir (incomplete_path, packets_path);
+  auto result = bote::fs::ReadDir (incomplete_path, packets_path);
 
   if (!result)
     {
@@ -1251,7 +1249,7 @@ EmailWorker::get_incomplete ()
 
       i2p::data::Tag<32> packet_dht_key;
       std::string dht_base
-        = pbote::kademlia::remove_extension (pbote::kademlia::base_name (packet_path));
+        = bote::remove_extension (bote::base_name (packet_path));
       packet_dht_key.FromBase64 (dht_base);
 
       if (memcmp(packet.mes_id, zero_array, 32) == 0)
@@ -1289,7 +1287,7 @@ EmailWorker::get_incomplete ()
 
           LogPrint (eLogInfo, "EmailWorker: get_incomplete: ",
                     "Removing malformed ", packet_path);
-          pbote::fs::Remove (packet_path);
+          bote::fs::Remove (packet_path);
 
           continue;
         }
@@ -1367,9 +1365,9 @@ EmailWorker::check_inbox ()
 {
   LogPrint (eLogDebug, "EmailWorker: check_inbox: Updating");
   // ToDo: encrypt all local stored emails
-  std::string outboxPath = pbote::fs::DataDirPath ("inbox");
+  std::string outboxPath = bote::fs::DataDirPath ("inbox");
   std::vector<std::string> mails_path;
-  auto result = pbote::fs::ReadDir (outboxPath, mails_path);
+  auto result = bote::fs::ReadDir (outboxPath, mails_path);
 
   v_sp_email emails;
 
@@ -1443,7 +1441,7 @@ EmailWorker::process_emails (const sp_id_full &identity,
           continue;
         }
 
-      pbote::EmailUnencryptedPacket plain_packet;
+      bote::EmailUnencryptedPacket plain_packet;
 
       bool parsed = plain_packet.fromBuffer (unencrypted_email_data, true);
       if (!parsed)
@@ -1461,7 +1459,7 @@ EmailWorker::process_emails (const sp_id_full &identity,
         }
 
       i2p::data::Tag<32> dht_key (enc_mail.key);
-      std::string pkt_path = pbote::fs::DataDirPath ("incomplete",
+      std::string pkt_path = bote::fs::DataDirPath ("incomplete",
                                                      dht_key.ToBase64 () + ".pkt");
 
       std::ofstream file (pkt_path, std::ofstream::binary | std::ofstream::out);
@@ -1496,5 +1494,4 @@ EmailWorker::check_thread_exist (const std::string &identity_name)
   return false;
 }
 
-} // namespace kademlia
-} // namespace pbote
+} // namespace bote

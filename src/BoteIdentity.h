@@ -24,7 +24,7 @@
 #include "Signature.h"
 #include "Tag.h"
 
-namespace pbote
+namespace bote
 {
 
 const size_t MAX_IDENTITY_SIZE = 2048;
@@ -457,8 +457,8 @@ class BoteIdentityPublic
   const uint8_t *GetSigningPublicKeyBuffer() const { return m_Identity->getSigningPublicKey(); };
 
   std::vector<uint8_t> Encrypt(const uint8_t *data, int len, const uint8_t *pubKey) const;
-  std::shared_ptr<pbote::CryptoKeyEncryptor> CreateEncryptor(const uint8_t *key) const;
-  static std::shared_ptr<pbote::CryptoKeyEncryptor> CreateEncryptor(KeyType keyType, const uint8_t *key);
+  std::shared_ptr<bote::CryptoKeyEncryptor> CreateEncryptor(const uint8_t *key) const;
+  static std::shared_ptr<bote::CryptoKeyEncryptor> CreateEncryptor(KeyType keyType, const uint8_t *key);
 
   static i2p::crypto::Verifier *CreateVerifier(KeyType keyType);
   bool Verify(const uint8_t *buf, size_t len, const uint8_t *signature) const;
@@ -530,7 +530,7 @@ class BoteIdentityPrivate
   size_t GetSignatureLen() const { return m_Public->GetSignatureLen(); };
 
   std::vector<uint8_t> Decrypt(const uint8_t *encrypted, size_t elen);
-  std::shared_ptr<pbote::CryptoKeyDecryptor> CreateDecryptor() const;
+  std::shared_ptr<bote::CryptoKeyDecryptor> CreateDecryptor() const;
 
   void Sign(const uint8_t *buf, int len, uint8_t *signature) const;
   static i2p::crypto::Signer *CreateSigner(KeyType keyType, const uint8_t *priv);
@@ -543,6 +543,6 @@ class BoteIdentityPrivate
   mutable std::unique_ptr<i2p::crypto::Signer> m_Signer;
 };
 
-} // namespace pbote
+} // namespace bote
 
 #endif // PBOTED_SRC_IDENTITY_H

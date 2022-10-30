@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-namespace pbote
+namespace bote
 {
 
 #define ADDRESS_BOOK_FILE_NAME "addressbook.txt"
@@ -79,6 +79,6 @@ private:
   std::vector<Contact> m_contacts;
 };
 
-} // namespace pbote
+} // namespace bote
 
 #endif // PBOTED_SRC_ADDRESS_BOOK_H

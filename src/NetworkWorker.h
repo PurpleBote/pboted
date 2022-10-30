@@ -30,9 +30,7 @@
 
 #include "i2psam.hpp"
 
-namespace pbote
-{
-namespace network
+namespace bote
 {
 
 /// Timeout in msec
@@ -43,7 +41,7 @@ namespace network
 #define SAM_DEFAULT_NICKNAME "pboted"
 #define DEFAULT_KEY_FILE_NAME "destination.key"
 
-using queue_type = std::shared_ptr<pbote::util::Queue<sp_queue_pkt>>;
+using queue_type = std::shared_ptr<bote::Queue<sp_queue_pkt>>;
 using sp_sam_dg_ses = std::shared_ptr<SAM::DatagramSession>;
 
 class UDPReceiver
@@ -144,9 +142,9 @@ public:
   void stop ();
 
   void send(const PacketForQueue& packet);
-  void send(const std::shared_ptr<PacketBatch<pbote::CommunicationPacket>>& batch);
-  bool receive(const std::shared_ptr<pbote::CommunicationPacket>& packet);
-  void remove_batch(const std::shared_ptr<PacketBatch<pbote::CommunicationPacket>>& batch);
+  void send(const std::shared_ptr<PacketBatch<bote::CommunicationPacket>>& batch);
+  bool receive(const std::shared_ptr<bote::CommunicationPacket>& packet);
+  void remove_batch(const std::shared_ptr<PacketBatch<bote::CommunicationPacket>>& batch);
   sp_queue_pkt get_pkt_with_timeout(int usec);
 
   bool running ();
@@ -212,7 +210,6 @@ private:
 
 extern NetworkWorker network_worker;
 
-} // namespace network
-} // namespace pbote
+} // namespace bote
 
 #endif // PBOTED_SRC_NETWORK_WORKER_H

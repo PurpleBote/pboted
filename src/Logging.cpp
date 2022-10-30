@@ -13,7 +13,7 @@
 
 #include "Logging.h"
 
-namespace pbote
+namespace bote
 {
 namespace log
 {
@@ -241,7 +241,7 @@ Logging::Run ()
 }
 
 void
-Logging::Append (std::shared_ptr<pbote::log::LogMsg> &msg)
+Logging::Append (std::shared_ptr<bote::log::LogMsg> &msg)
 {
   m_Queue.Put (msg);
 }
@@ -317,4 +317,4 @@ SetThrowFunction (ThrowFunction f)
 }
 
 } // namespace log
-} // namespace pbote
+} // namespace bote

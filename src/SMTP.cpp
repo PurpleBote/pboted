@@ -26,7 +26,8 @@ SMTP::SMTP (const std::string &address, int port)
     smtp_thread (nullptr),
     m_address (address),
     m_port (port)
-{}
+{
+}
 
 SMTP::~SMTP ()
 {
@@ -537,8 +538,7 @@ SMTP::MAIL (int sid)
       return;
     }
 
-  if (session.state != SMTP_STATE_HELO &&
-      session.state != SMTP_STATE_AUTH)
+  if (session.state != SMTP_STATE_HELO && session.state != SMTP_STATE_AUTH)
     {
       reply (sid, reply_5XX[CODE_503_2]);
       return;
@@ -590,8 +590,7 @@ SMTP::RCPT (int sid)
       return;
     }
 
-  if ((session.state != SMTP_STATE_MAIL &&
-       session.state != SMTP_STATE_RCPT)
+  if ((session.state != SMTP_STATE_MAIL && session.state != SMTP_STATE_RCPT)
       && session.nrcpt > SMTP_MAX_RCPT_USR)
     {
       reply (sid, reply_5XX[CODE_503]);
@@ -649,7 +648,7 @@ SMTP::DATA (int sid)
 
   memset (session.buf, 0, SMTP_BUF_SIZE);
 
-  ssize_t recv_len = recv (client_sockfd,
+  ssize_t recv_len = recv (fds[nfds].fd,
                            session.buf,
                            SMTP_BUF_SIZE - 1, 0);
   if (recv_len == RECV_ERROR)
@@ -663,7 +662,7 @@ SMTP::DATA (int sid)
 
   /* ToDo: save to user subdir */
   std::vector<uint8_t> mail_data (session.buf, session.buf + recv_len);
-  pbote::Email mail;
+  bote::Email mail;
   mail.fromMIME (mail_data);
   mail.save ("outbox");
 
@@ -750,7 +749,7 @@ SMTP::check_identity (const std::string &name)
 {
   LogPrint (eLogDebug, "SMTPsession: check_identity: name: ",
             name.substr (0, name.size () - 2));
-  if (pbote::context.identityByName (name))
+  if (bote::context.identityByName (name))
     return true;
   return false;
 }
@@ -760,7 +759,7 @@ SMTP::check_recipient (const std::string &name)
 {
   LogPrint (eLogDebug, "SMTPsession: check_recipient: name: ",
             name.substr (0, name.size () - 2));
-  if (pbote::context.alias_exist (name))
+  if (bote::context.alias_exist (name))
     return true;
   return false;
 }
