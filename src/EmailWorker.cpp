@@ -265,7 +265,6 @@ EmailWorker::run ()
 void
 EmailWorker::check_email_task (const sp_id_full &email_identity)
 {
-  bool first_run = true;
   auto check_timeout = std::chrono::seconds (FIRST_RUN_WAITING);
   std::string id_name = email_identity->publicName;
 
@@ -273,11 +272,6 @@ EmailWorker::check_email_task (const sp_id_full &email_identity)
 
   while (m_main_started)
     {
-      /* ToDo: read interval parameter from config */
-      if (!first_run)
-        check_timeout = std::chrono::seconds(CHECK_EMAIL_INTERVAL);
-      first_run = false;
-
       {
         std::unique_lock<std::mutex> lk (m_check_mutex);
         auto rc = m_check_cv.wait_for (lk, check_timeout);
@@ -360,7 +354,11 @@ EmailWorker::check_email_task (const sp_id_full &email_identity)
 
       auto metas = process_emails (email_identity, enc_mail_packets);
 
-      remove_from_dht (metas);
+      if (!metas.empty ())
+        remove_from_dht (metas);
+
+      /* ToDo: read interval parameter from config */
+      check_timeout = std::chrono::seconds(CHECK_EMAIL_INTERVAL);
 
       LogPrint (eLogInfo, "EmailWorker: Check: ", id_name, ": Round complete");
     }
@@ -371,18 +369,12 @@ EmailWorker::check_email_task (const sp_id_full &email_identity)
 void
 EmailWorker::incomplete_email_task ()
 {
-  bool first_run = true;
   auto check_timeout = std::chrono::seconds (FIRST_RUN_WAITING);
 
   LogPrint (eLogInfo, "EmailWorker: Incomplete: Started");
 
   while (m_main_started)
     {
-      /* ToDo: read interval parameter from config */
-      if (!first_run)
-        check_timeout = std::chrono::seconds(CHECK_EMAIL_INTERVAL);
-      first_run = false;
-
       {
         std::unique_lock<std::mutex> lk (m_incomplete_mutex);
         auto rc = m_check_cv.wait_for (lk, check_timeout);
@@ -445,6 +437,9 @@ EmailWorker::incomplete_email_task ()
             }
         }
 
+      /* ToDo: read interval parameter from config */
+      check_timeout = std::chrono::seconds(CHECK_EMAIL_INTERVAL);
+
       LogPrint (eLogInfo, "EmailWorker: Incomplete: Round complete");
     }
 
@@ -454,7 +449,6 @@ EmailWorker::incomplete_email_task ()
 void
 EmailWorker::send_email_task ()
 {
-  bool first_run = true;
   auto check_timeout = std::chrono::seconds (FIRST_RUN_WAITING);
   v_sp_email outbox;
 
@@ -462,11 +456,6 @@ EmailWorker::send_email_task ()
 
   while (m_main_started)
     {
-      /* ToDo: read interval parameter from config */
-      if (!first_run)
-        check_timeout = std::chrono::seconds(CHECK_EMAIL_INTERVAL);
-      first_run = false;
-
       {
         std::unique_lock<std::mutex> lk (m_send_mutex);
         auto rc = m_check_cv.wait_for (lk, check_timeout);
@@ -563,6 +552,9 @@ EmailWorker::send_email_task ()
           LogPrint (eLogInfo, "EmailWorker: Send: Email sent, moved to sent");
         }
 
+      /* ToDo: read interval parameter from config */
+      check_timeout = std::chrono::seconds(CHECK_EMAIL_INTERVAL);
+
       LogPrint (eLogInfo, "EmailWorker: Send: Round complete");
     }
 
@@ -572,7 +564,6 @@ EmailWorker::send_email_task ()
 void
 EmailWorker::check_delivery_task ()
 {
-  bool first_run = true;
   auto check_timeout = std::chrono::seconds (FIRST_RUN_WAITING);
   v_sp_email_meta sentbox;
   std::vector<std::shared_ptr<DeletionInfoPacket> > results;
@@ -581,11 +572,6 @@ EmailWorker::check_delivery_task ()
 
   while (m_main_started)
     {
-      /* ToDo: read interval parameter from config */
-      if (!first_run)
-        check_timeout = std::chrono::seconds(DELIVERY_EMAIL_INTERVAL);
-      first_run = false;
-
       {
         std::unique_lock<std::mutex> lk (m_delivery_mutex);
         auto rc = m_check_cv.wait_for (lk, check_timeout);
@@ -661,6 +647,9 @@ EmailWorker::check_delivery_task ()
                         meta->message_id ());
             }
         }
+
+      /* ToDo: read interval parameter from config */
+      check_timeout = std::chrono::seconds(DELIVERY_EMAIL_INTERVAL);
 
       LogPrint (eLogInfo, "EmailWorker: Delivery: Round complete");
     }

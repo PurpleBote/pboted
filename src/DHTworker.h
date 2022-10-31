@@ -291,7 +291,7 @@ private:
   sp_node m_local_node;
 
   mutable std::mutex m_nodes_mutex;
-  std::map<HashKey, sp_node> m_nodes;
+  std::map<HashKey, sp_node> m_nodes{};
 
   //ToDo: K-bucket/routing table and S-bucket (NEED MORE DISCUSSION)
 

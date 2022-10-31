@@ -29,6 +29,9 @@ ECDHP256Encryptor::ECDHP256Encryptor (const byte *pubkey)
 
   BIGNUM *bn_public_key = BN_bin2bn (pubkey, ECDHP256_PUB_KEY_SIZE, nullptr);
   EC_POINT_bn2point (ec_curve, bn_public_key, ec_public_point, nullptr);
+
+  if (bn_public_key)
+    BN_free (bn_public_key);
 }
 
 ECDHP256Encryptor::~ECDHP256Encryptor ()
@@ -216,6 +219,9 @@ ECDHP521Encryptor::ECDHP521Encryptor (const byte *pubkey)
 
   if (result == nullptr)
     LogPrint (eLogError, "Crypto: ECDHP521Encryptor: Point creation failed");
+
+  if (bn_public_key)
+    BN_free (bn_public_key);
 }
 
 ECDHP521Encryptor::~ECDHP521Encryptor ()
@@ -227,7 +233,7 @@ ECDHP521Encryptor::~ECDHP521Encryptor ()
     EC_POINT_free (ec_public_point);
 
   if (ec_shared_key)
-    EC_KEY_free (ec_shared_key);
+    EC_KEY_free (ec_shared_key);  
 }
 
 std::vector<byte>

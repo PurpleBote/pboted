@@ -109,13 +109,13 @@ class DHTStorage
   void remove_old_packets ();
   void remove_old_entries ();
 
-  size_t limit, used;
-  int update_counter;
+  size_t limit = 0, used = 0;
+  int update_counter = 0;
 
   std::recursive_mutex index_mutex, email_mutex, contact_mutex;
-  std::set<std::string> local_index_packets;
-  std::set<std::string> local_email_packets;
-  std::set<std::string> local_contact_packets;
+  std::set<std::string> local_index_packets{};
+  std::set<std::string> local_email_packets{};
+  std::set<std::string> local_contact_packets{};
 };
 
 } // bote
