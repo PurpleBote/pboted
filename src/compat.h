@@ -29,8 +29,7 @@
   #define PB_SOCKET_POLL WSAPoll
   #define PB_SOCKET_READ(a,b,c) recv(a, b, c, 0)
   #define PB_SOCKET_WRITE(a,b,c) send(a, b, c, 0)
-  #define PB_SOCKET_IOCTL(a,b,c) ioctlsocket(a, b, (DWORD *)&c)
-  #define PB_SOCKET_SETSOCKOPT(a,b,c,d) setsockopt(a, b, c, (DWORD *)&d, sizeof(d))
+  #define PB_SOCKET_IOCTL(a,b,c) ioctlsocket(a, b, &c)
 #else
   #include <arpa/inet.h>
   #include <netdb.h>
@@ -47,8 +46,7 @@
   #define PB_SOCKET_POLL poll
   #define PB_SOCKET_READ read
   #define PB_SOCKET_WRITE write
-  #define PB_SOCKET_IOCTL(a,b,c) ioctl (a, b, (char *)&c)
-  #define PB_SOCKET_SETSOCKOPT(a,b,c,d) setsockopt(a, b, c, (char *)&d, sizeof(d))
+  #define PB_SOCKET_IOCTL(a,b,c) ioctl(a, b, (char *)&c)
 #endif
 
 

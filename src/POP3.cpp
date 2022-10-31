@@ -84,7 +84,8 @@ POP3::start ()
     }
 
   PB_INT_OR_DWORD on = 1;
-  rc = PB_SOCKET_SETSOCKOPT(server_sockfd, SOL_SOCKET, SO_REUSEADDR, on);
+  rc = setsockopt(server_sockfd, SOL_SOCKET, SO_REUSEADDR,
+                  (char *)&on, sizeof(on));
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "POP3: setsockopt(SO_REUSEADDR) failed: ",
