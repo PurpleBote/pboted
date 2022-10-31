@@ -84,8 +84,10 @@ private:
   static void check_sentbox (v_sp_email_meta &metas);
   static map_sp_email_meta get_incomplete ();
 
-  void process_emails (const sp_id_full &identity,
-                       const v_enc_email &mail_packets);
+  map_sp_email_meta process_emails (const sp_id_full &identity,
+                                    const v_enc_email &mail_packets);
+
+  void remove_from_dht (map_sp_email_meta metas);
 
   bool check_thread_exist (const std::string &identity_name);
 

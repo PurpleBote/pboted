@@ -358,7 +358,9 @@ EmailWorker::check_email_task (const sp_id_full &email_identity)
           continue;
         }
 
-      process_emails (email_identity, enc_mail_packets);    
+      auto metas = process_emails (email_identity, enc_mail_packets);
+
+      remove_from_dht (metas);
 
       LogPrint (eLogInfo, "EmailWorker: Check: ", id_name, ": Round complete");
     }
@@ -443,72 +445,6 @@ EmailWorker::incomplete_email_task ()
             }
         }
 
-      for (auto meta : metas)
-        {
-          if (meta.second->received () == 0)
-            {
-              LogPrint (eLogWarning, "EmailWorker: Incomplete: Not received: ",
-                        meta.second->message_id ());
-              continue;
-            }
-
-          auto meta_parts = meta.second->get_parts ();
-
-          for (auto meta_part : (*meta_parts))
-            {
-              std::string packet_path = bote::fs::DataDirPath ("incomplete",
-                                          meta_part.second.key.ToBase64 () + ".pkt");
-              if (bote::fs::Exists (packet_path))
-                {
-
-                  LogPrint (eLogInfo,
-                            "EmailWorker: Incomplete: Removing restored ",
-                            packet_path);
-                  bote::fs::Remove (packet_path);
-                }
-
-              EmailDeleteRequestPacket delete_email_packet;
-
-              memcpy (delete_email_packet.DA, meta_part.second.DA, 32);
-              memcpy (delete_email_packet.key, meta_part.second.key, 32);
-
-              i2p::data::Tag<32> email_dht_key (meta_part.second.key);
-              //i2p::data::Tag<32> email_del_auth (meta_part.second.DA);
-
-              /// We need to remove packets for all received email from nodes
-              std::vector<std::string> responses;
-              responses = DHT_worker.deleteEmail (email_dht_key,
-                                                  DataE, delete_email_packet);
-
-              if (responses.empty ())
-              {
-                LogPrint (eLogInfo, "EmailWorker: Incomplete: Email not removed from DHT");
-              }
-            }
-
-          /// Same for Index entries
-          IndexDeleteRequestPacket delete_index_packet;
-
-          for (auto meta_part : (*meta_parts))
-            {
-              IndexDeleteRequestPacket::item delete_item;
-              memcpy (&delete_item.key, meta_part.second.key, 32);
-              memcpy (delete_item.da, meta_part.second.DA, 32);
-              delete_index_packet.data.push_back (delete_item);
-            }
-
-          memcpy (&delete_index_packet.dht_key, meta.second->dht ().data (), 32);
-          delete_index_packet.count = delete_index_packet.data.size ();
-
-          std::vector<std::string> responses;
-          responses = DHT_worker.deleteIndexEntries (meta.second->dht (),
-                                                     delete_index_packet);
-
-          if (responses.empty ())
-          {
-            LogPrint (eLogInfo, "EmailWorker: Incomplete: Index not removed from DHT");
-          }
-        }
       LogPrint (eLogInfo, "EmailWorker: Incomplete: Round complete");
     }
 
@@ -1256,38 +1192,10 @@ EmailWorker::get_incomplete ()
         {
           LogPrint (eLogWarning, "EmailWorker: get_incomplete: Message-ID is empty");
 
-          EmailDeleteRequestPacket delete_email_packet;
-
-          memcpy (delete_email_packet.DA, packet.DA, 32);
-          memcpy (delete_email_packet.key, packet_dht_key.data (), 32);
-
-          i2p::data::Tag<32> email_del_auth (packet.DA);
-
-          LogPrint (eLogWarning, "EmailWorker: get_incomplete: ",
-                    "Removing malformed from DHT, key: ", dht_base, ", DA: ",
-                    email_del_auth.ToBase64 ());
-
-          /// We need to remove packets for all received email from nodes
-          std::vector<std::string> responses;
-          responses = DHT_worker.deleteEmail (packet_dht_key,
-                                              DataE, delete_email_packet);
-
-          if (responses.empty ())
-            {
-              LogPrint (eLogWarning, "EmailWorker: get_incomplete: ",
-                        "Malformed email ", packet_dht_key.ToBase64 (),
-                        " not removed from DHT");
-            }
-          else
-            {
-              LogPrint (eLogInfo, "EmailWorker: get_incomplete: ",
-                        "Malformed email ", packet_dht_key.ToBase64 (),
-                        " removed from DHT");
-            }
+          bote::fs::Remove (packet_path);
 
           LogPrint (eLogInfo, "EmailWorker: get_incomplete: ",
-                    "Removing malformed ", packet_path);
-          bote::fs::Remove (packet_path);
+                    "Malformed packet removed: ", packet_path);
 
           continue;
         }
@@ -1413,7 +1321,7 @@ EmailWorker::check_inbox ()
   return emails;
 }
 
-void
+map_sp_email_meta
 EmailWorker::process_emails (const sp_id_full &identity,
                            const v_enc_email &mail_packets)
 {
@@ -1421,6 +1329,7 @@ EmailWorker::process_emails (const sp_id_full &identity,
             mail_packets.size ());
 
   size_t counter = 0;
+  map_sp_email_meta metas;
 
   for (auto enc_mail : mail_packets)
     {
@@ -1460,7 +1369,7 @@ EmailWorker::process_emails (const sp_id_full &identity,
 
       i2p::data::Tag<32> dht_key (enc_mail.key);
       std::string pkt_path = bote::fs::DataDirPath ("incomplete",
-                                                     dht_key.ToBase64 () + ".pkt");
+                                                    dht_key.ToBase64 () + ".pkt");
 
       std::ofstream file (pkt_path, std::ofstream::binary | std::ofstream::out);
 
@@ -1476,12 +1385,154 @@ EmailWorker::process_emails (const sp_id_full &identity,
       file.write (reinterpret_cast<const char *> (bytes.data ()), bytes.size ());
       file.close ();
 
-      // ToDo: fill meta here and return for send remove?
+      // Filling meta here and return to Check task for sending remove requests
+      std::shared_ptr<EmailMetadata> metadata;
+
+      i2p::data::Tag<32> mid_key (plain_packet.mes_id);
+
+      LogPrint (eLogDebug, "EmailWorker: process_emails: Message-ID: ",
+                mid_key.ToBase64 ());
+
+      auto meta_itr = metas.find(mid_key);
+      if (meta_itr != metas.end())
+        {
+          LogPrint (eLogDebug, "EmailWorker: process_emails: Found packet for message ",
+                    mid_key.ToBase64 ());
+          metadata = (*meta_itr).second;
+        }
+      else
+        {
+          LogPrint (eLogDebug, "EmailWorker: process_emails: New Message-ID: ",
+                    mid_key.ToBase64 ());
+
+          metadata = std::make_shared<EmailMetadata>();
+
+          std::vector<uint8_t> mid_vec(std::begin(plain_packet.mes_id),
+                                       std::end(plain_packet.mes_id));
+
+          metadata->message_id_bytes (mid_vec);
+          metadata->fr_count (plain_packet.fr_count);
+          metadata->dht(identity->identity.GetIdentHash ());
+
+          metas.insert (std::pair<i2p::data::Tag<32>,
+                        std::shared_ptr<EmailMetadata>> (mid_key, metadata));
+        }
+
+      auto parts = metadata->get_parts ();
+      EmailMetadata::Part metadata_part;
+
+      auto meta_part_itr = parts->find(plain_packet.fr_id);
+      if (meta_part_itr == parts->end())
+        {
+          LogPrint (eLogDebug, "EmailWorker: process_emails: New part, id: ",
+                    plain_packet.fr_id);
+          metadata_part.id = plain_packet.fr_id;
+          metadata_part.key = dht_key;
+          metadata_part.DA = i2p::data::Tag<32>(plain_packet.DA);
+
+          metadata->add_part (metadata_part);
+        }
+      else
+        {
+          LogPrint (eLogDebug, "EmailWorker: process_emails: Metadata for part ",
+                    plain_packet.fr_id, " already exist");
+        }
+
+      auto parts_meta = metadata->get_parts ();
+      LogPrint (eLogDebug, "EmailWorker: process_emails: Metadata id: ",
+                    metadata->message_id (), ", parts: ", parts_meta->size ());
+      for (auto m_part : (*parts_meta))
+        {
+          LogPrint (eLogDebug, "EmailWorker: process_emails: part id: ",
+                    m_part.first, ", #", m_part.second.id, ", key: ",
+                    m_part.second.key.ToBase64 ());
+        }      
 
       counter++;
     }
 
   LogPrint (eLogDebug, "EmailWorker: process_emails: Emails processed: ", counter);
+
+  return metas;
+}
+
+void
+EmailWorker::remove_from_dht (map_sp_email_meta metas)
+{
+  LogPrint (eLogInfo, "EmailWorker: remove_from_dht: Started");
+  for (auto meta : metas)
+    {
+      auto meta_parts = meta.second->get_parts ();
+
+      /**
+       * First of all we need to remove Index entries for Emails
+       * This is done by sending one packet and we need data about DA
+       * of all Emailpackets.
+       * 
+       * In the event of an interruption, we will either delete these
+       * Index entries already or have the option to delete them in the future.
+       * 
+       * If we remove the Email packats right away,
+       * then we will not have access to DA to remove Index entries.
+       * 
+       * This will highload our requests to DHT.
+       */
+      IndexDeleteRequestPacket delete_index_packet;
+
+      for (auto meta_part : (*meta_parts))
+        {
+          IndexDeleteRequestPacket::item delete_item;
+          memcpy (&delete_item.key, meta_part.second.key, 32);
+          memcpy (delete_item.da, meta_part.second.DA, 32);
+          delete_index_packet.data.push_back (delete_item);
+        }
+
+      memcpy (&delete_index_packet.dht_key, meta.second->dht ().data (), 32);
+      delete_index_packet.count = delete_index_packet.data.size ();
+      LogPrint (eLogInfo, "EmailWorker: remove_from_dht: Cleanup I ",
+                meta.second->dht ().ToBase64 ());
+
+      std::vector<std::string> responses;
+      responses = DHT_worker.deleteIndexEntries (meta.second->dht (),
+                                                 delete_index_packet);
+
+      if (responses.empty ())
+        {
+          LogPrint (eLogInfo, "EmailWorker: remove_from_dht: I not cleaned, key:",
+                    meta.second->dht ().ToBase64 ());
+        }
+
+      /*
+       * Now we can remove emails
+       */
+      for (auto meta_part : (*meta_parts))
+        {
+          EmailDeleteRequestPacket delete_email_packet;
+
+          memcpy (delete_email_packet.DA, meta_part.second.DA, 32);
+          memcpy (delete_email_packet.key, meta_part.second.key, 32);
+
+          i2p::data::Tag<32> email_dht_key (meta_part.second.key);
+          //i2p::data::Tag<32> email_del_auth (meta_part.second.DA);
+          LogPrint (eLogInfo, "EmailWorker: remove_from_dht: Removing E ",
+                    email_dht_key.ToBase64 ());
+
+          /// We need to remove packets for all received email from nodes
+          std::vector<std::string> responses;
+          responses = DHT_worker.deleteEmail (email_dht_key,
+                                              DataE, delete_email_packet);
+
+          if (responses.empty ())
+            {
+              LogPrint (eLogInfo,
+                        "EmailWorker: remove_from_dht: E not removed from DHT, key: ",
+                        email_dht_key.ToBase64 ());
+            }
+        }
+
+      
+    }
+  LogPrint (eLogInfo, "EmailWorker: remove_from_dht: Finished");
 }
 
 bool
