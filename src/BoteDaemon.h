@@ -56,6 +56,9 @@ protected:
 };
 
 #ifndef _WIN32
+/**
+ * Linux Daemon
+ */
 #define Daemon bote::DaemonLinux::Instance ()
 class DaemonLinux : public Daemon_Singleton
 {
@@ -80,6 +83,9 @@ private:
 };
 
 #else // _WIN32
+/**
+ * Windows Service
+ */
 #define Daemon bote::DaemonWin32::Instance()
 class DaemonWin32 : public Daemon_Singleton
 {
@@ -101,7 +107,6 @@ public:
 private:
   mutable std::mutex m_cv_mutex;
   std::condition_variable m_check_cv;
-
 };
 #endif // _WIN32
 

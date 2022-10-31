@@ -196,12 +196,11 @@ int DaemonLinux::start ()
 
 bool DaemonLinux::stop ()
 {
-  if (!running)
-    return true;
-
-  running = false;
-
-  m_check_cv.notify_one ();
+  if (running)
+    {
+      running = false;
+      m_check_cv.notify_one ();
+    }
 
   bool rc = Daemon_Singleton::stop ();
 
