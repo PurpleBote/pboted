@@ -86,7 +86,8 @@ BoteControl::start ()
 
   LogPrint (eLogInfo, "Control: Starting");
 
-  int cur_sn = 0, rc = 0, enabled = 1;
+  int cur_sn = 0, rc = 0;
+  PB_INT_OR_DWORD enabled = 1;
 
 #if !defined(DISABLE_SOCKET)
   if (m_socket_enabled)

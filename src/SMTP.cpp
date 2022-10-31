@@ -80,17 +80,8 @@ SMTP::start ()
       freeaddrinfo (res);
       LogPrint (eLogError, "SMTP: Socket create error: ", strerror (errno));
     }
-/*
-#ifndef _WIN32
-  int on = 1;
-#else
-  DWORD on = 1;
-#endif
 
-  rc = setsockopt(server_sockfd, SOL_SOCKET,  SO_REUSEADDR,
-                  (char *)&on, sizeof(on));
-*/
-  int on = 1;
+  PB_INT_OR_DWORD on = 1;
   rc = PB_SOCKET_SETSOCKOPT(server_sockfd, SOL_SOCKET, SO_REUSEADDR, on);
   if (rc == RC_ERROR)
   {

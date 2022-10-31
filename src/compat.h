@@ -22,6 +22,7 @@
 
   #define MSG_DONTWAIT 0
 
+  #define PB_INT_OR_DWORD DWORD
   #define PB_SOCKET_ERROR SOCKET_ERROR
   #define PB_SOCKET_INVALID INVALID_SOCKET
   #define PB_SOCKET_CLOSE closesocket
@@ -39,6 +40,7 @@
   #include <sys/select.h>
   #include <sys/socket.h>
 
+  #define PB_INT_OR_DWORD int
   #define PB_SOCKET_ERROR -1
   #define PB_SOCKET_INVALID -1
   #define PB_SOCKET_CLOSE close

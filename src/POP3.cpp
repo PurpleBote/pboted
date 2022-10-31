@@ -83,16 +83,8 @@ POP3::start ()
       LogPrint (eLogError, "POP3: Socket create error: ", strerror (errno));
     }
 
-/*
-#ifndef _WIN32
-  int on = 1;
-#else
-  DWORD on = 1;
-#endif
-*/
-
-  int on = 1;
-  rc = PB_SOCKET_SETSOCKOPT(server_sockfd, SOL_SOCKET,  SO_REUSEADDR, on);
+  PB_INT_OR_DWORD on = 1;
+  rc = PB_SOCKET_SETSOCKOPT(server_sockfd, SOL_SOCKET, SO_REUSEADDR, on);
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "POP3: setsockopt(SO_REUSEADDR) failed: ",
