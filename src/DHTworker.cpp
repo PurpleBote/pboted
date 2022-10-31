@@ -42,10 +42,11 @@ DHTworker::~DHTworker ()
 void
 DHTworker::start ()
 {
-  auto local_destination = bote::network_worker.get_local_destination ();
-  m_local_node = std::make_shared<Node> (local_destination->ToBase64 ());
   if (isStarted ())
     return;
+
+  auto local_destination = bote::network_worker.get_local_destination ();
+  m_local_node = std::make_shared<Node> (local_destination->ToBase64 ());  
 
   if (!loadNodes ())
     LogPrint (eLogWarning, "DHT: Have no nodes for start");
@@ -53,6 +54,7 @@ DHTworker::start ()
   LogPrint (eLogDebug, "DHT: Load local packets");
   m_dht_storage.set_storage_limit ();
   m_dht_storage.update ();
+  m_dht_storage.cleanup ();
 
   m_started = true;
   m_worker_thread = new std::thread (std::bind (&DHTworker::run, this));

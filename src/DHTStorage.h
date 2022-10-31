@@ -76,6 +76,8 @@ class DHTStorage
   bool limit_reached (size_t data_size);
   double limit_used () {return (double)((100 / (double)limit) * (double)used);}
 
+  void cleanup ();
+
  private:
   bool exist (bote::type type, i2p::data::Tag<32> key);
 

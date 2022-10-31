@@ -32,14 +32,7 @@ DHTStorage::update ()
 
     /// Only in case if we have less than min free space left
     if (limit_reached (DHT_MIN_FREE_SPACE))
-      {
-        LogPrint (eLogDebug, "DHTStorage: update: Cleanup started");
-
-        remove_old_packets ();
-        remove_old_entries ();
-
-        LogPrint (eLogDebug, "DHTStorage: update: Cleanup finished");
-      }
+      cleanup ();
 
     LogPrint (eLogDebug, "DHTStorage: update: ",
               " index: ", local_index_packets.size (),
@@ -263,6 +256,20 @@ DHTStorage::limit_reached(size_t data_size)
            (limit < (used + data_size)) ? "true" : "false");
 
   return limit <= (used + data_size);
+}
+
+void
+DHTStorage::cleanup ()
+{
+  /**
+   * Should be called only on startup or limit reached
+   */
+  LogPrint (eLogDebug, "DHTStorage: cleanup: Started");
+
+  remove_old_packets ();
+  remove_old_entries ();
+
+  LogPrint (eLogDebug, "DHTStorage: cleanup: Finished");
 }
 
 std::vector<uint8_t>
@@ -776,7 +783,8 @@ DHTStorage::loadLocalIndexPackets ()
 
   for (const auto &path : packets_path)
     {
-      if (path.compare (path.size () - 4, 4, DELETED_FILE_EXTENSION) != 0)
+      /* Skip if .del */
+      if (path.compare (path.size () - 4, 4, DELETED_FILE_EXTENSION) == 0)
         continue;
 
       auto filename = remove_extension(base_name(path));
@@ -802,7 +810,8 @@ DHTStorage::loadLocalEmailPackets ()
 
   for (const auto &path : packets_path)
     {
-      if (path.compare (path.size () - 4, 4, DELETED_FILE_EXTENSION) != 0)
+      /* Skip if .del */
+      if (path.compare (path.size () - 4, 4, DELETED_FILE_EXTENSION) == 0)
         continue;
 
       auto filename = remove_extension(base_name(path));
@@ -949,6 +958,17 @@ DHTStorage::remove_old_packets ()
       {
         i2p::data::Tag<32> key;
         key.FromBase64(pkt);
+
+        std::string def_filename(key.ToBase64() + DEFAULT_FILE_EXTENSION);
+        std::string packet_path = bote::fs::DataDirPath("DHTemail",
+                                                        def_filename);
+        if (!bote::fs::Exists (packet_path))
+          {
+            LogPrint(eLogDebug, "DHTStorage: remove_old_packets: Packet already removed: ",
+                     key.ToBase64());
+            continue;
+          }
+
         auto data = getPacket(DataE, key);
         EmailEncryptedPacket email_pkt;
         email_pkt.fromBuffer (data.data (), data.size (), true);
@@ -992,6 +1012,19 @@ DHTStorage::remove_old_entries ()
     {
       i2p::data::Tag<32> key;
       key.FromBase64(pkt);
+
+      std::string def_filename(key.ToBase64() + DEFAULT_FILE_EXTENSION);
+      std::string packet_path = bote::fs::DataDirPath("DHTindex",
+                                                      def_filename);
+      if (!bote::fs::Exists (packet_path))
+        {
+          LogPrint(eLogDebug, "DHTStorage: remove_old_entries: Packet removed: ",
+                   key.ToBase64());
+          continue;
+        }
+
+      LogPrint (eLogDebug, "DHTStorage: remove_old_entries: Try to clean: ",
+                key.ToBase64());
       int result = clean_index(key, ts);
 
       if (result > 0)
