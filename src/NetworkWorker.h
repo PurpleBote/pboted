@@ -78,7 +78,6 @@ private:
   std::string m_address;
   fd_set rset;
 
-  uint8_t *buf;
   queue_type m_recv_queue;
 
   uint64_t m_bytes_recv = 0;

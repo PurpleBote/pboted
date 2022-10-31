@@ -80,7 +80,7 @@ SMTP::start ()
       freeaddrinfo (res);
       LogPrint (eLogError, "SMTP: Socket create error: ", strerror (errno));
     }
-
+/*
 #ifndef _WIN32
   int on = 1;
 #else
@@ -89,6 +89,9 @@ SMTP::start ()
 
   rc = setsockopt(server_sockfd, SOL_SOCKET,  SO_REUSEADDR,
                   (char *)&on, sizeof(on));
+*/
+  int on = 1;
+  rc = PB_SOCKET_SETSOCKOPT(server_sockfd, SOL_SOCKET, SO_REUSEADDR, on);
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "SMTP: setsockopt(SO_REUSEADDR) failed: ",
@@ -120,11 +123,14 @@ SMTP::start ()
   }
 */
 
+/*
 #ifndef _WIN32
   rc = ioctl(server_sockfd, FIONBIO, (char *)&on);
 #else
   rc = ioctlsocket(server_sockfd, FIONBIO, &on);
 #endif
+*/
+  rc = PB_SOCKET_IOCTL(server_sockfd, FIONBIO, on);
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "SMTP: ioctl() failed: ", strerror (errno));
@@ -247,11 +253,7 @@ SMTP::run ()
                   client_sockfd = accept(fds[sid].fd, (struct sockaddr *)&client_addr,
                                          &sin_size);
 
-#ifndef _WIN32
-                  if (client_sockfd == RC_ERROR)
-#else
                   if (client_sockfd == PB_SOCKET_INVALID)
-#endif
                   {
                     /*
                      * EWOULDBLOCK and EAGAIN - socket is marked nonblocking

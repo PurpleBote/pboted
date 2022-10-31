@@ -107,6 +107,7 @@ BoteControl::start ()
                sizeof file_addr.sun_path - 1)[sizeof file_addr.sun_path - 1]
           = 0;
 
+/*
 #ifndef _WIN32 // brokes socket binding on Windows
       rc = setsockopt(conn_sockfd, SOL_SOCKET, SO_REUSEADDR,
                       (char *)&enabled, sizeof(enabled));
@@ -117,12 +118,8 @@ BoteControl::start ()
         return;
       }
 #endif
-
-#ifndef _WIN32
-      rc = ioctl(conn_sockfd, FIONBIO, (char *)&enabled);
-#else
-      rc = ioctlsocket(conn_sockfd, FIONBIO, (DWORD *)&enabled);
-#endif
+*/
+      rc = PB_SOCKET_IOCTL(conn_sockfd, FIONBIO, enabled);
       if (rc == PB_SOCKET_ERROR)
       {
         LogPrint (eLogError, "Control: ioctl() failed: ", strerror (errno));
@@ -190,11 +187,7 @@ BoteControl::start ()
 
   enabled = 1;
 
-#ifndef _WIN32
-      rc = ioctl(tcp_fd, FIONBIO, (char *)&enabled);
-#else
-      rc = ioctlsocket(tcp_fd, FIONBIO, (DWORD *)&enabled);
-#endif
+  rc = PB_SOCKET_IOCTL(tcp_fd, FIONBIO, enabled);
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "Control: ioctl(FIONBIO) failed: ", strerror (errno));

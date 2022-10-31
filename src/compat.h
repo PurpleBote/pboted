@@ -10,7 +10,9 @@
 #ifndef BOTE_SRC_COMPATH_H
 #define BOTE_SRC_COMPATH_H
 
-/* Network stuff */
+/**
+ * Start of Network stuff
+ */
 #ifdef _WIN32
   #include <winsock2.h>
   #include <ws2tcpip.h>
@@ -26,6 +28,8 @@
   #define PB_SOCKET_POLL WSAPoll
   #define PB_SOCKET_READ(a,b,c) recv(a, b, c, 0)
   #define PB_SOCKET_WRITE(a,b,c) send(a, b, c, 0)
+  #define PB_SOCKET_IOCTL(a,b,c) ioctlsocket(a, b, (DWORD *)&c)
+  #define PB_SOCKET_SETSOCKOPT(a,b,c,d) setsockopt(a, b, c, (DWORD *)&d, sizeof(d))
 #else
   #include <arpa/inet.h>
   #include <netdb.h>
@@ -41,6 +45,8 @@
   #define PB_SOCKET_POLL poll
   #define PB_SOCKET_READ read
   #define PB_SOCKET_WRITE write
+  #define PB_SOCKET_IOCTL(a,b,c) ioctl (a, b, (char *)&c)
+  #define PB_SOCKET_SETSOCKOPT(a,b,c,d) setsockopt(a, b, c, (char *)&d, sizeof(d))
 #endif
 
 
@@ -78,10 +84,14 @@ enum send_rc
   SEND_ERROR = -1,
 };
 
-/* End of Network stuff */
+/**
+ * End of Network stuff
+ */
 
+/**
+ * Start of make_unique for C++11
+ */
 
-/* make_unique for C++11 */
 #if __cplusplus == 201103L
 #ifndef COMPAT_STD_MAKE_UNIQUE
 #define COMPAT_STD_MAKE_UNIQUE
@@ -98,8 +108,14 @@ make_unique(Args&&... args)
 #endif /* COMPAT_STD_MAKE_UNIQUE */
 #endif /* __cplusplus == 201103L */
 
+/**
+ * End of make_unique for C++11
+ */
 
-/* Filesystem for C++11 and C++17 */
+/**
+ * Start of Filesystem for C++11 and C++17
+ */
+
 #if defined(__has_include)
 # if __cplusplus >= 201703L && __has_include(<filesystem>)
   /* For debug */
@@ -118,5 +134,8 @@ make_unique(Args&&... args)
 #  error Missing the "__has_include" module!
 #endif
 
+/**
+ * End of Filesystem for C++11 and C++17
+ */
 
 #endif /* BOTE_SRC_COMPATH_H*/

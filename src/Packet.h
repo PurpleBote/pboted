@@ -129,9 +129,15 @@ statusToString (uint8_t code)
 struct PacketForQueue
 {
   PacketForQueue (std::string destination, uint8_t *buf, size_t len)
-      : destination (std::move (destination)), payload (buf, buf + len)
-  {
-  }
+    : destination (std::move (destination)),
+      payload (buf, buf + len)
+  {}
+
+  PacketForQueue (std::string destination, char *buf, size_t len)
+    : destination (std::move (destination)),
+      payload ((uint8_t *)buf, (uint8_t *)buf + len)
+  {}
+
   std::string destination;
   std::vector<uint8_t> payload;
 };

@@ -83,14 +83,16 @@ POP3::start ()
       LogPrint (eLogError, "POP3: Socket create error: ", strerror (errno));
     }
 
+/*
 #ifndef _WIN32
   int on = 1;
 #else
   DWORD on = 1;
 #endif
+*/
 
-  rc = setsockopt(server_sockfd, SOL_SOCKET,  SO_REUSEADDR,
-                  (char *)&on, sizeof(on));
+  int on = 1;
+  rc = PB_SOCKET_SETSOCKOPT(server_sockfd, SOL_SOCKET,  SO_REUSEADDR, on);
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "POP3: setsockopt(SO_REUSEADDR) failed: ",
@@ -121,11 +123,12 @@ POP3::start ()
     return;
   }
 */
-#ifndef _WIN32
+/*#ifndef _WIN32
   rc = ioctl(server_sockfd, FIONBIO, (char *)&on);
 #else
   rc = ioctlsocket(server_sockfd, FIONBIO, &on);
-#endif
+#endif*/
+  rc = PB_SOCKET_IOCTL(server_sockfd, FIONBIO, on);
   if (rc == RC_ERROR)
   {
     LogPrint (eLogError, "POP3: ioctl(FIONBIO) failed: ", strerror (errno));
@@ -247,11 +250,7 @@ POP3::run ()
                   client_sockfd = accept(fds[sid].fd, (struct sockaddr *)&client_addr,
                                          &sin_size);
 
-#ifndef _WIN32
-                  if (client_sockfd == RC_ERROR)
-#else
                   if (client_sockfd == PB_SOCKET_INVALID)
-#endif
                   {
                     /*
                      * EWOULDBLOCK and EAGAIN - socket is marked nonblocking

@@ -174,16 +174,15 @@ UDPReceiver::run ()
 void
 UDPReceiver::handle_receive ()
 {
+  char *buf = (char *)malloc (MAX_DATAGRAM_SIZE);
   /* ToDo: recvfrom? */
-  buf = (uint8_t *)malloc (MAX_DATAGRAM_SIZE);
-#ifndef _WIN32
   ssize_t rc = PB_SOCKET_READ (server_sockfd, buf, MAX_DATAGRAM_SIZE - 1);
-#else
-  ssize_t rc = PB_SOCKET_READ (server_sockfd, (char *)buf, MAX_DATAGRAM_SIZE - 1);
-#endif
 
   if (!m_running)
-    return;
+    {
+      free (buf);
+      return;
+    }
 
   if (rc == RECV_ERROR)
     {
@@ -206,7 +205,7 @@ UDPReceiver::handle_receive ()
   /* Terminating array */
   buf[len] = 0;
   /* Get newline char position */
-  char *eol = strchr ((char *)buf, '\n');
+  char *eol = strchr (buf, '\n');
 
   if (!eol)
     {
@@ -219,7 +218,7 @@ UDPReceiver::handle_receive ()
   *eol = 0;
   eol++;
   /* Desination len ( len - count of items from buf start to payload start) */
-  size_t payload_len = len - ((uint8_t *)eol - buf);
+  size_t payload_len = len - (eol - buf);
   size_t dest_len = len - payload_len - 1;
 
   std::string dest (&buf[0], &buf[dest_len]);
@@ -227,8 +226,7 @@ UDPReceiver::handle_receive ()
   LogPrint (eLogDebug, "Network: UDPReceiver: Datagram received, dest: ",
             dest, ", size: ", payload_len);
 
-  auto packet = std::make_shared<PacketForQueue> (dest, (uint8_t *)eol,
-                                                  payload_len);
+  auto packet = std::make_shared<PacketForQueue> (dest, eol, payload_len);
   free (buf);
 
   m_recv_queue->Put (packet);
@@ -385,23 +383,22 @@ UDPSender::handle_send ()
                                     packet->destination);
   message.append (payload);
 
-  ssize_t bytes_transferred
-      = sendto (m_socket, message.c_str (), message.size (), 0,
-                m_sam_addrinfo->ai_addr, m_sam_addrinfo->ai_addrlen);
+  ssize_t rc = sendto (m_socket, message.c_str (), message.size (), 0,
+                       m_sam_addrinfo->ai_addr, m_sam_addrinfo->ai_addrlen);
 
-  if (bytes_transferred == SEND_ERROR)
+  if (rc == SEND_ERROR)
     {
       LogPrint (eLogError, "Network: UDPSender: Send error: ", strerror(errno));
       return;
     }
 
-  if (bytes_transferred == 0)
+  if (rc == 0)
     {
       LogPrint (eLogWarning, "Network: UDPSender: Zero-length datagram");
       return;
     }
 
-  bytes_sent (bytes_transferred);
+  bytes_sent (rc);
 }
 
 void
