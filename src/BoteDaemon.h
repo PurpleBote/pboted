@@ -102,7 +102,6 @@ public:
   void run() override;
 
   HINSTANCE m_hInstance;
-  int m_CmdShow;
 
 private:
   mutable std::mutex m_cv_mutex;

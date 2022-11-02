@@ -2,13 +2,13 @@
 
 #define IDS_APP_TITLE           101
 #define IDS_TOOLTIP             102
-#define IDS_PBOTEDICON          102
+#define IDS_PBOTEDICON          103
 
 #define IDM_EXIT                121
+#define IDM_ABOUT               122
 
 #define IDI_PBOTEDICON          201
-#define IDC_PBOTEDICON          202
-#define IDC_CONTEXTMENU         203
+#define IDC_CONTEXTMENU         202
 
 
 #ifdef APSTUDIO_INVOKED

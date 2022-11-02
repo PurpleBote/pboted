@@ -34,6 +34,11 @@ option(WITH_CXX17     "Force C++17"                       OFF)
 #  set (CMAKE_CXX_COMPILER "/usr/bin/clang++")
 #endif ()
 
+# Windows-only options
+if (MSYS)
+  option(WITH_UI      "Static build"                      ON)
+endif ()
+
 # Handle paths nicely
 include(GNUInstallDirs)
 
@@ -82,6 +87,7 @@ if (MSYS)
 
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWIN32 -DWIN32_LEAN_AND_MEAN")
 endif ()
+
 # Compiler flags customization (by vendor)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Winvalid-pch -Wno-unused-parameter")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
@@ -272,13 +278,21 @@ message(STATUS "  STATIC BUILD     : ${WITH_STATIC}")
 message(STATUS "  UNIX SOCKET      : ${CONTROL_SOCKET}")
 message(STATUS "  FORCE C++11      : ${WITH_CXX11}")
 message(STATUS "  FORCE C++17      : ${WITH_CXX17}")
+if (MSYS)
+  message(STATUS "  Tray UI          : ${WITH_UI}")
+endif()
+
 message(STATUS "----------------------------------------")
 
-if(MSYS)
-  add_executable("${PROJECT_NAME}" ${PBOTED_SRC} ${WIN32_RC})
-else()
+if (MSYS)
+  if (WITH_UI)
+    add_executable("${PROJECT_NAME}" WIN32 ${PBOTED_SRC} ${WIN32_RC})
+  else ()
+    add_executable("${PROJECT_NAME}" ${PBOTED_SRC} ${WIN32_RC})
+  endif ()
+else ()
   add_executable("${PROJECT_NAME}" ${PBOTED_SRC})
-endif()
+endif ()
 
 if (NOT MSVC)
   if (MSYS)
@@ -287,15 +301,20 @@ if (NOT MSVC)
         "ws2_32"
         "iphlpapi"
     )
-    #add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    #                   DEPENDS "${PROJECT_NAME}"
-    #                   COMMAND ${CMAKE_OBJCOPY}
-    #                   ARGS --only-keep-debug $<TARGET_FILE:${PROJECT_NAME}> $<TARGET_FILE:${PROJECT_NAME}>.debug)
-    #add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    #                   DEPENDS "${PROJECT_NAME}"
-    #                   COMMAND ${CMAKE_STRIP}
-    #                   ARGS $<TARGET_FILE:${PROJECT_NAME}>)
+
+
+    # Strip debug symbols to file only on release build
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                       DEPENDS "${PROJECT_NAME}"
+                       COMMAND $<$<CONFIG:Release>:${CMAKE_OBJCOPY}>
+                       ARGS --only-keep-debug $<TARGET_FILE:${PROJECT_NAME}> $<TARGET_FILE:${PROJECT_NAME}>.debug)
+
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                       DEPENDS "${PROJECT_NAME}"
+                       COMMAND $<$<CONFIG:Release>:${CMAKE_STRIP}>
+                       ARGS $<TARGET_FILE:${PROJECT_NAME}>)
   endif ()
+
   if (WITH_STATIC)
     set_target_properties("${PROJECT_NAME}" PROPERTIES LINK_FLAGS "-static")
   endif ()

@@ -36,21 +36,15 @@ main (int argc, char *argv[])
 }
 
 #else // _WIN32
-INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, PSTR, INT nCmdShow)
+INT WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, PSTR, INT)
 {
   Daemon.m_hInstance = hInstance;
-  Daemon.m_CmdShow = nCmdShow;
 
   if (Daemon.init (__argc, __argv))
   {
-    int res = Daemon.start ();
-    if (res == EXIT_SUCCESS)
+    if (Daemon.start () == EXIT_SUCCESS)
     {
       Daemon.run ();
-    }
-    else if (res != EXIT_SUCCESS)
-    {
-      return EXIT_SUCCESS;
     }
     else
     {
