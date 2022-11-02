@@ -217,7 +217,7 @@ UDPReceiver::handle_receive ()
   /* Replace newline with zero and go to next pointer (start of payload) */
   *eol = 0;
   eol++;
-  /* Desination len ( len - count of items from buf start to payload start) */
+  /* Destination len ( len - count of items from buf start to payload start) */
   size_t payload_len = len - (eol - buf);
   size_t dest_len = len - payload_len - 1;
 
@@ -382,6 +382,9 @@ UDPSender::handle_send ()
       = SAM::Message::datagramSend (m_sam_session->getSessionID (),
                                     packet->destination);
   message.append (payload);
+
+  if (!m_running)
+    return;
 
   ssize_t rc = sendto (m_socket, message.c_str (), message.size (), 0,
                        m_sam_addrinfo->ai_addr, m_sam_addrinfo->ai_addrlen);
