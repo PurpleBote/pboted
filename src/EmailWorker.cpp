@@ -1451,6 +1451,7 @@ EmailWorker::remove_from_dht (map_sp_email_meta metas)
   LogPrint (eLogInfo, "EmailWorker: remove_from_dht: Started");
   for (auto meta : metas)
     {
+      std::vector<std::string> responses{};
       auto meta_parts = meta.second->get_parts ();
 
       /**
@@ -1481,15 +1482,18 @@ EmailWorker::remove_from_dht (map_sp_email_meta metas)
       LogPrint (eLogInfo, "EmailWorker: remove_from_dht: Cleanup I ",
                 meta.second->dht ().ToBase64 ());
 
-      std::vector<std::string> responses;
       responses = DHT_worker.deleteIndexEntries (meta.second->dht (),
                                                  delete_index_packet);
 
       if (responses.empty ())
         {
           LogPrint (eLogInfo, "EmailWorker: remove_from_dht: I not cleaned, key:",
-                    meta.second->dht ().ToBase64 ());
+                    meta.second->dht ().ToBase64 (), ", will try again later");
+          continue;
         }
+
+      LogPrint (eLogInfo, "EmailWorker: remove_from_dht: I removed, key:",
+                meta.second->dht ().ToBase64 ());
 
       /*
        * Now we can remove emails
@@ -1502,12 +1506,11 @@ EmailWorker::remove_from_dht (map_sp_email_meta metas)
           memcpy (delete_email_packet.key, meta_part.second.key, 32);
 
           i2p::data::Tag<32> email_dht_key (meta_part.second.key);
-          //i2p::data::Tag<32> email_del_auth (meta_part.second.DA);
+
           LogPrint (eLogInfo, "EmailWorker: remove_from_dht: Removing E ",
                     email_dht_key.ToBase64 ());
 
           /// We need to remove packets for all received email from nodes
-          std::vector<std::string> responses;
           responses = DHT_worker.deleteEmail (email_dht_key,
                                               DataE, delete_email_packet);
 
@@ -1515,11 +1518,16 @@ EmailWorker::remove_from_dht (map_sp_email_meta metas)
             {
               LogPrint (eLogInfo,
                         "EmailWorker: remove_from_dht: E not removed from DHT, key: ",
+                        email_dht_key.ToBase64 (), ", will try again later");
+            }
+          else
+            {
+              LogPrint (eLogInfo, "EmailWorker: remove_from_dht: E removed, key:",
                         email_dht_key.ToBase64 ());
             }
         }
-
-      
+      LogPrint (eLogInfo, "EmailWorker: remove_from_dht: Finished for key: ",
+                meta.second->dht ().ToBase64 ());
     }
   LogPrint (eLogInfo, "EmailWorker: remove_from_dht: Finished");
 }
