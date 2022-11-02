@@ -12,8 +12,7 @@
 
   class WindowsService {
   private:
-    std::string name;
-    LPWSTR Wname;
+    std::wstring name;
     bool canPauseContinue;
 
     SERVICE_STATUS status;
@@ -66,27 +65,16 @@
     void bump();
 
   public:
-    WindowsService(std::string _name, bool _canPauseContinue);
+    WindowsService(std::wstring _name, bool _canPauseContinue);
     void test_startStop();
     int run();
 
   };
 
-  void castWStr(wchar_t* &wsz, const char* sz)
-  {
-    std::vector<wchar_t> vec;
-    size_t len = strlen(sz);
-    vec.resize(len+1);
-    mbstowcs(&vec[0],sz,len);
-    wsz = &vec[0];
-  }
-
   WindowsService *WindowsService::instance;
 
-  WindowsService::WindowsService(std::string _name, bool _canPauseContinue):
+  WindowsService::WindowsService(std::wstring _name, bool _canPauseContinue):
     name(_name), canPauseContinue(_canPauseContinue) {
-    //Wname = const_cast<wchar_t*>(name.c_str());
-    castWStr(Wname, name.c_str());
 
     //status = { 0 };
     statusHandle = NULL;
@@ -101,7 +89,7 @@
 
     SERVICE_TABLE_ENTRY serviceTable[] =
     {
-      { Wname, (LPSERVICE_MAIN_FUNCTION)service_main },
+      { (LPWSTR)name.c_str (), (LPSERVICE_MAIN_FUNCTION)service_main },
     { NULL, NULL }
     };
 
@@ -120,7 +108,7 @@
 
   void WINAPI WindowsService::service_main() {
     // Register our service control handler with the SCM
-    instance->statusHandle = RegisterServiceCtrlHandler(instance->Wname, instance->control_handler);
+    instance->statusHandle = RegisterServiceCtrlHandler(instance->name.c_str (), instance->control_handler);
 
     if (instance->statusHandle == NULL) {
       return;
@@ -219,10 +207,8 @@
 
     if (SetServiceStatus(statusHandle, &status) == FALSE)
     {
-      LPWSTR MSG;
-      std::string debugmsg = name + ": service_main: SetServiceStatus returned an error";
-      castWStr(MSG, debugmsg.c_str());
-      OutputDebugString(MSG);
+      std::wstring debugmsg = name + L": service_main: SetServiceStatus returned an error";
+      OutputDebugString(debugmsg.c_str ());
     }
   }
 
@@ -269,10 +255,8 @@
     SetServiceStatus(statusHandle, &status);
     if (SetServiceStatus(statusHandle, &status) == FALSE)
     {
-      LPWSTR MSG;
-      std::string debugmsg = name + ": service_main: SetServiceStatus returned an error";
-      castWStr(MSG, debugmsg.c_str());
-      OutputDebugString(MSG);
+      std::wstring debugmsg = name + L": service_main: SetServiceStatus returned an error";
+      OutputDebugString(debugmsg.c_str ());
     }
   }
 
@@ -289,10 +273,8 @@
 
     if (SetServiceStatus(statusHandle, &status) == FALSE)
     {
-      LPWSTR MSG;
-      std::string debugmsg = name + ": service_main: SetServiceStatus change accepted controls operation failed";
-      castWStr(MSG, debugmsg.c_str());
-      OutputDebugString(MSG);
+      std::wstring debugmsg = name + L": service_main: SetServiceStatus change accepted controls operation failed";
+      OutputDebugString(debugmsg.c_str ());
     }
   }
 
@@ -300,10 +282,8 @@
     status.dwCheckPoint++;
     if (SetServiceStatus(statusHandle, &status) == FALSE)
     {
-      LPWSTR MSG;
-      std::string debugmsg = name + ": service_main: SetServiceStatus dwCheckPoint operation failed";
-      castWStr(MSG, debugmsg.c_str());
-      OutputDebugString(MSG);
+      std::wstring debugmsg = name + L": service_main: SetServiceStatus dwCheckPoint operation failed";
+      OutputDebugString(debugmsg.c_str ());
     }
   }
 

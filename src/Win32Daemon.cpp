@@ -268,10 +268,12 @@ bool DaemonWin32::init(int argc, char* argv[])
 {
   bool ret = Daemon_Singleton::init(argc, argv);
 
+  LoadString(Daemon.m_hInstance, IDS_APP_TITLE, szTitle, ARRAYSIZE(szTitle));
+
   if (ret && isDaemon)
   {
-    Service pboted("pboted service", false);
-    pboted.run();
+    Service pbotedSvc(szTitle, false);
+    pbotedSvc.run();
     return EXIT_SUCCESS; // Application terminated, no need to continue it more
   }
   else if (ret)
@@ -288,8 +290,6 @@ bool DaemonWin32::init(int argc, char* argv[])
 
 int DaemonWin32::start()
 {
-  LoadString(Daemon.m_hInstance, IDS_APP_TITLE, szTitle, ARRAYSIZE(szTitle));
-
   RegisterWindowClass(szWindowClass, NULL, WndProc);
 
   if (FindWindow (szWindowClass, szTitle))
