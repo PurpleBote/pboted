@@ -266,8 +266,8 @@ DHTStorage::cleanup ()
    */
   LogPrint (eLogDebug, "DHTStorage: cleanup: Started");
 
-  remove_old_packets ();
   remove_old_entries ();
+  remove_old_packets ();
 
   LogPrint (eLogDebug, "DHTStorage: cleanup: Finished");
 }
@@ -772,8 +772,8 @@ DHTStorage::clean_deletion_info (bote::type type, i2p::data::Tag<32> key,
 void
 DHTStorage::loadLocalIndexPackets ()
 {
-  std::set<std::string> temp_index_packets;
-  std::vector<std::string> packets_path;
+  std::set<std::string> temp_index_packets{};
+  std::vector<std::string> packets_path{};
 
   if (!bote::fs::ReadDir(bote::fs::DataDirPath("DHTindex"), packets_path))
     {
@@ -791,16 +791,16 @@ DHTStorage::loadLocalIndexPackets ()
       temp_index_packets.insert(filename);
     }
 
+  local_index_packets = temp_index_packets;
   LogPrint(eLogDebug, "DHTStorage: loadLocalIndexPackets: index loaded: ",
            temp_index_packets.size());
-  local_index_packets = temp_index_packets;
 }
 
 void
 DHTStorage::loadLocalEmailPackets ()
 {
-  std::set<std::string> temp_email_packets;
-  std::vector<std::string> packets_path;
+  std::set<std::string> temp_email_packets{};
+  std::vector<std::string> packets_path{};
 
   if (!bote::fs::ReadDir(bote::fs::DataDirPath("DHTemail"), packets_path))
     {
@@ -818,16 +818,16 @@ DHTStorage::loadLocalEmailPackets ()
       temp_email_packets.insert(filename);
     }
 
+  local_email_packets = temp_email_packets;
   LogPrint(eLogDebug, "DHTStorage: loadLocalEmailPackets: mails loaded: ",
            temp_email_packets.size());
-  local_email_packets = temp_email_packets;
 }
 
 void
 DHTStorage::loadLocalContactPackets ()
 {
-  std::set<std::string> temp_contact_packets;
-  std::vector<std::string> packets_path;
+  std::set<std::string> temp_contact_packets{};
+  std::vector<std::string> packets_path{};
 
   if (!bote::fs::ReadDir(bote::fs::DataDirPath("DHTdirectory"), packets_path))
     {
@@ -841,9 +841,9 @@ DHTStorage::loadLocalContactPackets ()
       temp_contact_packets.insert(filename);
     }
 
+  local_contact_packets = temp_contact_packets;
   LogPrint(eLogDebug, "DHTStorage: loadLocalContactPackets: contacts loaded: ",
            temp_contact_packets.size());
-  local_contact_packets = temp_contact_packets;
 }
 
 size_t
@@ -953,8 +953,9 @@ DHTStorage::remove_old_packets ()
     }
 
   {
-    std::unique_lock<std::recursive_mutex> l (email_mutex);
-    for (const auto& pkt : local_email_packets)
+    std::unique_lock<std::recursive_mutex> lk (email_mutex);
+    std::set<std::string> tmp_list = local_email_packets;
+    for (const auto& pkt : tmp_list)
       {
         i2p::data::Tag<32> key;
         key.FromBase64(pkt);
@@ -999,6 +1000,7 @@ void
 DHTStorage::remove_old_entries ()
 {
   size_t removed_entries = 0, removed_packets = 0;
+  const int32_t ts = context.ts_now ();
 
   if (nsfs::is_empty(bote::fs::DataDirPath("DHTindex").c_str()))
     {
@@ -1006,33 +1008,35 @@ DHTStorage::remove_old_entries ()
       return;
     }
 
-  const int32_t ts = context.ts_now ();
-  std::set<std::string> index_copy = local_index_packets;
-  for (const auto& pkt : index_copy)
-    {
-      i2p::data::Tag<32> key;
-      key.FromBase64(pkt);
+  {
+    std::unique_lock<std::recursive_mutex> lk (index_mutex);
+    std::set<std::string> index_copy = local_index_packets;
+    for (const auto& pkt : index_copy)
+      {
+        i2p::data::Tag<32> key;
+        key.FromBase64(pkt);
 
-      std::string def_filename(key.ToBase64() + DEFAULT_FILE_EXTENSION);
-      std::string packet_path = bote::fs::DataDirPath("DHTindex",
-                                                      def_filename);
-      if (!bote::fs::Exists (packet_path))
-        {
-          LogPrint(eLogDebug, "DHTStorage: remove_old_entries: Packet removed: ",
-                   key.ToBase64());
-          continue;
-        }
+        std::string def_filename(key.ToBase64() + DEFAULT_FILE_EXTENSION);
+        std::string packet_path = bote::fs::DataDirPath("DHTindex",
+                                                        def_filename);
+        if (!bote::fs::Exists (packet_path))
+          {
+            LogPrint(eLogDebug, "DHTStorage: remove_old_entries: Packet removed: ",
+                     key.ToBase64());
+            continue;
+          }
 
-      LogPrint (eLogDebug, "DHTStorage: remove_old_entries: Try to clean: ",
-                key.ToBase64());
-      int result = clean_index(key, ts);
+        LogPrint (eLogDebug, "DHTStorage: remove_old_entries: Try to clean: ",
+                  key.ToBase64());
+        int result = clean_index(key, ts);
 
-      if (result > 0)
-        removed_entries += result;
+        if (result > 0)
+          removed_entries += result;
 
-      if (result == -1)
-        removed_packets++;
-    }
+        if (result == -1)
+          removed_packets++;
+      }
+  }
 
   LogPrint(eLogDebug, "DHTStorage: remove_old_entries: Records removed: ", removed_entries);
   LogPrint(eLogDebug, "DHTStorage: remove_old_entries: Packets removed: ", removed_packets);
