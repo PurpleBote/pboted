@@ -591,9 +591,6 @@ void
 NetworkWorker::send(const std::shared_ptr<batch_comm_packet>& batch)
 {
   size_t count = 0;
-  m_running_batches.push_back(batch);
-  LogPrint(eLogDebug, "Network: send: Running batches: ",
-           m_running_batches.size ());
 
   auto packets = batch->getPackets();
   for (const auto& packet: packets)
@@ -603,6 +600,10 @@ NetworkWorker::send(const std::shared_ptr<batch_comm_packet>& batch)
     }
   LogPrint(eLogDebug, "Network: send: Sent ", count, " packets from batch ",
            batch->owner);
+
+  m_running_batches.push_back(batch);
+  LogPrint(eLogDebug, "Network: send: Running batches: ",
+           m_running_batches.size ());
 }
 
 bool
@@ -616,30 +617,31 @@ NetworkWorker::receive(const sp_comm_pkt& packet)
 
   std::vector<uint8_t> v_cid(packet->cid, packet->cid + 32);
 
-  auto batch_itr = m_running_batches.begin ();
-  while (batch_itr != m_running_batches.end ())
-    {
-      if (*batch_itr)
-        {
-          if ((*batch_itr)->contains (v_cid))
-            {
-              (*batch_itr)->addResponse (packet);
-              LogPrint (eLogDebug, "Network: receive: Response for batch ",
-                        (*batch_itr)->owner, ", remain count: ",
-                        (*batch_itr)->remain ());
-              return true;
-            }
-        }
-      else
-        {
-          LogPrint(eLogError, "Network: receive: Batch is null");
-          m_running_batches.erase (batch_itr);
-        }
-
-      ++batch_itr;
-    }
-
-  return false;
+  {
+    std::unique_lock<std::mutex> l (m_batch_mutex);
+    auto batch_itr = m_running_batches.begin ();
+    while (batch_itr != m_running_batches.end ())
+      {
+        if (*batch_itr)
+          {
+            if ((*batch_itr)->contains (v_cid))
+              {
+                (*batch_itr)->addResponse (packet);
+                LogPrint (eLogDebug, "Network: receive: Response for batch ",
+                          (*batch_itr)->owner, ", remain count: ",
+                          (*batch_itr)->remain ());
+                return true;
+              }
+            ++batch_itr;
+          }
+        else
+          {
+            LogPrint(eLogError, "Network: receive: Batch is null");
+            batch_itr = m_running_batches.erase (batch_itr);
+          }
+      }
+    return false;
+  }
 }
 
 sp_queue_pkt
@@ -651,49 +653,50 @@ NetworkWorker::get_pkt_with_timeout(int usec)
 void
 NetworkWorker::remove_batch(const std::shared_ptr<batch_comm_packet>& r_batch)
 {
-  std::unique_lock<std::mutex> l (m_batch_mutex);
-
   if (m_running_batches.empty ())
     {
       LogPrint(eLogWarning, "Network: No running batches");
       return;
     }
 
-  // For debug only
-  //*
-  for (auto batch : m_running_batches)
-    {
-      if (batch)
-        LogPrint(eLogDebug, "Network: Batch: ", batch->owner);
-      else
-        LogPrint(eLogDebug, "Network: Batch is null");
-    }
-  //*/
+  {
+    std::unique_lock<std::mutex> l (m_batch_mutex);
+    // For debug only
+    /*
+    for (auto batch : m_running_batches)
+      {
+        if (batch)
+          LogPrint(eLogDebug, "Network: Batch: ", batch->owner);
+        else
+          LogPrint(eLogDebug, "Network: Batch is null");
+      }
+    */
 
-  auto batch_itr = m_running_batches.begin ();
-  while (batch_itr != m_running_batches.end ())
-    {
-      if (*batch_itr)
-        {
-          LogPrint(eLogDebug, "Network: Batch: ", (*batch_itr)->owner);
+    auto batch_itr = m_running_batches.begin ();
+    while (batch_itr != m_running_batches.end ())
+      {
+        if (*batch_itr)
+          {
+            LogPrint(eLogDebug, "Network: Batch: ", (*batch_itr)->owner);
 
-          if (r_batch == *batch_itr)
-            {
-              LogPrint(eLogDebug, "Network: Removing batch ", r_batch->owner);
-              m_running_batches.erase (batch_itr);
-              LogPrint(eLogDebug, "Network: Running batches: ",
-                       m_running_batches.size ());
-              break;
-            }
+            if (r_batch == *batch_itr)
+              {
+                LogPrint(eLogDebug, "Network: Removing batch ", r_batch->owner);
+                m_running_batches.erase (batch_itr);
+                LogPrint(eLogDebug, "Network: Running batches: ",
+                         m_running_batches.size ());
+                break;
+              }
 
-          ++batch_itr;
-        }
-      else
-        {
-          LogPrint(eLogError, "Network: Batch is null");
-          batch_itr = m_running_batches.erase (batch_itr);
-        }
-    }
+            ++batch_itr;
+          }
+        else
+          {
+            LogPrint(eLogError, "Network: Batch is null");
+            batch_itr = m_running_batches.erase (batch_itr);
+          }
+      }
+  }
 }
 
 bool
