@@ -19,7 +19,7 @@
 
 #define PBOTED_VERSION_MAJOR 0
 #define PBOTED_VERSION_MINOR 7
-#define PBOTED_VERSION_MICRO 11
+#define PBOTED_VERSION_MICRO 12
 #define PBOTED_VERSION_PATCH 0
 
 #define PBOTED_VERSION                                                        \
