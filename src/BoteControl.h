@@ -45,7 +45,7 @@ enum control_state
 struct control_session
 {
   control_state state = CONTROL_STATE_QUIT;
-  bool need_clean = false;
+  bool need_clean = false, is_error = false;
   char *buf;
 };
 

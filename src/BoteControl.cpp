@@ -108,18 +108,6 @@ BoteControl::start ()
                sizeof file_addr.sun_path - 1)[sizeof file_addr.sun_path - 1]
           = 0;
 
-/*
-#ifndef _WIN32 // brokes socket binding on Windows
-      rc = setsockopt(conn_sockfd, SOL_SOCKET, SO_REUSEADDR,
-                      (char *)&enabled, sizeof(enabled));
-      if (rc == PB_SOCKET_ERROR)
-      {
-        LogPrint (eLogError, "Control: setsockopt() failed: ", strerror (errno));
-        PB_SOCKET_CLOSE (conn_sockfd);
-        return;
-      }
-#endif
-*/
       rc = PB_SOCKET_IOCTL(conn_sockfd, FIONBIO, enabled);
       if (rc == PB_SOCKET_ERROR)
       {
@@ -458,8 +446,10 @@ BoteControl::run ()
       if (!compress_array)
         continue;
 
-      /* We need to squeeze together the array and */
-      /* decrement the number of file descriptors */
+      /*
+       * We need to squeeze together the array and
+       * decrement the number of file descriptors
+       */
       compress_array = false;
       for (int sid = 0; sid < nfds; sid++)
         {
@@ -489,7 +479,6 @@ BoteControl::run ()
 void
 BoteControl::reply (int sid, const std::string &msg)
 {
-  //ssize_t rc = send (fds[sid].fd, msg.c_str (), msg.length (), 0);
   ssize_t rc = PB_SOCKET_WRITE (fds[sid].fd, msg.c_str (), msg.length ());
   if (rc == PB_SOCKET_ERROR)
     {
@@ -511,7 +500,7 @@ BoteControl::handle_request (int sid)
   LogPrint (eLogDebug, "Control: handle_request: Got request: ", str_req);
 
   // ToDo: parse request and combine response
-  std::ostringstream result;
+  std::ostringstream result, response;
 
   size_t pos = str_req.find (".");
   std::string cmd_prefix = str_req.substr (0, pos);
@@ -520,21 +509,39 @@ BoteControl::handle_request (int sid)
   LogPrint (eLogDebug, "Control: handle_request: cmd_prefix: ", cmd_prefix,
             ", cmd_id: ", cmd_id);
 
+  response << "{\"id\": null,";
   auto it = handlers.find (cmd_prefix);
   if (it != handlers.end ())
     {
-      result << "{\"id\": null,\"result\": {";
       (this->*(it->second)) (cmd_id, result);
-      result << "}, \"jsonrpc\": 2.0}";
+
+      if (session.is_error)
+        {
+          response << "\"result\": null,";
+          response << "\"error\": ";
+        }
+      else
+        {
+          response << "\"error\": null,";
+          response << "\"result\": ";
+        }
+      response << result.str ();
     }
   else
     {
       LogPrint (eLogWarning, "Control: handle_request: Unknown cmd prefix: ",
                 cmd_prefix);
-      unknown_cmd (str_req, result);
-    }
 
-  reply (sid, result.str ());
+      unknown_cmd (str_req, result);
+      response << "\"result\": null,";
+      response << "\"error\": ";
+      response << result.str ();
+    }
+  response << ",\"jsonrpc\": \"2.0\"}";
+
+  session.is_error = false;
+
+  reply (sid, response.str ());
 }
 
 void
@@ -565,6 +572,9 @@ BoteControl::insert_param (std::ostringstream &ss, const std::string &name,
 void
 BoteControl::all (const std::string &cmd_id, std::ostringstream &results)
 {
+  if (session.is_error)
+    return;
+
   LogPrint (eLogDebug, "Control: all: cmd_id: ", cmd_id);
 
   if (0 == cmd_id.compare ("show"))
@@ -588,13 +598,16 @@ BoteControl::all (const std::string &cmd_id, std::ostringstream &results)
 void
 BoteControl::addressbook (const std::string &cmd_id, std::ostringstream &results)
 {
+  if (session.is_error)
+    return;
+
   LogPrint (eLogDebug, "Control: addressbook: cmd_id: ", cmd_id);
 
   if (0 == cmd_id.compare ("show"))
     {
-      results << "\"addressbook\": {";
+      results << "{\"addressbook\": {";
       insert_param (results, "size", (int)bote::context.contacts_size ());
-      results << "}";
+      results << "}}";
     }
   else
     unknown_cmd (cmd_id, results);
@@ -603,18 +616,21 @@ BoteControl::addressbook (const std::string &cmd_id, std::ostringstream &results
 void
 BoteControl::daemon (const std::string &cmd_id, std::ostringstream &results)
 {
+  if (session.is_error)
+    return;
+
   LogPrint (eLogDebug, "Control: daemon: cmd_id: ", cmd_id);
 
   if (0 == cmd_id.compare ("show"))
     {
-      results << "\"daemon\": {";
+      results << "{\"daemon\": {";
       insert_param (results, "uptime", (int)bote::context.get_uptime ());
       results << ", ";
       results << "\"bytes\": {";
       insert_param (results, "recived", (int)bote::network_worker.bytes_recv ());
       results << ", ";
       insert_param (results, "sent", (int)bote::network_worker.bytes_sent ());
-      results << "}}";
+      results << "}}}";
     }
   else
     unknown_cmd (cmd_id, results);
@@ -623,13 +639,16 @@ BoteControl::daemon (const std::string &cmd_id, std::ostringstream &results)
 void
 BoteControl::identity (const std::string &cmd_id, std::ostringstream &results)
 {
+  if (session.is_error)
+    return;
+
   LogPrint (eLogDebug, "Control: daemon: cmd_id: ", cmd_id);
 
   if (0 == cmd_id.compare ("show"))
     {
-      results << "\"identity\": {";
+      results << "{\"identity\": {";
       insert_param (results, "count", (int)bote::context.get_identities_count ());
-      results << "}";
+      results << "}}";
     }
   else
     unknown_cmd (cmd_id, results);
@@ -638,14 +657,17 @@ BoteControl::identity (const std::string &cmd_id, std::ostringstream &results)
 void
 BoteControl::storage (const std::string &cmd_id, std::ostringstream &results)
 {
+  if (session.is_error)
+    return;
+
   LogPrint (eLogDebug, "Control: storage: cmd_id: ", cmd_id);
 
   if (0 == cmd_id.compare ("show"))
     {
-      results << "\"storage\": {";
+      results << "{\"storage\": {";
       insert_param (results, "used",
                     (double)bote::DHT_worker.get_storage_usage ());
-      results << "}";
+      results << "}}";
     }
   else
     unknown_cmd (cmd_id, results);
@@ -654,18 +676,21 @@ BoteControl::storage (const std::string &cmd_id, std::ostringstream &results)
 void
 BoteControl::peer (const std::string &cmd_id, std::ostringstream &results)
 {
+  if (session.is_error)
+    return;
+
   LogPrint (eLogDebug, "Control: peer: cmd_id: ", cmd_id);
 
   if (0 == cmd_id.compare ("show"))
     {
-      results << "\"peers\": {";
+      results << "{\"peers\": {";
       results << "\"count\": {";
       insert_param (results, "total",
                     (int)bote::relay_worker.getPeersCount ());
       results << ", ";
       insert_param (results, "good",
                     (int)bote::relay_worker.get_good_peer_count ());
-      results << "}}";
+      results << "}}}";
     }
   else
     unknown_cmd (cmd_id, results);
@@ -674,18 +699,21 @@ BoteControl::peer (const std::string &cmd_id, std::ostringstream &results)
 void
 BoteControl::node (const std::string &cmd_id, std::ostringstream &results)
 {
+  if (session.is_error)
+    return;
+
   LogPrint (eLogDebug, "Control: node: cmd_id: ", cmd_id);
 
   if (0 == cmd_id.compare ("show"))
     {
-      results << "\"nodes\": {";
+      results << "{\"nodes\": {";
       results << "\"count\": {";
       insert_param (results, "total",
                     (int)bote::DHT_worker.getNodesCount ());
       results << ", ";
       insert_param (results, "unlocked",
                     (int)bote::DHT_worker.get_unlocked_nodes_count ());
-      results << "}}";
+      results << "}}}";
     }
   else
     unknown_cmd (cmd_id, results);
@@ -694,12 +722,17 @@ BoteControl::node (const std::string &cmd_id, std::ostringstream &results)
 void
 BoteControl::unknown_cmd (const std::string &cmd, std::ostringstream &results)
 {
+  if (session.is_error)
+    return;
+
   LogPrint (eLogWarning, "Control: node: unknown_cmd: ", cmd);
 
-  results << "{\"id\": null, \"error\": ";
+  results.str("");
+
   results << "{\"code\": 404,";
-  results << "\"message\": \"Command not found: " << cmd << "\"},";
-  results << "\"jsonrpc\": 2.0}";
+  results << "\"message\": \"Command not found: " << cmd << "\"}";
+
+  session.is_error = true;
 }
 
 } /* namespace module */
