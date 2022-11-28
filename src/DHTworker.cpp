@@ -1079,6 +1079,10 @@ DHTworker::closestNodesLookupTask (HashKey key)
 
       if (unsigned (packet.data[1]) == 4)
         {
+#ifdef BOTE_SKIP_V4
+          LogPrint (eLogDebug, "DHT: closestNodesLookup: V4 packet skipped");
+          continue;
+#else
           bote::PeerListPacketV4 peer_list;
           bool parsed = peer_list.fromBuffer (packet.data.data (),
                                               packet.length, true);
@@ -1101,6 +1105,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
           LogPrint (eLogDebug, "DHT: closestNodesLookup: V4 nodes: ",
                     node_list.size (), ", added: ", nodes_added,
                     ", dup: ", nodes_dup);
+#endif
         }
 
       if (unsigned (packet.data[1]) == 5)

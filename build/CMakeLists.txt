@@ -23,10 +23,11 @@ project(
   VERSION ${PROJECT_VERSION})
 
 # Configuration options
-option(CONTROL_SOCKET "Use UNIX socket in control module" ON)
-option(WITH_STATIC    "Static build"                      OFF)
-option(WITH_CXX11     "Force C++11"                       OFF)
-option(WITH_CXX17     "Force C++17"                       OFF)
+option(CONTROL_SOCKET "Use UNIX socket in control module"    ON)
+option(SKIP_OLD       "Skip V4 packets if new present in V5" OFF)
+option(WITH_STATIC    "Static build"                         OFF)
+option(WITH_CXX11     "Force C++11"                          OFF)
+option(WITH_CXX17     "Force C++17"                          OFF)
 # ToDo?
 #option(WITH_CLANG  "Force Clang compiler" OFF)
 #if (WITH_CLANG)
@@ -89,6 +90,7 @@ if (MSYS)
 endif ()
 
 # Compiler flags customization (by vendor)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Winvalid-pch -Wno-unused-parameter")
 set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -pedantic")
@@ -97,6 +99,10 @@ set(CMAKE_EXE_LINKER_FLAGS_MINSIZEREL "-Wl,--gc-sections") # -flto is added from
 
 if (NOT CONTROL_SOCKET)
   add_definitions("-DDISABLE_SOCKET=1")
+endif ()
+
+if (SKIP_OLD)
+  add_definitions("-DBOTE_SKIP_V4=1")
 endif ()
 
 # Check for C++11 or C++17 support
@@ -247,6 +253,11 @@ else ()
   endif ()
 endif ()
 
+# ToDo
+if(OPENSSL_VERSION VERSION_GREATER_EQUAL "3.0.0")
+  add_definitions(-DOPENSSL_SUPPRESS_DEPRECATED)
+endif()
+
 # Load includes
 set(INCLUDED_DIRS
     ${Boost_INCLUDE_DIRS}
@@ -275,6 +286,7 @@ message(STATUS "Architecture       : ${ARCHITECTURE}")
 message(STATUS "Install prefix     : ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "Options:")
 message(STATUS "  STATIC BUILD     : ${WITH_STATIC}")
+message(STATUS "  SKIP OLD         : ${SKIP_OLD}")
 message(STATUS "  UNIX SOCKET      : ${CONTROL_SOCKET}")
 message(STATUS "  FORCE C++11      : ${WITH_CXX11}")
 message(STATUS "  FORCE C++17      : ${WITH_CXX17}")
@@ -301,7 +313,6 @@ if (NOT MSVC)
         "ws2_32"
         "iphlpapi"
     )
-
 
     # Strip debug symbols to file only on release build
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

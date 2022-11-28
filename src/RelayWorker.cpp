@@ -645,6 +645,10 @@ RelayWorker::check_peers ()
         }
       else if (unsigned (res_packet.data[1]) == 4)
         {
+#ifdef BOTE_SKIP_V4
+          LogPrint (eLogDebug, "Relay: V4 packet skipped");
+          continue;
+#else
           PeerListPacketV4 peer_list;
           parsed = peer_list.fromBuffer (res_packet.data.data (),
                                          res_packet.data.size (), true);
@@ -655,6 +659,7 @@ RelayWorker::check_peers ()
             }
 
           addPeers(peer_list);
+#endif
         }
       else
         {
