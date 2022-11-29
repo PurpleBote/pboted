@@ -502,6 +502,9 @@ BoteControl::handle_request (int sid)
   // ToDo: parse request and combine response
   std::ostringstream result, response;
 
+  while (str_req.find ("\n") != std::string::npos)
+    str_req.erase (str_req.find ("\n"));
+
   size_t pos = str_req.find (".");
   std::string cmd_prefix = str_req.substr (0, pos);
   std::string cmd_id = str_req.substr (pos + 1);
@@ -518,12 +521,12 @@ BoteControl::handle_request (int sid)
       if (session.is_error)
         {
           response << "\"result\": null,";
-          response << "\"error\": ";
+          response << "\"error\": {";
         }
       else
         {
           response << "\"error\": null,";
-          response << "\"result\": ";
+          response << "\"result\": {";
         }
       response << result.str ();
     }
@@ -534,10 +537,10 @@ BoteControl::handle_request (int sid)
 
       unknown_cmd (str_req, result);
       response << "\"result\": null,";
-      response << "\"error\": ";
+      response << "\"error\": {";
       response << result.str ();
     }
-  response << ",\"jsonrpc\": \"2.0\"}";
+  response << "},\"jsonrpc\": \"2.0\"}";
 
   session.is_error = false;
 
@@ -605,9 +608,9 @@ BoteControl::addressbook (const std::string &cmd_id, std::ostringstream &results
 
   if (0 == cmd_id.compare ("show"))
     {
-      results << "{\"addressbook\": {";
+      results << "\"addressbook\": {";
       insert_param (results, "size", (int)bote::context.contacts_size ());
-      results << "}}";
+      results << "}";
     }
   else
     unknown_cmd (cmd_id, results);
@@ -623,14 +626,14 @@ BoteControl::daemon (const std::string &cmd_id, std::ostringstream &results)
 
   if (0 == cmd_id.compare ("show"))
     {
-      results << "{\"daemon\": {";
+      results << "\"daemon\": {";
       insert_param (results, "uptime", (int)bote::context.get_uptime ());
       results << ", ";
       results << "\"bytes\": {";
       insert_param (results, "recived", (int)bote::network_worker.bytes_recv ());
       results << ", ";
       insert_param (results, "sent", (int)bote::network_worker.bytes_sent ());
-      results << "}}}";
+      results << "}}";
     }
   else
     unknown_cmd (cmd_id, results);
@@ -646,9 +649,9 @@ BoteControl::identity (const std::string &cmd_id, std::ostringstream &results)
 
   if (0 == cmd_id.compare ("show"))
     {
-      results << "{\"identity\": {";
+      results << "\"identity\": {";
       insert_param (results, "count", (int)bote::context.get_identities_count ());
-      results << "}}";
+      results << "}";
     }
   else
     unknown_cmd (cmd_id, results);
@@ -664,10 +667,10 @@ BoteControl::storage (const std::string &cmd_id, std::ostringstream &results)
 
   if (0 == cmd_id.compare ("show"))
     {
-      results << "{\"storage\": {";
+      results << "\"storage\": {";
       insert_param (results, "used",
                     (double)bote::DHT_worker.get_storage_usage ());
-      results << "}}";
+      results << "}";
     }
   else
     unknown_cmd (cmd_id, results);
@@ -683,14 +686,14 @@ BoteControl::peer (const std::string &cmd_id, std::ostringstream &results)
 
   if (0 == cmd_id.compare ("show"))
     {
-      results << "{\"peers\": {";
+      results << "\"peers\": {";
       results << "\"count\": {";
       insert_param (results, "total",
                     (int)bote::relay_worker.getPeersCount ());
       results << ", ";
       insert_param (results, "good",
                     (int)bote::relay_worker.get_good_peer_count ());
-      results << "}}}";
+      results << "}}";
     }
   else
     unknown_cmd (cmd_id, results);
@@ -706,14 +709,14 @@ BoteControl::node (const std::string &cmd_id, std::ostringstream &results)
 
   if (0 == cmd_id.compare ("show"))
     {
-      results << "{\"nodes\": {";
+      results << "\"nodes\": {";
       results << "\"count\": {";
       insert_param (results, "total",
                     (int)bote::DHT_worker.getNodesCount ());
       results << ", ";
       insert_param (results, "unlocked",
                     (int)bote::DHT_worker.get_unlocked_nodes_count ());
-      results << "}}}";
+      results << "}}";
     }
   else
     unknown_cmd (cmd_id, results);
@@ -729,8 +732,8 @@ BoteControl::unknown_cmd (const std::string &cmd, std::ostringstream &results)
 
   results.str("");
 
-  results << "{\"code\": 404,";
-  results << "\"message\": \"Command not found: " << cmd << "\"}";
+  results << "\"code\": 404,";
+  results << "\"message\": \"Command not found: " << cmd << "\"";
 
   session.is_error = true;
 }
