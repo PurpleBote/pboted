@@ -459,11 +459,14 @@ Email::fromMIME (const std::vector<uint8_t> &email_data)
         }
       else
         {
-          mail.header().field(entity.name()).value("");
+          //mail.header().field(entity.name()).value("");
+          remove_header_field (entity.name(), mail);
           LogPrint(eLogDebug, "Email: fromMIME: Forbidden header ",
                    entity.name(), " removed");
         }
     }
+
+  print_debug ("fromMIME", mail);
 
   m_empty = false;
   compose ();
@@ -626,13 +629,6 @@ Email::get_to_addresses ()
   return mailbox + "@" + domain;
 }
 
-bool
-Email::verify ()
-{
-  // ToDo: verify signature
-  return true;
-}
-
 void
 Email::compose ()
 {
@@ -647,26 +643,6 @@ Email::compose ()
             get_message_id_bytes ().ToBase64 ());
 
   setField ("X-HashCash", hashcash ());
-
-  std::stringstream buffer;
-  buffer << mail;
-  std::string str_buf = buffer.str ();
-
-  // For debug only
-  //*
-  if (str_buf.size () > 1000)
-    {
-      std::string mess_begin = str_buf.substr (0, 1000);
-      std::string mess_end = str_buf.substr (str_buf.size ()-1000,
-                                             str_buf.size ());
-      LogPrint (eLogDebug, "Email: compose: content:\n", mess_begin,
-                "\n\n...\n\n", mess_end, "\n");
-    }
-  else
-    LogPrint (eLogDebug, "Email: compose: content:\n", str_buf);
-  //*/
-
-  full_bytes = std::vector<uint8_t> (str_buf.begin (), str_buf.end ());
 
   m_empty = false;
   m_incomplete = false;
@@ -838,7 +814,7 @@ Email::restore ()
 
   full_bytes = std::vector<uint8_t>();
 
-  auto meta_parts = m_metadata-> get_parts();
+  auto meta_parts = m_metadata->get_parts ();
   for (size_t i = 0; i < meta_parts->size (); i++)
     {
       auto meta_part = meta_parts->find (i);
@@ -882,6 +858,7 @@ Email::restore ()
     }
 
   decompress (full_bytes);
+  fromMIME (full_bytes);
 
   return true;
 }
@@ -897,6 +874,7 @@ Email::save (const std::string &dir)
 
       if (bote::fs::Exists (emailPacketPath))
         {
+          LogPrint(eLogWarning, "Email: save: Already exist: ", emailPacketPath);
           return false;
         }
     }
@@ -913,8 +891,12 @@ Email::save (const std::string &dir)
       return false;
     }
 
-  file.write (reinterpret_cast<const char *> (full_bytes.data ()),
-                                              full_bytes.size ());
+  std::stringstream buffer;
+  buffer << mail;
+  std::string str = buffer.str ();
+  std::vector<uint8_t> data = std::vector<uint8_t> (str.begin (), str.end ());
+
+  file.write (reinterpret_cast<const char *> (data.data ()), data.size ());
   file.close ();
 
   LogPrint (eLogDebug, "Email: save: Saved to ", emailPacketPath);
@@ -1057,11 +1039,14 @@ Email::encrypt ()
 bool
 Email::compress (CompressionAlgorithm type)
 {
+  // ToDo: UNCOMPRESSED if too small
   LogPrint (eLogDebug, "Email: compress: alg: ", unsigned (type));
+
+  m_compressed = true;
 
   if (type == CompressionAlgorithm::LZMA)
     {
-      LogPrint (eLogWarning, "Email: compress: We not support compression LZMA, will be uncompressed");
+      LogPrint (eLogWarning, "Email: compress: LZMA compression unsupported, will be uncompressed");
       type = CompressionAlgorithm::UNCOMPRESSED;
     }
 
@@ -1069,10 +1054,18 @@ Email::compress (CompressionAlgorithm type)
     {
       LogPrint (eLogDebug, "Email: compress: ZLIB, start compress");
 
-      std::vector<uint8_t> output;
-      zlibCompress (output, full_bytes);
+      std::vector<uint8_t> output (full_bytes.size ());
+      //zlibCompress (output, full_bytes);
+      i2p::data::GzipDeflator deflator;
+      deflator.SetCompressionLevel (9);
+      size_t res = deflator.Deflate (full_bytes.data (), full_bytes.size (),
+                                     output.data (), output.size ());
 
-      full_bytes.push_back (uint8_t (CompressionAlgorithm::ZLIB));
+      LogPrint (eLogDebug, "Email: compress: ZLIB res: ", res);
+
+      full_bytes = std::vector<uint8_t>();
+      full_bytes.insert (full_bytes.begin (),
+                         (uint8_t) CompressionAlgorithm::ZLIB);
       full_bytes.insert (full_bytes.end (), output.begin (), output.end ());
       LogPrint (eLogDebug, "Email: compress: ZLIB compressed");
 
@@ -1096,6 +1089,7 @@ Email::decompress (std::vector<uint8_t> v_mail)
   offset += 1;
 
   LogPrint (eLogDebug, "Email: decompress: compress alg: ", unsigned (compress_alg));
+  m_compressed = false;
 
   if (compress_alg == CompressionAlgorithm::LZMA)
     {
@@ -1104,20 +1098,29 @@ Email::decompress (std::vector<uint8_t> v_mail)
       lzmaDecompress (output,
                       std::vector<uint8_t>(v_mail.data() + offset,
                                            v_mail.data() + v_mail.size()));
+
       full_bytes = output;
-      LogPrint (eLogDebug, "Email: compress: LZMA decompressed");
+      LogPrint (eLogDebug, "Email: decompress: LZMA decompressed");
       return;
     }
 
   if (compress_alg == CompressionAlgorithm::ZLIB)
     {
       LogPrint (eLogDebug, "Email: decompress: ZLIB compressed, start decompress");
-      std::vector<uint8_t> output;
-      zlibDecompress (output,
-                      std::vector<uint8_t>(v_mail.data() + offset,
-                                           v_mail.data() + v_mail.size()));
-      full_bytes = output;
-      LogPrint (eLogDebug, "Email: compress: ZLIB decompressed");
+      std::stringstream output;
+
+      i2p::data::GzipInflator inflator;
+      inflator.Inflate (v_mail.data() + offset, v_mail.size() - offset, output);
+
+      if (output.fail())
+      {
+        LogPrint(eLogError, "Email: decompress: ZLIB failed");
+      }
+
+      std::string str_buf = output.str ();
+
+      full_bytes = std::vector<uint8_t> (str_buf.begin (), str_buf.end ());
+      LogPrint (eLogDebug, "Email: decompress: ZLIB decompressed");
       return;
     }
 
@@ -1130,6 +1133,174 @@ Email::decompress (std::vector<uint8_t> v_mail)
 
   LogPrint(eLogWarning, "Email: decompress: Unknown compress algorithm, try to save as is");
   full_bytes = std::vector<uint8_t>(v_mail.begin() + 1, v_mail.end());
+}
+
+void
+Email::sign ()
+{
+  if (mail.header ().hasField (SIGNATURE_HEADER))
+    {
+      if (!mail.header ().field (SIGNATURE_HEADER).value ().empty ())
+        {
+          LogPrint (eLogDebug, "Email: sign: Already signed");
+          return;
+        }
+    }
+
+  print_debug ("sign", mail);
+
+  // We need to sign only with empty X-I2PBote-Signature header
+  //auto sig_f = mail.header ().field (SIGNATURE_HEADER);
+  //sig_f = mimetic::Field ();
+  remove_header_field (SIGNATURE_HEADER, mail);
+  remove_header_field (SIGNATURE_VALID_HEADER, mail);
+
+  print_debug ("sign", mail);
+  std::stringstream buffer;
+  buffer << mail;
+  std::string str_buf = buffer.str ();
+  std::vector<uint8_t> mail_bytes = std::vector<uint8_t> (str_buf.begin (), str_buf.end ());
+
+  uint8_t *sig = (uint8_t *) malloc (sender->GetSignatureLen ());
+  
+  sender->Sign(mail_bytes.data (), mail_bytes.size (), sig);
+
+  if (!sig)
+    {
+      LogPrint (eLogDebug, "Email: sign: Can't sign email");
+      return;
+    }
+
+  const size_t sig_len = sender->GetSignatureLen ();
+  const size_t str_len = i2p::data::Base64EncodingBufferSize (sig_len);
+  std::vector<char> str (str_len);
+  size_t l1 = i2p::data::ByteStreamToBase64 (sig, sig_len, str.data (), str_len);
+  free (sig);
+
+  std::string sig_str(str.data (), l1);
+
+  LogPrint (eLogDebug, "Email: sign: Sign data: ", sig_str);
+
+  setField (SIGNATURE_HEADER, sig_str);
+
+  print_debug ("sign", mail);
+}
+
+bool
+Email::verify ()
+{
+  if (!mail.header ().hasField (SIGNATURE_HEADER))
+    {
+      LogPrint (eLogDebug, "Email: verify: Unsigned");
+      mail.header ().field (SIGNATURE_VALID_HEADER).value ("false");
+      return false;
+    }
+
+  std::string sig_str = mail.header ().field (SIGNATURE_HEADER).value ();
+
+  const size_t str_len = sig_str.length ();
+  std::vector<uint8_t> sig (str_len); // binary data can't exceed base64
+  const size_t sig_len = i2p::data::Base64ToByteStream (sig_str.c_str(),
+                                                        sig_str.length(),
+                                                        sig.data(),
+                                                        str_len);
+
+  LogPrint (eLogDebug, "Email: verify: Signature len:", sig_len);
+
+  // We need to verify with empty X-I2PBote-Signature header
+  mimetic::MimeEntity unsigned_mail = mail;
+  //auto sig_f = unsigned_mail.header ().field (SIGNATURE_HEADER);
+  //sig_f = mimetic::Field ();
+  print_debug ("verify", unsigned_mail);
+
+  remove_header_field (SIGNATURE_HEADER, unsigned_mail);
+  remove_header_field (SIGNATURE_VALID_HEADER, unsigned_mail);
+
+  std::stringstream buffer;
+  buffer << unsigned_mail;
+  std::string str_buf = buffer.str ();
+
+  print_debug ("verify", unsigned_mail);
+
+  std::vector<uint8_t> mail_bytes = std::vector<uint8_t> (str_buf.begin (), str_buf.end ());
+  
+  sp_id_public from_id = nullptr;
+  std::string from_address = get_from_mailbox ();
+
+  std::string format_prefix = from_address.substr(0, from_address.find(".") + 1);
+
+  if (format_prefix.compare(ADDRESS_B32_PREFIX) == 0)
+    from_id = parse_address_v1(from_address);
+  else if (format_prefix.compare(ADDRESS_B64_PREFIX) == 0)
+    from_id = parse_address_v1(from_address);
+  else
+    from_id = parse_address_v0(from_address);
+
+  if (!from_id)
+    {
+      LogPrint (eLogWarning, "Email: verify: Can't create "
+                "from_id from \"FROM\" header");
+
+      setField (SIGNATURE_VALID_HEADER, "false");
+      return false;
+    }
+
+  bool res = from_id->Verify(mail_bytes.data (), mail_bytes.size (), sig.data ());
+
+  LogPrint (eLogDebug, "Email: verify: Sign valid: ", res ? "true" : "false");
+
+  setField (SIGNATURE_VALID_HEADER, res ? "true" : "false");
+  return res;
+}
+
+void
+Email::remove_header_field (const std::string &name, mimetic::MimeEntity &mime)
+{
+  //auto header = mime.header ();
+  //auto header_itr = header.begin ();
+  auto header_itr = mime.header ().begin ();
+  while (header_itr != mime.header ().end ())
+    {
+      if (header_itr->name () == name)
+        {
+          mime.header ().erase (header_itr);
+          return;
+        }
+
+      ++header_itr;
+    }
+}
+
+void
+Email::print_debug (const std::string &where, const mimetic::MimeEntity &mime)
+{
+  std::stringstream buffer;
+  buffer << mime;
+  std::string str_buf = buffer.str ();
+
+  if (str_buf.size () > 2000)
+    {
+      std::string mess_begin = str_buf.substr (0, 1000);
+      std::string mess_end = str_buf.substr (str_buf.size () - 1000,
+                                             str_buf.size ());
+      LogPrint (eLogDebug, "Email: ", where, ": MIME:\n", mess_begin,
+                "\n\n...\n\n", mess_end, "\n");
+    }
+  else
+    LogPrint (eLogDebug, "Email: ", where, ": MIME:\n", str_buf, "\n");
+}
+
+void
+Email::update_bytes ()
+{
+  if (m_compressed)
+    return;
+
+  std::stringstream buffer;
+  buffer << mail;
+  std::string str_buf = buffer.str ();
+
+  full_bytes = std::vector<uint8_t> (str_buf.begin (), str_buf.end ());
 }
 
 std::string
@@ -1209,24 +1380,6 @@ Email::lzmaDecompress (std::vector<uint8_t> &outBuf,
 
   LzmaDec_Free (&dec, &_allocFuncs);
   outBuf.resize (outPos);
-}
-
-void
-Email::zlibCompress (std::vector<uint8_t> &outBuf,
-                     const std::vector<uint8_t> &inBuf)
-{
-  i2p::data::GzipInflator inflator;
-  inflator.Inflate (inBuf.data (), inBuf.size (),
-                    outBuf.data (), outBuf.size ());
-}
-
-void
-Email::zlibDecompress (std::vector<uint8_t> &outBuf,
-                       const std::vector<uint8_t> &inBuf)
-{
-  i2p::data::GzipDeflator deflator;
-  deflator.Deflate (inBuf.data (), inBuf.size (),
-                    outBuf.data (), outBuf.size ());
 }
 
 void
@@ -1394,4 +1547,4 @@ Email::parse_address_v1(std::string address)
   return std::make_shared<BoteIdentityPublic>(identity);
 }
 
-} // bote
+} /* namespace bote */

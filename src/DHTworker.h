@@ -34,9 +34,9 @@ namespace bote
 
 /// Number of redundant storage nodes
 // ToDo: change to 20 on release 0.9.0
-//#define KADEMLIA_CONSTANT_K 20
 #ifdef NDEBUG
 #define KADEMLIA_CONSTANT_K 4
+//#define KADEMLIA_CONSTANT_K 20
 #else
 #define KADEMLIA_CONSTANT_K 2
 #endif // NDEBUG

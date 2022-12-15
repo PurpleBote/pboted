@@ -238,24 +238,28 @@ class Email
   set_from (const std::string& value)
   {
     mail.header ().from (value);
+    update_bytes ();
   }
 
   void
   set_sender (const std::string& value)
   {
     mail.header ().sender (value);
+    update_bytes ();
   }
 
   void
   set_to (const std::string& value)
   {
     mail.header ().to (value);
+    update_bytes ();
   }
 
   void
   setField (const std::string& type, const std::string& value)
   {
     mail.header().field(type).value(value);
+    update_bytes ();
   }
 
   std::string
@@ -268,7 +272,6 @@ class Email
   bool incomplete () const { return m_incomplete; };
   void skip (bool skip) { m_skip = skip; };
   bool skip () const { return m_skip; };
-  bool verify ();
   bool check (uint8_t *hash);
 
   std::string filename () { return filename_; }
@@ -321,13 +324,20 @@ class Email
 
   void encrypt ();
 
+  void sign ();
+  bool verify ();
+
  private:
+  void remove_header_field (const std::string &name, mimetic::MimeEntity &mime);
+
+  void print_debug (const std::string &where, const mimetic::MimeEntity &mime);
+  void update_bytes ();
   std::string generate_uuid_v4 ();
 
   static void lzmaDecompress (std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf);
 
-  static void zlibCompress (std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf);
-  static void zlibDecompress (std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf);
+  //static void zlibCompress (std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf);
+  //static void zlibDecompress (std::vector<uint8_t> &outBuf, const std::vector<uint8_t> &inBuf);
 
   sp_id_public parse_address_v0(std::string address);
   sp_id_public parse_address_v1(std::string address);
@@ -338,7 +348,8 @@ class Email
   bool m_skip;
   bool m_encrypted = false;
   bool m_composed = false;
-  bool m_splitted= false;
+  bool m_splitted = false;
+  bool m_compressed = false;
 
   std::string filename_;
   mimetic::MimeEntity mail;

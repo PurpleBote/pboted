@@ -40,9 +40,7 @@ BoteIdentityPublic::BoteIdentityPublic (KeyType keyType)
     }
 
   RecalculateIdentHash ();
-  /* ToDo
   CreateVerifier();
-  */
 }
 
 BoteIdentityPublic::BoteIdentityPublic (const uint8_t *cryptoPublicKey,
@@ -90,9 +88,7 @@ BoteIdentityPublic::BoteIdentityPublic (const uint8_t *cryptoPublicKey,
     }
 
   RecalculateIdentHash ();
-  /* ToDo
   CreateVerifier();
-  */
 }
 
 BoteIdentityPublic &
@@ -101,10 +97,8 @@ BoteIdentityPublic::operator= (const BoteIdentityPublic &other)
   m_Identity = other.m_Identity;
   m_IdentHash = other.m_IdentHash;
 
-  /* ToDo
   delete m_Verifier;
   m_Verifier = nullptr;
-  */
 
   return *this;
 }
@@ -139,10 +133,8 @@ BoteIdentityPublic::FromBuffer (const uint8_t *buf, size_t len)
   m_Identity->from_buffer (buf, len);
   RecalculateIdentHash ();
 
-  /* ToDo
   delete m_Verifier;
   m_Verifier = nullptr;
-   */
 
   return GetFullLen ();
 }
@@ -241,13 +233,12 @@ BoteIdentityPublic::ToBase64v1 () const
 size_t
 BoteIdentityPublic::GetSignatureLen () const
 {
-  /* ToDo
   if (!m_Verifier)
     CreateVerifier();
 
   if (m_Verifier)
     return m_Verifier->GetSignatureLen();
-  */
+
   return 0;
 }
 
@@ -306,14 +297,11 @@ BoteIdentityPublic::CreateVerifier (KeyType keyType)
   switch (keyType)
     {
       case KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC:
-        return nullptr;
-        // ToDo: return new i2p::crypto::ECDSAP256Verifier ();
+        return new i2p::crypto::ECDSAP256BVerifier ();
       case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
-        return nullptr;
-        // ToDo: return new i2p::crypto::ECDSAP521Verifier ();
+        return new i2p::crypto::ECDSAP521Verifier ();
       case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
-        return nullptr;
-        // ToDo: return new i2p::crypto::ED25519Verifier ();
+        return new i2p::crypto::EDDSA25519Verifier ();
       default:
         LogPrint (eLogError, "BoteIdentityPublic: CreateVerifier: Unsupported signing key type ",
                   keyTypeToString (keyType));
@@ -385,10 +373,8 @@ BoteIdentityPrivate::operator= (const BoteIdentityPrivate &other)
   setSigningPrivateKey (other.GetSigningPrivateKey (),
                         other.getSigningPrivateKeyLen ());
 
-  /* ToDo
   m_Signer = nullptr;
   CreateSigner();
-  */
 
   return *this;
 }
@@ -420,36 +406,37 @@ BoteIdentityPrivate::FromBuffer (const uint8_t *buf, size_t len)
   setSigningPrivateKey (buf + ret, signingPrivateKeySize);
   ret += signingPrivateKeySize;
 
-  /* ToDo
   m_Signer = nullptr;
   // check if signing private key is all zeros
   bool allzeros = true;
   for (size_t i = 0; i < signingPrivateKeySize; i++)
-    if (GetSigningPrivateKey()[i]) {
-      allzeros = false;
-      break;
+    if (GetSigningPrivateKey()[i])
+      {
+        allzeros = false;
+        break;
+      }
+
+  if (allzeros)
+    {
+      std::unique_ptr<i2p::crypto::Verifier> transientVerifier(BoteIdentityPublic::CreateVerifier(m_Public->GetKeyType()));
+      if (!transientVerifier)
+        return 0;
+
+      auto keyLen = transientVerifier->GetPublicKeyLen();
+      if (keyLen + ret > len)
+        return 0;
+
+      transientVerifier->SetPublicKey(buf + ret);
+      ret += keyLen;
+
+      if (m_Public->GetSignatureLen() + ret > len)
+        return 0;
+
+      ret += m_Public->GetSignatureLen();
+      CreateSigner(m_Public->GetKeyType());
     }
-
-  if (allzeros) {
-    std::unique_ptr<i2p::crypto::Verifier> transientVerifier(BoteIdentityPublic::CreateVerifier(m_Public->GetKeyType()));
-    if (!transientVerifier)
-      return 0;
-
-    auto keyLen = transientVerifier->GetPublicKeyLen();
-    if (keyLen + ret > len)
-      return 0;
-
-    transientVerifier->SetPublicKey(buf + ret);
-    ret += keyLen;
-
-    if (m_Public->GetSignatureLen() + ret > len)
-      return 0;
-
-    ret += m_Public->GetSignatureLen();
+  else
     CreateSigner(m_Public->GetKeyType());
-  } else
-    CreateSigner(m_Public->GetKeyType());
-  */
 
   return ret;
 }
@@ -520,14 +507,11 @@ BoteIdentityPrivate::CreateSigner (KeyType keyType, const uint8_t *priv)
   switch (keyType)
     {
       case KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC:
-        return nullptr;
-        // ToDo: return new i2p::crypto::ECDSAP256Signer(priv);
+        return new i2p::crypto::ECDSAP256BSigner(priv);
       case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
-        return nullptr;
-        // ToDo: return new i2p::crypto::ECDSAP521Signer(priv);
+        return new i2p::crypto::ECDSAP521Signer(priv);
       case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
-        return nullptr;
-        // ToDo: return new i2p::crypto::ED25519Signer(priv);
+        return new i2p::crypto::EDDSA25519Signer(priv);
       default:
         LogPrint(eLogError, "BoteIdentityPrivate: CreateSigner: Unsupported signing key type ",
                  keyTypeToString (keyType));
@@ -552,11 +536,11 @@ BoteIdentityPrivate::CreateDecryptor () const
   switch (GetKeyType ())
     {
       case KEY_TYPE_ECDH256_ECDSA256_SHA256_AES256CBC:
-        return std::make_shared<bote::ECDHP256Decryptor>(GetCryptoPrivateKey());
+        return std::make_shared<bote::ECDHP256Decryptor>(GetCryptoPrivateKey ());
       case KEY_TYPE_ECDH521_ECDSA521_SHA512_AES256CBC:
-        return std::make_shared<bote::ECDHP521Decryptor>(GetCryptoPrivateKey());
+        return std::make_shared<bote::ECDHP521Decryptor>(GetCryptoPrivateKey ());
       case KEY_TYPE_X25519_ED25519_SHA512_AES256CBC:
-        return std::make_shared<bote::X25519Decryptor>(GetCryptoPrivateKey());
+        return std::make_shared<bote::X25519Decryptor>(GetCryptoPrivateKey ());
       default:
         LogPrint(eLogError, "BoteIdentityPrivate: CreateDecryptor: Unsupported crypto key type ",
                  keyTypeToString (GetKeyType ()));
@@ -571,6 +555,7 @@ BoteIdentityPrivate::CreateSigner (KeyType keyType) const
     return;
 
   auto signer = CreateSigner (keyType, GetSigningPrivateKey ());
+
   if (signer)
     m_Signer.reset (signer);
 }

@@ -233,7 +233,7 @@ ECDHP521Encryptor::~ECDHP521Encryptor ()
     EC_POINT_free (ec_public_point);
 
   if (ec_shared_key)
-    EC_KEY_free (ec_shared_key);  
+    EC_KEY_free (ec_shared_key);
 }
 
 std::vector<byte>
@@ -436,7 +436,7 @@ X25519Encryptor::Encrypt (const byte *data, int len)
   ctx = EVP_PKEY_CTX_new(shared_key, nullptr);
 
   if (!ctx)
-    { 
+    {
       LogPrint (eLogError, "Crypto: Encrypt: CTX is empty");
       return {};
     }
@@ -549,7 +549,7 @@ X25519Decryptor::Decrypt (const byte *encrypted, int elen)
 
   /// Re-construct the shared secret
   if (!ctx)
-    { 
+    {
       LogPrint (eLogError, "Crypto: Encrypt: CTX is empty");
       return {};
     }

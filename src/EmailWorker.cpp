@@ -422,6 +422,9 @@ EmailWorker::incomplete_email_task ()
           mail.metadata ()->received (context.ts_now ());
           meta.second->received (context.ts_now ());
 
+          /// Check signature and set header field
+          mail.verify ();
+
           bool saved = mail.save ("inbox");
           if (!saved)
             {
@@ -1041,7 +1044,7 @@ EmailWorker::check_outbox (v_sp_email &emails)
           continue;
         }
 
-      //mailPacket.sign (); //ToDo
+      mailPacket.sign ();
 
       auto recipient = mailPacket.get_recipient ();
 
@@ -1293,8 +1296,6 @@ EmailWorker::check_inbox ()
                         mail_path);
               continue;
             }
-
-          // ToDo: check signature and set header field
 
           mailPacket.compose ();
           mailPacket.filename (mail_path);

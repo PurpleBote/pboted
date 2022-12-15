@@ -151,6 +151,7 @@ DHTworker::getClosestNodes (HashKey key, size_t num, bool to_us)
   {
     sp_node node;
     i2p::data::XORMetric metric;
+
     bool
     operator< (const sortable_node &other) const
     {
@@ -167,31 +168,33 @@ DHTworker::getClosestNodes (HashKey key, size_t num, bool to_us)
   if (to_us)
     our_metric = key ^ m_local_node->GetIdentHash ();
 
-  {
-    std::unique_lock<std::mutex> l (m_nodes_mutex);
-    for (const auto &it : m_nodes)
-      {
-        if (it.second->locked ())
-          continue;
-        /// Distance - XOR result for two hashes.
-        /// Will be than larger, the more they differ.
-        /// We are interested in the minimum difference (distance).
-        i2p::data::XORMetric metric = key ^ it.second->GetIdentHash ();
+  auto unlocked_nodes = getUnlockedNodes ();
+  for (const auto &node : unlocked_nodes)
+    {
+      if (node->locked ())
+        continue;
+      /*
+       * Distance - XOR result for two hashes.
+       * Will be than larger, the more they differ.
+       * We are interested in the minimum difference (distance).
+       */
+      i2p::data::XORMetric metric = key ^ node->GetIdentHash ();
 
-        if (to_us && our_metric < metric)
-          continue;
+      if (to_us && our_metric < metric)
+        continue;
 
-        if (sorted_nodes.size () < num)
-          sorted_nodes.insert ({ it.second, metric });
-        else if (metric < sorted_nodes.rbegin ()->metric)
-          {
-            /// If current metric less than biggest in sorted node
-            ///   add current and remove one from the end
-            sorted_nodes.insert ({ it.second, metric });
-            sorted_nodes.erase (std::prev (sorted_nodes.end ()));
-          }
-      }
-  }
+      if (sorted_nodes.size () < num)
+        sorted_nodes.insert ({ node, metric });
+      else if (metric < sorted_nodes.rbegin ()->metric)
+        {
+          /*
+           * If current metric less than biggest in sorted node
+           * add current and remove one from the end
+           */
+          sorted_nodes.insert ({ node, metric });
+          sorted_nodes.erase (std::prev (sorted_nodes.end ()));
+        }
+    }
 
   std::vector<sp_node> result;
   size_t i = 0;
@@ -203,11 +206,11 @@ DHTworker::getClosestNodes (HashKey key, size_t num, bool to_us)
       /// For debug only
       /*
       std::stringstream ss;
-      for (int k = 0;k<3;k++)
-        ss << std::setw(3) << std::setfill('0') << unsigned(it.metric.metric[k]);
+      for (int k = 0;k < 3;k++)
+        ss << std::setw(3) << std::setfill ('0') << (unsigned)it.metric.metric[k];
 
       LogPrint (eLogDebug, "DHT: getClosestNodes: node: ",
-                it.node->GetIdentHash ().ToBase32 (), ", metric: ", ss.str());
+                it.node->GetIdentHash ().ToBase32 (), ", metric: ", ss.str ());
       */
 
       result.push_back (it.node);
@@ -975,12 +978,15 @@ DHTworker::closestNodesLookupTask (HashKey key)
       batch->addPacket (vcid, q_packet);
     }
 
+  LogPrint (eLogDebug, "DHT: closestNodesLookup: Ready requests: ",
+            active_requests.size ());
+
   int32_t exec_duration = 0;
   size_t counter = 1;
 
   /// While we have unanswered requests and timeout not reached
-  while (!active_requests.empty ()  && m_started
-         && exec_duration < CLOSEST_NODES_LOOKUP_TIMEOUT)
+  while (!active_requests.empty () && m_started &&
+         exec_duration < CLOSEST_NODES_LOOKUP_TIMEOUT)
     {
       LogPrint (eLogDebug, "DHT: closestNodesLookup: Request #", counter);
       LogPrint (eLogDebug, "DHT: closestNodesLookup: Batch size: ",
@@ -1010,16 +1016,18 @@ DHTworker::closestNodesLookupTask (HashKey key)
           std::vector<uint8_t> vcid (std::begin (response->cid),
                                      std::end (response->cid));
           /// Check if we sent requests with this CID
-          if (active_requests.find (vcid) != active_requests.end ())
+          auto find_result = active_requests.find (vcid);
+          if (find_result != active_requests.end ())
             {
               /// Remove node from active requests and from batch
-              active_requests.erase (vcid);
+              active_requests.erase (find_result);
               batch->removePacket (vcid);
             }
         }
 
       exec_duration = bote::context.ts_now () - task_start_time;
       LogPrint (eLogDebug, "DHT: closestNodesLookup: Duration: ", exec_duration);
+      LogPrint (eLogDebug, "DHT: closestNodesLookup: Active requests: ", active_requests.size ());
     }
 
   if (!m_started)
@@ -1034,6 +1042,16 @@ DHTworker::closestNodesLookupTask (HashKey key)
     }
 
   bote::network_worker.remove_batch (batch);
+
+  /// If we have no responses - try with known nodes
+  if (responses.empty ())
+    {
+      LogPrint (eLogWarning, "DHT: closestNodesLookup: Not enough "
+                "responses, will use known nodes");
+      // ToDo:
+      //return getClosestNodes (key, KADEMLIA_CONSTANT_K, false);
+      return getClosestNodes (key, 20, false);
+    }
 
   /// If we have at least one response
   for (const auto &response : responses)
@@ -1156,15 +1174,7 @@ DHTworker::closestNodesLookupTask (HashKey key)
         }
     }
 
-  bote::network_worker.remove_batch (batch);
-
-  /// If we have no responses - try with known nodes
-  if (responses.empty ())
-    {
-      LogPrint (eLogWarning, "DHT: closestNodesLookup: Not enough "
-                "responses, will use known nodes");
-      return getClosestNodes (key, 20, false);
-    }
+  //bote::network_worker.remove_batch (batch);
 
   /// Now we can lock nodes
   calc_locks (responses);
@@ -1226,6 +1236,8 @@ DHTworker::closestNodesLookupTask (HashKey key)
   for (const auto &node : closestNodes)
     addNode (node.second->ToBase64 ());
 
+  // ToDo:
+  //return getClosestNodes (key, KADEMLIA_CONSTANT_K, false);
   return getClosestNodes (key, 20, false);
 }
 
@@ -1872,7 +1884,7 @@ DHTworker::receiveFindClosePeers (const sp_comm_pkt &packet)
       response.data = peer_list.toByte ();
     }
 
-  if (packet->ver == 5)
+  if (packet->ver >= 5)
     {
       LogPrint (eLogDebug, "DHT: receiveFindClosePeers: Prepare PeerList V5");
       bote::PeerListPacketV5 peer_list;
@@ -2093,4 +2105,4 @@ DHTworker::retrieveRequestPacket (uint8_t data_type, HashKey key)
   return packet;
 }
 
-} // bote
+} /* namespace bote */

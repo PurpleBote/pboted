@@ -24,6 +24,24 @@
 #include "Signature.h"
 #include "Tag.h"
 
+namespace i2p
+{
+namespace crypto
+{
+
+/// ECDSA_SHA256_P256 for I2P-Bote
+const size_t ECDSAP256_BOTE_KEY_LENGTH = 66;
+typedef ECDSAVerifier<SHA256Hash, NID_X9_62_prime256v1, ECDSAP256_BOTE_KEY_LENGTH> ECDSAP256BVerifier;
+typedef ECDSASigner<SHA256Hash, NID_X9_62_prime256v1, ECDSAP256_BOTE_KEY_LENGTH> ECDSAP256BSigner;
+
+inline void CreateECDSAP256BRandomKeys (uint8_t * signingPrivateKey, uint8_t * signingPublicKey)
+{
+  CreateECDSARandomKeys (NID_X9_62_prime256v1, ECDSAP256_BOTE_KEY_LENGTH, signingPrivateKey, signingPublicKey);
+}
+
+} /* namespace crypto */
+} /* namespace i2p */
+
 namespace bote
 {
 
