@@ -52,6 +52,15 @@ Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/in
   - CentOS / Fedora
 - Microsoft Windows - [![Build Windows](https://github.com/PurpleBote/pboted/actions/workflows/build-windows.yml/badge.svg)](https://github.com/polistern/pboted/actions/workflows/build-windows.yml)
 
+#### Support expected soon
+
+- GNU/Linux
+  - Arch Linux
+  - OpenWrt
+- UNIX-like
+  - FreeBSD
+  - macOS
+
 ## Building
 
 See [documentation](https://pboted.readthedocs.io/en/latest/building/requirements/)([I2P](http://polistern.i2p/pbote/user-guide/install/#building-from-source)) for how to build **pboted** from source.
