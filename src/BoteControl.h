@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
- * Copyright (C) 2022, The PurpleBote Team
+ * Copyright (C) 2022-2023, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -20,12 +20,17 @@
 #include <sys/un.h>
 #endif
 
+#include "json.hpp"
+#include "jsonrpcpp.hpp"
+
 #include "compat.h"
 
 namespace bote
 {
 namespace module
 {
+
+using json = nlohmann::json;
 
 #define CONTROL_MAX_CLIENTS 3
 #define CONTROL_BUFF_SIZE 8192
@@ -62,8 +67,8 @@ public:
 
   bool running () { return m_is_running; };
 
-  typedef void (BoteControl::*Handler) (const std::string &cmd_id,
-                                        std::ostringstream &results);
+  typedef void (BoteControl::*Handler) (const jsonrpcpp::request_ptr req,
+                                        json& results);
 
 private:
   void run ();
@@ -71,25 +76,18 @@ private:
   void handle_request (int sid);
   void reply (int sid, const std::string &msg);
 
-  void insert_param (std::ostringstream &ss, const std::string &name,
-                     int value) const;
-  void insert_param (std::ostringstream &ss, const std::string &name,
-                     double value) const;
-  void insert_param (std::ostringstream &ss, const std::string &name,
-                     const std::string &value) const;
-
   /// Handlers
-  void all (const std::string &cmd_id, std::ostringstream &results);
-  ///
-  void addressbook (const std::string &cmd_id, std::ostringstream &results);
-  void daemon (const std::string &cmd_id, std::ostringstream &results);
-  void identity (const std::string &cmd_id, std::ostringstream &results);
-  void storage (const std::string &cmd_id, std::ostringstream &results);
-  void peer (const std::string &cmd_id, std::ostringstream &results);
-  void node (const std::string &cmd_id, std::ostringstream &results);
-
+  void all (const jsonrpcpp::request_ptr req, json& results);
+  //
+  void addressbook (const jsonrpcpp::request_ptr req, json& results);
+  void daemon (const jsonrpcpp::request_ptr req, json& results);
+  void identity (const jsonrpcpp::request_ptr req, json& results);
+  void storage (const jsonrpcpp::request_ptr req, json& results);
+  void peer (const jsonrpcpp::request_ptr req, json& results);
+  void node (const jsonrpcpp::request_ptr req, json& results);
   /// For unknown
-  void unknown_cmd (const std::string &cmd, std::ostringstream &results);
+  void unknown_method (const jsonrpcpp::request_ptr req, json& results);
+  void unknown_param (const jsonrpcpp::request_ptr req, json& results);
 
   ///
   bool m_is_running = false;

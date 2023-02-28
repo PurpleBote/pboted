@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
- * Copyright (C) 2022, The PurpleBote Team
+ * Copyright (C) 2022-2023, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -1159,8 +1159,10 @@ Email::sign ()
   std::stringstream buffer;
   buffer << mail;
   std::string str_buf = buffer.str ();
+  // ToDo: basic_string_view instead of vector
   std::vector<uint8_t> mail_bytes = std::vector<uint8_t> (str_buf.begin (), str_buf.end ());
 
+  // ToDo: raw pointer to std::array or std::vector?
   uint8_t *sig = (uint8_t *) malloc (sender->GetSignatureLen ());
   
   sender->Sign(mail_bytes.data (), mail_bytes.size (), sig);

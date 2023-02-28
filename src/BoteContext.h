@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
- * Copyright (C) 2022, The PurpleBote Team
+ * Copyright (C) 2022-2023, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -89,8 +89,8 @@ class BoteContext
 
   /// Identities
   size_t get_identities_count() { return getEmailIdentities().size(); }
-  std::shared_ptr<bote::BoteIdentityFull> identityByName(const std::string &name);
-  std::vector<std::shared_ptr<bote::BoteIdentityFull>> getEmailIdentities();
+  sp_bote_id_full identityByName(const std::string &name);
+  std::vector<sp_bote_id_full> getEmailIdentities();
 
   /// Adressbook
   size_t contacts_size () { return m_address_book.size (); }

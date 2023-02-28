@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
- * Copyright (C) 2022, The PurpleBote Team
+ * Copyright (C) 2022-2023, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -418,7 +418,15 @@ BoteControl::run ()
                     }
 
                   /* Data was received  */
-                  handle_request (sid);
+                  try
+                    {
+                      handle_request (sid);
+                    }
+                  catch (const std::exception& ex)
+                    {
+                      LogPrint (eLogError, "ControlSession: run: FD #", sid, " ",
+                        ex.what());
+                    }
                 } while (m_is_running);
 
               if (close_conn)
@@ -499,241 +507,362 @@ BoteControl::handle_request (int sid)
   std::string str_req (session.buf);
   LogPrint (eLogDebug, "Control: handle_request: Got request: ", str_req);
 
-  // ToDo: parse request and combine response
-  std::ostringstream result, response;
+  if (!jsonrpcpp::Parser::is_request(str_req))
+    {
+      LogPrint (eLogWarning, "Control: handle_request: Invalid request");
+      jsonrpcpp::Error err("Invalid request", -32600);
+      json response = {{"jsonrpc", "2.0"}, {"error", err.to_json()}, {"id", nullptr}};
+      reply (sid, response.dump());
+      return;
+    }
 
-  while (str_req.find ("\n") != std::string::npos)
-    str_req.erase (str_req.find ("\n"));
+  jsonrpcpp::request_ptr req = nullptr;
 
-  size_t pos = str_req.find (".");
-  std::string cmd_prefix = str_req.substr (0, pos);
-  std::string cmd_id = str_req.substr (pos + 1);
+  try
+    {
+      req = std::dynamic_pointer_cast<jsonrpcpp::Request>(jsonrpcpp::Parser::do_parse(str_req));
+    }
+  catch (const std::exception& ex)
+    {
+      LogPrint (eLogWarning, "Control: handle_request: Invalid request: ", ex.what());
+      jsonrpcpp::Error err("Invalid request", -32600);
+      json response = {{"jsonrpc", "2.0"}, {"error", err.to_json()}, {"id", nullptr}};
+      reply (sid, response.dump());
+      return;
+    }
 
-  LogPrint (eLogDebug, "Control: handle_request: cmd_prefix: ", cmd_prefix,
-            ", cmd_id: ", cmd_id);
+  if (!req)
+    {
+      LogPrint (eLogWarning, "Control: handle_request: Can't parse");
+      jsonrpcpp::Error err("Invalid request", -32600);
+      json response = {{"jsonrpc", "2.0"}, {"error", err.to_json()}, {"id", nullptr}};
+      reply (sid, response.dump());
+      return;
+    }
 
-  response << "{\"id\": null,";
-  auto it = handlers.find (cmd_prefix);
+  LogPrint (eLogDebug, "Control: handle_request: json req: ", req->to_json().dump());
+
+  json results;
+  auto it = handlers.find (req->method());
   if (it != handlers.end ())
     {
-      (this->*(it->second)) (cmd_id, result);
-
-      if (session.is_error)
-        {
-          response << "\"result\": null,";
-          response << "\"error\": {";
-        }
-      else
-        {
-          response << "\"error\": null,";
-          response << "\"result\": {";
-        }
-      response << result.str ();
+      (this->*(it->second)) (req, results);
     }
   else
     {
-      LogPrint (eLogWarning, "Control: handle_request: Unknown cmd prefix: ",
-                cmd_prefix);
-
-      unknown_cmd (str_req, result);
-      response << "\"result\": null,";
-      response << "\"error\": {";
-      response << result.str ();
+      LogPrint (eLogWarning, "Control: handle_request: Method not found");
+      jsonrpcpp::Error err("Method not found", -32601);
+      json response = {
+        {"jsonrpc", "2.0"},
+        {"result", nullptr},
+        {"error", err.to_json()},
+        {"id", req->id ().to_json ()}
+      };
+      reply (sid, response.dump());
+      return;
     }
-  response << "},\"jsonrpc\": \"2.0\"}";
+
+  json res = {
+    {"jsonrpc", "2.0"},
+    {"result", nullptr},
+    {"error", nullptr},
+    {"id", req->id ().to_json ()}
+  };
+
+  if (session.is_error || results.contains("error"))
+    res["error"] = results.at ("error");
+  else
+    res["result"] = results;
 
   session.is_error = false;
 
-  reply (sid, response.str ());
+  LogPrint (eLogDebug, "Control: handle_request: json res: ", res.dump());
+
+  reply (sid, res.dump());
 }
 
 void
-BoteControl::insert_param (std::ostringstream &ss, const std::string &name,
-                           int value) const
-{
-  ss << "\"" << name << "\": " << value;
-}
-
-void
-BoteControl::insert_param (std::ostringstream &ss, const std::string &name,
-                           double value) const
-{
-  ss << "\"" << name << "\": " << std::fixed << std::setprecision (6) << value;
-}
-
-void
-BoteControl::insert_param (std::ostringstream &ss, const std::string &name,
-                           const std::string &value) const
-{
-  ss << "\"" << name << "\": ";
-  if (value.length () > 0)
-    ss << "\"" << value << "\"";
-  else
-    ss << "null";
-}
-
-void
-BoteControl::all (const std::string &cmd_id, std::ostringstream &results)
+BoteControl::all (const jsonrpcpp::request_ptr req, json& results)
 {
   if (session.is_error)
     return;
 
-  LogPrint (eLogDebug, "Control: all: cmd_id: ", cmd_id);
-
-  if (0 == cmd_id.compare ("show"))
+  if (req->method ().compare ("all") != 0)
     {
-      daemon (cmd_id, results);
-      results << ", ";
-      addressbook (cmd_id, results);
-      results << ", ";
-      identity (cmd_id, results);
-      results << ", ";
-      storage (cmd_id, results);
-      results << ", ";
-      peer (cmd_id, results);
-      results << ", ";
-      node (cmd_id, results);
+      unknown_method (req, results);
+      return;
+    }
+
+  if (!req->params ().has ("subcommand"))
+    {
+      unknown_param (req, results);
+      return;
+    }
+
+  auto subcmd = req->params ().get<std::string>("subcommand");
+
+  LogPrint (eLogDebug, "Control: all: subcmd: ", subcmd);
+
+  if (subcmd.compare("show") == 0)
+    {
+      daemon (req, results);
+      addressbook (req, results);
+      identity (req, results);
+      storage (req, results);
+      peer (req, results);
+      node (req, results);
     }
   else
-    unknown_cmd (cmd_id, results);
+    unknown_param (req, results);
 }
 
 void
-BoteControl::addressbook (const std::string &cmd_id, std::ostringstream &results)
+BoteControl::addressbook (const jsonrpcpp::request_ptr req, json& results)
 {
   if (session.is_error)
     return;
 
-  LogPrint (eLogDebug, "Control: addressbook: cmd_id: ", cmd_id);
-
-  if (0 == cmd_id.compare ("show"))
+  if (req->method ().compare ("all") != 0 && req->method ().compare ("addressbook") != 0)
     {
-      results << "\"addressbook\": {";
-      insert_param (results, "size", (int)bote::context.contacts_size ());
-      results << "}";
+      unknown_method (req, results);
+      return;
+    }
+
+  if (!req->params ().has ("subcommand"))
+    {
+      unknown_param (req, results);
+      return;
+    }
+
+  auto subcmd = req->params ().get<std::string>("subcommand");
+
+  LogPrint (eLogDebug, "Control: addressbook: subcmd: ", subcmd);
+
+  if (subcmd.compare("show") == 0)
+    {
+      results["addressbook"] = {
+        { "size", bote::context.contacts_size () }
+      };
     }
   else
-    unknown_cmd (cmd_id, results);
+    unknown_param (req, results);
 }
 
 void
-BoteControl::daemon (const std::string &cmd_id, std::ostringstream &results)
+BoteControl::daemon (const jsonrpcpp::request_ptr req, json& results)
 {
   if (session.is_error)
     return;
 
-  LogPrint (eLogDebug, "Control: daemon: cmd_id: ", cmd_id);
-
-  if (0 == cmd_id.compare ("show"))
+  if (req->method ().compare ("all") != 0 && req->method ().compare ("daemon") != 0)
     {
-      results << "\"daemon\": {";
-      insert_param (results, "uptime", (int)bote::context.get_uptime ());
-      results << ", ";
-      results << "\"bytes\": {";
-      insert_param (results, "recived", (int)bote::network_worker.bytes_recv ());
-      results << ", ";
-      insert_param (results, "sent", (int)bote::network_worker.bytes_sent ());
-      results << "}}";
+      unknown_method (req, results);
+      return;
+    }
+
+  if (!req->params ().has ("subcommand"))
+    {
+      unknown_param (req, results);
+      return;
+    }
+
+  auto subcmd = req->params ().get<std::string>("subcommand");
+
+  LogPrint (eLogDebug, "Control: daemon: subcmd: ", subcmd);
+
+  if (subcmd.compare("show") == 0)
+    {
+      results["daemon"] = {
+        { "uptime", bote::context.get_uptime () },
+        { "bytes",
+          {
+            { "recived", bote::network_worker.bytes_recv () },
+            { "sent", bote::network_worker.bytes_sent () }
+          }
+        }
+      };
     }
   else
-    unknown_cmd (cmd_id, results);
+    unknown_param (req, results);
 }
 
 void
-BoteControl::identity (const std::string &cmd_id, std::ostringstream &results)
+BoteControl::identity (const jsonrpcpp::request_ptr req, json& results)
 {
   if (session.is_error)
     return;
 
-  LogPrint (eLogDebug, "Control: daemon: cmd_id: ", cmd_id);
-
-  if (0 == cmd_id.compare ("show"))
+  if (req->method ().compare ("all") != 0 && req->method ().compare ("identity") != 0)
     {
-      results << "\"identity\": {";
-      insert_param (results, "count", (int)bote::context.get_identities_count ());
-      results << "}";
+      unknown_method (req, results);
+      return;
+    }
+
+  if (!req->params ().has ("subcommand"))
+    {
+      unknown_param (req, results);
+      return;
+    }
+
+  auto subcmd = req->params ().get<std::string>("subcommand");
+
+  LogPrint (eLogDebug, "Control: identity: subcmd: ", subcmd);
+
+  if (req->method ().compare ("all") == 0 && subcmd.compare("show") == 0)
+    {
+      results["identity"] = {
+        { "count", bote::context.get_identities_count () }
+      };
+    }
+  else if (req->method ().compare ("identity") == 0 && subcmd.compare("show") == 0)
+    {
+      results["identity"] = json::array();
+      auto identities = bote::context.getEmailIdentities ();
+      for (const auto &identity : identities)
+        {
+          json jident = {
+            { "name", identity->publicName },
+            { "address", identity->identity.ToBase64v1 () },
+            { "hash", identity->identity.GetIdentHash ().ToBase64 () },
+            { "type", identity->identity.GetKeyType () }
+          };
+          results["identity"].push_back(jident);
+        }
     }
   else
-    unknown_cmd (cmd_id, results);
+    unknown_param (req, results);
 }
 
 void
-BoteControl::storage (const std::string &cmd_id, std::ostringstream &results)
+BoteControl::storage (const jsonrpcpp::request_ptr req, json& results)
 {
   if (session.is_error)
     return;
 
-  LogPrint (eLogDebug, "Control: storage: cmd_id: ", cmd_id);
-
-  if (0 == cmd_id.compare ("show"))
+  if (req->method ().compare ("all") != 0 && req->method ().compare ("storage") != 0)
     {
-      results << "\"storage\": {";
-      insert_param (results, "used",
-                    (double)bote::DHT_worker.get_storage_usage ());
-      results << "}";
+      unknown_method (req, results);
+      return;
+    }
+
+  if (!req->params ().has ("subcommand"))
+    {
+      unknown_param (req, results);
+      return;
+    }
+
+  auto subcmd = req->params ().get<std::string>("subcommand");
+
+  LogPrint (eLogDebug, "Control: storage: subcmd: ", subcmd);
+
+  if (subcmd.compare("show") == 0)
+    {
+      results["storage"] = {
+        { "used", bote::DHT_worker.get_storage_usage () }
+      };
     }
   else
-    unknown_cmd (cmd_id, results);
+    unknown_param (req, results);
 }
 
 void
-BoteControl::peer (const std::string &cmd_id, std::ostringstream &results)
+BoteControl::peer (const jsonrpcpp::request_ptr req, json& results)
 {
   if (session.is_error)
     return;
 
-  LogPrint (eLogDebug, "Control: peer: cmd_id: ", cmd_id);
-
-  if (0 == cmd_id.compare ("show"))
+  if (req->method ().compare ("all") != 0 && req->method ().compare ("peer") != 0)
     {
-      results << "\"peers\": {";
-      results << "\"count\": {";
-      insert_param (results, "total",
-                    (int)bote::relay_worker.getPeersCount ());
-      results << ", ";
-      insert_param (results, "good",
-                    (int)bote::relay_worker.get_good_peer_count ());
-      results << "}}";
+      unknown_method (req, results);
+      return;
+    }
+
+  if (!req->params ().has ("subcommand"))
+    {
+      unknown_param (req, results);
+      return;
+    }
+
+  auto subcmd = req->params ().get<std::string>("subcommand");
+
+  LogPrint (eLogDebug, "Control: peer: subcmd: ", subcmd);
+
+  if (subcmd.compare("show") == 0)
+    {
+      results["peers"] = {
+        { "count",
+          {
+            { "total", bote::relay_worker.getPeersCount () },
+            { "good", bote::relay_worker.get_good_peer_count () }
+          }
+        }
+      };
     }
   else
-    unknown_cmd (cmd_id, results);
+    unknown_param (req, results);
 }
 
 void
-BoteControl::node (const std::string &cmd_id, std::ostringstream &results)
+BoteControl::node (const jsonrpcpp::request_ptr req, json& results)
 {
   if (session.is_error)
     return;
 
-  LogPrint (eLogDebug, "Control: node: cmd_id: ", cmd_id);
-
-  if (0 == cmd_id.compare ("show"))
+  if (req->method ().compare ("all") != 0 && req->method ().compare ("node") != 0)
     {
-      results << "\"nodes\": {";
-      results << "\"count\": {";
-      insert_param (results, "total",
-                    (int)bote::DHT_worker.getNodesCount ());
-      results << ", ";
-      insert_param (results, "unlocked",
-                    (int)bote::DHT_worker.get_unlocked_nodes_count ());
-      results << "}}";
+      unknown_method (req, results);
+      return;
+    }
+
+  if (!req->params ().has ("subcommand"))
+    {
+      unknown_param (req, results);
+      return;
+    }
+
+  auto subcmd = req->params ().get<std::string>("subcommand");
+
+  LogPrint (eLogDebug, "Control: node: subcmd: ", subcmd);
+
+  if (subcmd.compare("show") == 0)
+    {
+      results["nodes"] = {
+        {"count",
+          {
+            { "total", bote::DHT_worker.getNodesCount () },
+            { "unlocked", bote::DHT_worker.get_unlocked_nodes_count () }
+          }
+        }
+      };
     }
   else
-    unknown_cmd (cmd_id, results);
+    unknown_param (req, results);
 }
 
 void
-BoteControl::unknown_cmd (const std::string &cmd, std::ostringstream &results)
+BoteControl::unknown_method (const jsonrpcpp::request_ptr req, json& results)
 {
   if (session.is_error)
     return;
 
-  LogPrint (eLogWarning, "Control: node: unknown_cmd: ", cmd);
+  LogPrint (eLogWarning, "Control: unknown_method: ", req->to_json ().dump ());
 
-  results.str("");
+  jsonrpcpp::Error err("Method not found", -32601);
+  results["error"] = err.to_json();
 
-  results << "\"code\": 404,";
-  results << "\"message\": \"Command not found: " << cmd << "\"";
+  session.is_error = true;
+}
+
+void
+BoteControl::unknown_param (const jsonrpcpp::request_ptr req, json& results)
+{
+  if (session.is_error)
+    return;
+
+  LogPrint (eLogWarning, "Control: unknown_param: ", req->to_json ().dump ());
+
+  jsonrpcpp::Error err("Invalid params", -32602);
+  results["error"] = err.to_json();
 
   session.is_error = true;
 }

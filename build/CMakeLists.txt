@@ -73,6 +73,10 @@ file(GLOB LIBLZMA_SRC ${LIBLZMA_SRC_DIR}/*.c)
 add_library(liblzma ${LIBLZMA_SRC})
 set_target_properties(liblzma PROPERTIES PREFIX "")
 
+# json stuff
+set(LIBJSON_SRC_DIR ${CMAKE_SOURCE_DIR}/lib/json)
+include_directories(${LIBJSON_SRC_DIR})
+
 # pboted stuff
 include_directories(${PBOTED_SRC_DIR})
 file(GLOB PBOTED_SRC ${PBOTED_SRC_DIR}/*.cpp)
@@ -253,7 +257,7 @@ else ()
   endif ()
 endif ()
 
-# ToDo
+# ToDo: Update crypto to 3.0.0
 if(OPENSSL_VERSION VERSION_GREATER_EQUAL "3.0.0")
   add_definitions(-DOPENSSL_SUPPRESS_DEPRECATED)
 endif()

@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
- * Copyright (C) 2022, The PurpleBote Team
+ * Copyright (C) 2022-2023, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -507,7 +507,7 @@ class BoteIdentityPrivate
   size_t ToBuffer(uint8_t *buf, size_t len) const;
   size_t FromBase64(const std::string &s);
   std::string ToBase64() const;
-  //std::string ToBase64v1() const;
+  std::string ToBase64v1() const { return m_Public->ToBase64v1 (); };
 
   std::shared_ptr<const BoteIdentityPublic> GetPublicIdentity() const { return m_Public; };
   const IdentHash &GetIdentHash() const { return m_Public->GetIdentHash(); };

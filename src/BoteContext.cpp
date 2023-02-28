@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
- * Copyright (C) 2022, The PurpleBote Team
+ * Copyright (C) 2022-2023, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -390,7 +390,7 @@ BoteContext::identityByName(const std::string &name)
   return nullptr;
 }
 
-std::vector<std::shared_ptr<bote::BoteIdentityFull>>
+std::vector<sp_bote_id_full>
 BoteContext::getEmailIdentities()
 {
   return m_identities_storage->get_identities();
