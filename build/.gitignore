@@ -1,21 +1,5 @@
-/.cmake/
-/cmake-build-debug/
-/CMakeFiles/
-/arch.c
-/cmake_install.cmake
-/CMakeCache.txt
-/compile_commands.json
-/CPackConfig.cmake
-/CPackSourceConfig.cmake
-/libi2pd.a
-/i2psam.a
-/liblzma.a
-/Makefile
-/mimetic/
-/lib
-/pboted*
+!cmake_modules
+!.gitignore
+!CMakeLists.txt
 
-/*.ninja
-
-# debug
-massif.out.*
+*
