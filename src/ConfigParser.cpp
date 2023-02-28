@@ -1,7 +1,7 @@
 /**
  * Copyright (C) 2013-2017, The PurpleI2P Project
  * Copyright (C) 2019-2022, polistern
- * Copyright (C) 2022, The PurpleBote Team
+ * Copyright (C) 2022-2023, The PurpleBote Team
  *
  * This file is part of pboted project and licensed under BSD3
  *
@@ -62,7 +62,7 @@ Init ()
     ;
   options_description control("Control");
   control.add_options()
-    ("control.enabled", bool_switch()->default_value(true), "Allow connect to control (default: true)")
+    ("control.enabled", bool_switch()->default_value(false), "Allow connect to control (default: false)")
 #if !defined(_WIN32) || !defined(DISABLE_SOCKET)
     ("control.socket", value<std::string>()->default_value(""), "Path to control socket (default: ~/pboted/pboted.sock or /var/lib/pboted/pbote.sock)")
 #endif
