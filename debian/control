@@ -29,7 +29,7 @@ Depends:
  ${shlibs:Depends},
  ${misc:Depends},
  lsb-base
-Description: C++ implementation of I2P-Bote.
- I2P-Bote is a server-less Kademlia DHT-based email protocol.
+Description: C++ implementation of I2P/Bote.
+ I2P/Bote is a server-less Kademlia DHT-based email protocol.
  Interaction with the I2P network occurs through the SAMv3 interface
  (tested with i2pd and Java I2P).
