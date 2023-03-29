@@ -65,6 +65,7 @@ const std::vector<std::string> HEADER_WHITELIST
    "Content-Transfer-Encoding",
    "MIME-Version",
    "Message-ID",
+   "Autocrypt",
    "X-HashCash",
    "X-Priority",
    SIGNATURE_HEADER
@@ -182,6 +183,7 @@ class Email
      CONTENT_TRANSFER_ENCODING,
      MIME_VERSION,
      MESSAGE_ID,
+     AUTOCRYPT,
      X_HASH_CASH,
      X_PRIORITY,
      X_I2PBBOTE_SIGNATURE
