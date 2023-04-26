@@ -245,7 +245,7 @@ RelayWorker::loadPeers ()
   std::vector<std::string> bootstrap_addresses;
   bote::config::GetOption ("bootstrap.address", bootstrap_addresses);
 
-  if (m_nodes.size () < 10)
+  if (m_peers.size () < 10)
     {
       // Only if we have not enough nodes in storage
       LogPrint (eLogInfo, "DHT: loadNodes: Not enough nodes, try bootstrap");
@@ -284,7 +284,7 @@ RelayWorker::add_bootstrap ()
           i2p::data::IdentityEx new_peer;
           new_peer.FromBase64 (bootstrap_address);
           LogPrint (eLogDebug, "Relay: add_bootstrap: Added: ",
-                    new_peer.short_str ());
+                    new_peer.GetIdentHash ().ToBase32 ());
         }
       else
         dup++;
@@ -292,6 +292,8 @@ RelayWorker::add_bootstrap ()
 
   LogPrint (eLogInfo, "Relay: add_bootstrap: Added: ", counter, ", duplicated: ",
             dup);
+
+  return true;
 }
 
 void
