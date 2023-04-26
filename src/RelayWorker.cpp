@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
- * Copyright (C) 2022, The PurpleBote Team
+ * Copyright (C) 2022-2023, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -245,23 +245,15 @@ RelayWorker::loadPeers ()
   std::vector<std::string> bootstrap_addresses;
   bote::config::GetOption ("bootstrap.address", bootstrap_addresses);
 
-  if (!bootstrap_addresses.empty () && m_peers.empty ())
+  if (m_nodes.size () < 10)
     {
-      size_t peers_added = 0;
-      for (const auto &bootstrap_address : bootstrap_addresses)
-        {
-          sp_i2p_ident new_peer = std::make_shared<i2p::data::IdentityEx> ();
+      // Only if we have not enough nodes in storage
+      LogPrint (eLogInfo, "DHT: loadNodes: Not enough nodes, try bootstrap");
+      add_bootstrap ();
+    }
 
-          if (!bootstrap_address.empty ())
-            new_peer->FromBase64 (bootstrap_address);
-
-          if (addPeer (new_peer, PEER_MIN_REACHABILITY))
-            peers_added++;
-          LogPrint (eLogDebug, "Relay: Successfully add node: ",
-                    new_peer->ToBase64 ());
-        }
-      LogPrint (eLogInfo, "Relay: Added peers: ", peers_added);
-
+  if (!peers.empty ())
+    {
       for (auto peer : m_peers)
         peer.second->last_seen (context.ts_now ());
 
@@ -269,6 +261,37 @@ RelayWorker::loadPeers ()
     }
   else
     return false;
+}
+
+bool
+RelayWorker::add_bootstrap ()
+{
+  size_t counter = 0, dup = 0;
+  std::vector<std::string> bootstrap_addresses;
+  bote::config::GetOption ("bootstrap.address", bootstrap_addresses);
+
+  if (bootstrap_addresses.empty ())
+  {
+    LogPrint (eLogInfo, "Relay: add_bootstrap: Can't load bootstrap nodes");
+    return false;
+  }
+
+  for (auto &bootstrap_address : bootstrap_addresses)
+    {
+      if (addPeer (bootstrap_address))
+        {
+          counter++;
+          i2p::data::IdentityEx new_peer;
+          new_peer.FromBase64 (bootstrap_address);
+          LogPrint (eLogDebug, "Relay: add_bootstrap: Added: ",
+                    new_peer.short_str ());
+        }
+      else
+        dup++;
+    }
+
+  LogPrint (eLogInfo, "Relay: add_bootstrap: Added: ", counter, ", duplicated: ",
+            dup);
 }
 
 void

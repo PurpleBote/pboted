@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
- * Copyright (C) 2022, The PurpleBote Team
+ * Copyright (C) 2022-2023, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -25,8 +25,8 @@
 #define PBOTED_VERSION                                                        \
   MAKE_VERSION (PBOTED_VERSION_MAJOR, PBOTED_VERSION_MINOR, PBOTED_VERSION_MICRO)
 
-#define BOTE_VERSION_MAJOR 4
-#define BOTE_VERSION_MINOR 1
+#define BOTE_VERSION_MAJOR 5
+#define BOTE_VERSION_MINOR 0
 
 #define BOTE_VERSION                                                          \
   MAKE_PROTO_VERSION (BOTE_VERSION_MAJOR, BOTE_VERSION_MINOR)

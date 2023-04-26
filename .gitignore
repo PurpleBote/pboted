@@ -51,3 +51,6 @@ tramp
 *.exe
 *.out
 *.app
+
+# Temporary development files
+*.bak

@@ -23,7 +23,6 @@ BEGIN
     END
 END
 
-
 #ifdef APSTUDIO_INVOKED
 1 TEXTINCLUDE
 BEGIN
@@ -76,10 +75,10 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
             VALUE "CompanyName", "PurpleBote"
-            VALUE "FileDescription", "Standalone C++ client for I2P-Bote"
+            VALUE "FileDescription", "Standalone C++ client for I2P/Bote"
             VALUE "FileVersion", PBOTED_VERSION
             VALUE "InternalName", CODENAME
-            VALUE "LegalCopyright", "Copyright (C) 2019-2022, The PurpleBote Team"
+            VALUE "LegalCopyright", "Copyright (C) 2019-2023, The PurpleBote Team"
             VALUE "OriginalFilename", "pboted"
             VALUE "ProductName", "Plus Bote Daemon"
             VALUE "ProductVersion", PBOTED_VERSION

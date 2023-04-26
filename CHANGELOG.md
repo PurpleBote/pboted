@@ -19,9 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Disable Control by befault
-- Load bootstrap nodes in case of low count (<10)
+- Load bootstrap nodes in case of low count of usual nodes (<10)
 - Email send/recv to Identity as lymbda/bind = remove EmailWorker
 - Userspace conf dir to `~/.config/pboted` with back compatible (copy old to new)
+- Autocrypt header added to whitelist
 
 ### Deprecated
 

@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
- * Copyright (C) 2022, The PurpleBote Team
+ * Copyright (C) 2022-2023, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -266,6 +266,7 @@ private:
 
   static std::vector<std::string> readNodes ();
   bool loadNodes ();
+  bool add_bootstrap ();
   void writeNodes ();
 
   void calc_locks (std::vector<sp_comm_pkt> responses);

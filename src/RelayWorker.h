@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
- * Copyright (C) 2022, The PurpleBote Team
+ * Copyright (C) 2022-2023, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -169,6 +169,7 @@ public:
   sp_peer findPeer (const hash_key &ident) const;
   static std::vector<std::string> readPeers ();
   bool loadPeers ();
+  bool add_bootstrap ();
   void writePeers ();
 
   void getRandomPeers ();

@@ -1,6 +1,6 @@
 /**
  * Copyright (C) 2019-2022, polistern
- * Copyright (C) 2022, The PurpleBote Team
+ * Copyright (C) 2022-2023, The PurpleBote Team
  *
  * This file is part of pboted and licensed under BSD3
  *
@@ -169,6 +169,16 @@ DHTworker::getClosestNodes (HashKey key, size_t num, bool to_us)
     our_metric = key ^ m_local_node->GetIdentHash ();
 
   auto unlocked_nodes = getUnlockedNodes ();
+
+  if (unlocked_nodes.size () < 10)
+    unlocked_nodes = getAllNodes ();
+
+  if (unlocked_nodes.size () < 10)
+    {
+      loadNodes ();
+      unlocked_nodes = getAllNodes ();
+    }
+
   for (const auto &node : unlocked_nodes)
     {
       if (node->locked ())
@@ -205,7 +215,7 @@ DHTworker::getClosestNodes (HashKey key, size_t num, bool to_us)
 
       /// For debug only
       /*
-      std::stringstream ss;
+      std::stringstream ss;bool add_bootstrap ();
       for (int k = 0;k < 3;k++)
         ss << std::setw(3) << std::setfill ('0') << (unsigned)it.metric.metric[k];
 
@@ -1956,33 +1966,29 @@ DHTworker::loadNodes ()
 
   for (const auto &node_str : nodes_list)
     {
-      auto node = std::make_shared<Node> (node_str);
-      nodes.push_back (node);
-    }
-
-  if (!nodes.empty ())
-    {
-
-      for (const auto &node : nodes)
+      if (addNode (node_str))
         {
-          LogPrint (eLogDebug, "DHT: loadNodes: Node: ", node->short_name ());
-          auto t_hash = node->GetIdentHash ();
-          bool result
-              = m_nodes.insert (std::pair<HashKey, sp_node> (t_hash, node))
-                    .second;
-
-          if (result)
-            counter++;
-          else
-            dup++;
+          counter++;
+          i2p::data::IdentityEx new_node;
+          new_node.FromBase64 (node_str);
+          LogPrint (eLogDebug, "DHT: loadNodes: Added: ", new_node.ToBase64 ());
         }
+      else
+        dup++;
     }
 
-  if (counter > 0)
-    {
-      LogPrint (eLogInfo, "DHT: loadNodes: Nodes loaded: ", counter,
-                ", duplicated: ", dup);
+  LogPrint (eLogInfo, "DHT: loadNodes: Nodes loaded: ", counter,
+            ", duplicated: ", dup);
 
+  if (m_nodes.size () < 10)
+    {
+      // Only if we have not enough nodes in storage
+      LogPrint (eLogInfo, "DHT: loadNodes: Not enough nodes, try bootstrap");
+      add_bootstrap ();
+    }
+
+  if (m_nodes.size () > 0)
+    {
       /// Now we need lock all loaded nodes for initial check in
       /// first running of closestNodesLookupTask
       for (auto node : m_nodes)
@@ -1991,38 +1997,46 @@ DHTworker::loadNodes ()
           node.second->noResponse ();
         }
 
+      LogPrint (eLogInfo, "DHT: loadNodes: Nodes: ", m_nodes.size ());
+
       return true;
     }
 
-  // Only if we have no nodes in storage
-  LogPrint (eLogInfo, "DHT: loadNodes: Can't load nodes, try bootstrap");
+  LogPrint (eLogWarning, "DHT: loadNodes: Can't load nodes");
 
+  return false;
+}
+
+bool
+DHTworker::add_bootstrap ()
+{
+  size_t counter = 0, dup = 0;
   std::vector<std::string> bootstrap_addresses;
   bote::config::GetOption ("bootstrap.address", bootstrap_addresses);
 
-  if (!bootstrap_addresses.empty ())
-    {
-      for (auto &bootstrap_address : bootstrap_addresses)
-        {
-          if (addNode (bootstrap_address))
-            {
-              i2p::data::IdentityEx new_node;
-              new_node.FromBase64 (bootstrap_address);
-              LogPrint (eLogDebug, "DHT: loadNodes: Successfully add node: ",
-                        new_node.GetIdentHash ().ToBase64 ());
-            }
-        }
-
-      for (auto node : m_nodes)
-        {
-          node.second->lastseen (bote::context.ts_now ());
-          node.second->noResponse ();
-        }
-
-      return true;
-    }
-  else
+  if (bootstrap_addresses.empty ())
+  {
+    LogPrint (eLogInfo, "DHT: add_bootstrap: Can't load bootstrap nodes");
     return false;
+  }
+
+  for (auto &bootstrap_address : bootstrap_addresses)
+    {
+      if (addNode (bootstrap_address))
+        {
+          counter++;
+          i2p::data::IdentityEx new_node;
+          new_node.FromBase64 (bootstrap_address);
+          LogPrint (eLogDebug, "DHT: loadNodes: Added: ",
+                    new_node.GetIdentHash ().ToBase64 ());
+        }
+      else
+        dup++;
+    }
+
+  LogPrint (eLogInfo, "DHT: add_bootstrap: Added: ", counter, ", duplicated: ",
+            dup);
+  return true;
 }
 
 void
