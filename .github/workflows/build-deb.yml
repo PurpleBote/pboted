@@ -1,61 +1,39 @@
-name: Build DEB
+name: Build Debian packages
 
 on: [push, pull_request]
 
 jobs:
-  build-deb-buster:
-    name: Build DEB on Debian 10 Buster
+  build:
+    name: ${{ matrix.dist }}
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        dist: ['buster', 'bullseye', 'bookworm']
+
     steps:
-    - name: Checkout  
+    - name: Checkout
       uses: actions/checkout@v3
       with:
         fetch-depth: 0
-    - name: Update changelog
-      run: |
-        sudo apt-get update
-        sudo apt-get install cmake devscripts debhelper
-        debchange -v "`git describe --tags`-buster" -M --distribution buster "trunk build"
+
     - name: Build package
-      uses: nylas/build-dpkg-buster@v1
-      id: build
+      uses: jtdor/build-deb-action@v1
       with:
-        args: --unsigned-source --unsigned-changes -b
-    - name: Upload artifact
-      uses: actions/upload-artifact@v1
-      with:
-        name: ${{ steps.build.outputs.filename }}
-        path: ${{ steps.build.outputs.filename }}
-    - name: Upload dbgsym artifact
-      uses: actions/upload-artifact@v1
-      with:
-        name: ${{ steps.build.outputs.filename-dbgsym }}
-        path: ${{ steps.build.outputs.filename-dbgsym }}
-  #build-deb-bullseye:
-  #  name: Build DEB on Debian 11 Bullseye
-  #  runs-on: ubuntu-latest
-  #  steps:
-  #  - uses: actions/checkout@v2
-  #    with:
-  #      fetch-depth: 0
-  #  - name: Update changelog
-  #    run: |
-  #      sudo apt-get update
-  #      sudo apt-get install cmake devscripts debhelper
+        docker-image: debian:${{ matrix.dist }}-slim
+        buildpackage-opts: --build=binary --no-sign
+        before-build-hook: debchange --controlmaint --local "+${{ github.sha }}~${{ matrix.dist }}" -b --distribution ${{ matrix.dist }} "CI build"
+        extra-build-deps: devscripts git
 
-  #      LATEST_TAG=$(git describe --tags)
-  #      BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    - name: Upload package
+      uses: actions/upload-artifact@v3
+      with:
+        name: pboted_${{ matrix.dist }}
+        path: debian/artifacts/pboted_*.deb
 
-  #      debchange -v "$LATEST_TAG-bullseye" -M --distribution bullseye "trunk build"
-  #      git archive --format=tar.gz -9 --worktree-attributes --prefix=pboted_$LATEST_TAG/ \
-  #        $BRANCH -o ../pboted_$LATEST_TAG.orig.tar.gz
-  #  - name: Build package
-  #    uses: legoktm/gh-action-build-deb@debian-bullseye
-  #    id: build
-  #    with:
-  #      args: --unsigned-source --unsigned-changes
-  #  - name: Upload artifact
-  #    uses: actions/upload-artifact@v1
-  #    with:
-  #      name: Packages for bullseye
-  #      path: output
+    - name: Upload debugging symbols
+      uses: actions/upload-artifact@v3
+      with:
+        name: pboted-dbgsym_${{ matrix.dist }}
+        path: debian/artifacts/pboted-dbgsym_*.deb

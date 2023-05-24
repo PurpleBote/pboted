@@ -32,12 +32,12 @@ jobs:
         cmake -G "MSYS Makefiles" -DMIMETIC_LIBRARY=../lib/compat-win/${{ matrix.arch_short }}/lib/libmimetic.a -DMIMETIC_INCLUDE_DIR=../lib/compat-win/include -DWITH_STATIC=ON .
         make -j$(nproc)
     - name: Upload binary
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: pboted-${{ matrix.arch_short }}
         path: build/pboted.exe
     - name: Upload debug symbols
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: pboted-${{ matrix.arch_short }}-debug
         path: build/pboted.exe.debug
