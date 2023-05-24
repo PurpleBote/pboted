@@ -15,6 +15,7 @@
 #define DEFAULT_FILE_EXTENSION ".dat"
 #define DELETED_FILE_EXTENSION ".del"
 
+#include <cstdint>
 #include <functional>
 #include <iostream>
 #include <sstream>

@@ -30,7 +30,7 @@ jobs:
       run: |
         cd build
         cmake -G "MSYS Makefiles" -DMIMETIC_LIBRARY=../lib/compat-win/${{ matrix.arch_short }}/lib/libmimetic.a -DMIMETIC_INCLUDE_DIR=../lib/compat-win/include -DWITH_STATIC=ON .
-        make -j$(nproc)
+        cmake --build . -j$(nproc)
     - name: Upload binary
       uses: actions/upload-artifact@v3
       with:
