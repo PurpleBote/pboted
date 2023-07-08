@@ -14,6 +14,7 @@
 - ~~Sign and verify messages [issue](https://github.com/PurpleBote/pboted/issues/16)~~
 - ~~Beginning of JSON-RPC 2.0~~
 - ~~Add bootstrap nodes in case of low count (<10)~~
+- Make SAM params configurable
 - Move Email send/recv to Identity as lymbda/bind -> remove EmailWorker
 - DHT replication
 - Check cross-identity-type sending
@@ -56,11 +57,12 @@
 - Maildir support
 - Auth for SMTP, POP3, Control
 - Identity name validation for local-part (to create email directory)
+- Custom per identity/user email folders (!)
 - BoteV5 full support
-  - Relay logic
+  - Relay logic (Sending and receiving via relays, similar to Mixmaster)(!)
   - Multiple versions wrappers/impl's - how (?)
     - The goal is to achieve ease of protocol upgrade
-- Sending email anonymously
+- Sending email anonymously (with transient keys)(!)
 - GNUTLS support (?)
 - Java Properties to JSON for identities file (?)
 
@@ -97,6 +99,9 @@
 
 ## Any time
 
+- Bundle with pbotectl (?) [issue](http://purplebote.i2p/topics/7)
+- Docs (INSTALL, man, etc.)
+- RFC styled docs for I2P/Bote
 - Platforms build/support:
   - OpenWrt
   - FreeBSD
@@ -108,4 +113,3 @@
   - OpenWRT
   - FreeBSD/OpenBSD
   - Homebrew
-- RFC styled docs for I2P/Bote

@@ -4,10 +4,10 @@
 
 # pboted
 
-pboted (Plus Bote Daemon) - is a standalone C++ implementation of I2P/Bote protocol.
+**pboted** (**P**lus **Bote** **D**aemon) - is a standalone C++ implementation of I2P/Bote protocol.
 
 I2P/Bote is a server-less encrypted KademliaDHT-based email protocol.  
-You can find more details about I2P/Bote [here](https://bote.readthedocs.io/en/latest/)([I2P](http://purplebote.i2p/bote/)).
+You can find more details about I2P/Bote [here](https://bote.readthedocs.io/en/latest/) ([I2P](http://purplebote.i2p/bote/)).
 
 Interaction with the I2P network occurs through the [SAMv3](https://geti2p.net/ru/docs/api/samv3) interface.  
 Tested with [i2pd](https://github.com/PurpleI2P/i2pd) and [Java I2P](https://github.com/i2p/i2p.i2p).
@@ -23,27 +23,25 @@ Transition to **beta** planned in version **0.9.X**
 
 - Sending and receiving emails
 - Support for short recipient names (alias)
-- [End-to-End encryption](https://bote.readthedocs.io/en/latest/v5/cryptography/)([I2P](http://purplebote.i2p/bote/v5/cryptography/))
+- [End-to-End encryption](https://bote.readthedocs.io/en/latest/v5/cryptography/) ([I2P](http://purplebote.i2p/bote/v5/cryptography/))
 - Runnable as UNIX daemon and Windows Service
 - Built-in SMTP and POP3 (tested with [Mozilla Thunderbird](https://www.thunderbird.net/en-US/))
 - Delivery confirmation
-- [CLI utility](https://github.com/PurpleBote/pbotectl) (work in progress)
+- [CLI utility](https://github.com/PurpleBote/pbotectl)
 
 ### Planned Features
 
-- Custom per identity/user email folders
-- Sending and receiving via relays, similar to Mixmaster
-- Sending email anonymously
+See [TODO](TODO.md) for more details.
 
 ## Resources
 
-- [Documentation](https://pboted.readthedocs.io/en/latest/)([I2P](http://purplebote.i2p/pbote/))
-- [Tickets/Issues](https://github.com/PurpleBote/pboted/issues)([I2P](http://purplebote.i2p/forum/9-issues))
+- [Documentation](https://pboted.readthedocs.io/en/latest/) ([I2P](http://purplebote.i2p/pbote/))
+- [Tickets/Issues](https://github.com/PurpleBote/pboted/issues) ([I2P](http://purplebote.i2p/forum/9-issues))
 
 ## Installing
 
 You can fetch precompiled packages and binaries on [release](https://github.com/PurpleBote/pboted/releases/latest) page.  
-Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/)([I2P](http://purplebote.i2p/pbote/user-guide/install/)) for more info.
+Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/) ([I2P](http://purplebote.i2p/pbote/user-guide/install/)) for more info.
 
 ### Supported systems
 
@@ -63,11 +61,11 @@ Please see [documentation](https://pboted.readthedocs.io/en/latest/user-guide/in
 
 ## Building
 
-See [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/#building-from-source)([I2P](http://purplebote.i2p/pbote/user-guide/install/#building-from-source)) for how to build **pboted** from source.
+See [documentation](https://pboted.readthedocs.io/en/latest/user-guide/install/#building-from-source) ([I2P](http://purplebote.i2p/pbote/user-guide/install/#building-from-source)) for how to build **pboted** from source.
 
 ## Usage
 
-See [documentation](https://pboted.readthedocs.io/en/latest/user-guide/usage/)([I2P](http://purplebote.i2p/pbote/user-guide/usage/)) and [example config file](https://github.com/PurpleBote/pboted/blob/master/contrib/pboted.conf).
+See [documentation](https://pboted.readthedocs.io/en/latest/user-guide/usage/) ([I2P](http://purplebote.i2p/pbote/user-guide/usage/)) and [example config file](https://github.com/PurpleBote/pboted/blob/master/contrib/pboted.conf).
 
 ## Donations
 
