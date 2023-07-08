@@ -793,7 +793,7 @@ DHTStorage::loadLocalIndexPackets ()
 
   local_index_packets = temp_index_packets;
   LogPrint(eLogDebug, "DHTStorage: loadLocalIndexPackets: index loaded: ",
-           temp_index_packets.size());
+           local_index_packets.size ());
 }
 
 void
@@ -820,7 +820,7 @@ DHTStorage::loadLocalEmailPackets ()
 
   local_email_packets = temp_email_packets;
   LogPrint(eLogDebug, "DHTStorage: loadLocalEmailPackets: mails loaded: ",
-           temp_email_packets.size());
+           local_email_packets.size ());
 }
 
 void
@@ -843,7 +843,7 @@ DHTStorage::loadLocalContactPackets ()
 
   local_contact_packets = temp_contact_packets;
   LogPrint(eLogDebug, "DHTStorage: loadLocalContactPackets: contacts loaded: ",
-           temp_contact_packets.size());
+           local_contact_packets.size ());
 }
 
 size_t
