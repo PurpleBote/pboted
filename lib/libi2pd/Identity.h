@@ -24,6 +24,8 @@ namespace i2p
 {
 namespace data
 {
+	template<class T> void ignore( const T& ) { }
+
 	typedef Tag<32> IdentHash;
 	inline std::string GetIdentHashAbbreviation (const IdentHash& ident)
 	{
@@ -240,7 +242,11 @@ namespace data
 
 			const IdentHash& GetIdentHash () const { return GetIdentity ()->GetIdentHash (); };
 			virtual bool SupportsEncryptionType (CryptoKeyType keyType) const { return GetIdentity ()->GetCryptoKeyType () == keyType; }; // override for LeaseSet
-			virtual const uint8_t * GetEncryptionPublicKey (CryptoKeyType keyType) const { return GetIdentity ()->GetEncryptionPublicKey (); }; // override for LeaseSet
+			virtual const uint8_t * GetEncryptionPublicKey (CryptoKeyType keyType) const
+			{
+				ignore (keyType);
+				return GetIdentity ()->GetEncryptionPublicKey ();
+			}; // override for LeaseSet
 	};
 }
 }

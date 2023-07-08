@@ -72,6 +72,8 @@
 namespace SAM
 {
 
+template<class T> void ignore( const T& ) { }
+
 typedef u_int SOCKET;
 
 static inline void print_error(const std::string &err)
@@ -82,6 +84,8 @@ static inline void print_error(const std::string &err)
 #else // WIN32
   std::cout << err << "(" << errno << ")" << std::endl;
 #endif // WIN32
+#else
+  ignore (err);
 #endif // DEBUG_ON_STDOUT
 }
 
